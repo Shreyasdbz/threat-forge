@@ -13,6 +13,9 @@ import type {
 	DataFlow,
 	DiagramLayout,
 	Element,
+	Group,
+	Position,
+	Size,
 	ThreatModel,
 	TrustBoundary,
 } from "@/types/threat-model";
@@ -31,6 +34,7 @@ export type DfdNodeData = {
 	trustZone: string;
 	description: string;
 	technologies: string[];
+	architectureGroupId?: string;
 	/** Element fill color */
 	elementFillColor?: string;
 	/** Element stroke color */
@@ -90,6 +94,7 @@ export interface CanvasState {
 
 	// ReactFlow change handlers
 	onNodesChange: OnNodesChange<DfdNode>;
+	resizeArchitectureGroup: (id: string, size: Size) => void;
 	onEdgesChange: OnEdgesChange<DfdEdge>;
 	setViewport: (viewport: Viewport) => void;
 	setPendingLayout: (layout: DiagramLayout | null) => void;
@@ -156,6 +161,41 @@ function writePositionsToModel(model: ThreatModel, nodes: DfdNode[]): ThreatMode
 				size: { width: w, height: h },
 			};
 		}),
+	};
+}
+
+function architectureGroupToNode(group: Group, index: number, canvasId: string): DfdNode {
+	const { width, height } = group.size ?? { width: 420, height: 280 };
+	return {
+		id: canvasId,
+		type: "architectureGroup",
+		position: group.position ?? { x: 680, y: index * 320 },
+		width,
+		height,
+		selectable: false,
+		connectable: false,
+		focusable: false,
+		dragHandle: ".architecture-group-drag-handle",
+		style: { width, height, pointerEvents: "none" },
+		data: {
+			architectureGroupId: group.id,
+			label: group.name,
+			elementType: "",
+			trustZone: "",
+			description: "",
+			technologies: [],
+		},
+	};
+}
+
+function updateGroupGeometry(
+	model: ThreatModel,
+	id: string,
+	geometry: { position?: Position; size?: Size },
+): ThreatModel {
+	return {
+		...model,
+		groups: model.groups?.map((group) => (group.id === id ? { ...group, ...geometry } : group)),
 	};
 }
 
@@ -335,7 +375,18 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 				preDragSnapshot = null;
 				const model = deps.model.getState().model;
 				if (model) {
-					const updated = writePositionsToModel(model, get().nodes);
+					const nodes = get().nodes;
+					let updated = writePositionsToModel(model, nodes);
+					for (const change of changes) {
+						if (change.type !== "position" || change.dragging !== false) continue;
+						const node = nodes.find((candidate) => candidate.id === change.id);
+						if (node?.data.architectureGroupId != null) {
+							updated = updateGroupGeometry(updated, node.data.architectureGroupId, {
+								position: node.position,
+								size: { width: node.width ?? 420, height: node.height ?? 280 },
+							});
+						}
+					}
 					deps.model.setState({ model: updated, isDirty: true });
 				}
 			}
@@ -369,6 +420,19 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 					deps.model.getState().setSelectedBoundary(null);
 				}
 			}
+		},
+		resizeArchitectureGroup: (id, size) => {
+			const { model } = deps.model.getState();
+			const node = get().nodes.find((candidate) => candidate.id === id);
+			if (!model || node?.data.architectureGroupId == null) return;
+			deps.history.getState().pushSnapshot(model);
+			deps.model.setState({
+				model: updateGroupGeometry(model, node.data.architectureGroupId, {
+					position: node.position,
+					size,
+				}),
+				isDirty: true,
+			});
 		},
 
 		onEdgesChange: (changes) => {
@@ -889,9 +953,16 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 				return edge;
 			});
 
-			// Boundaries first (rendered behind), then elements
+			const componentIds = new Set([...boundaryNodes, ...elementNodes].map((node) => node.id));
+			const groupNodes = (model.groups ?? []).map((group, index) => {
+				let canvasId = `architecture-group:${group.id}`;
+				while (componentIds.has(canvasId)) canvasId = `:${canvasId}`;
+				componentIds.add(canvasId);
+				return architectureGroupToNode(group, index, canvasId);
+			});
+
 			set({
-				nodes: [...boundaryNodes, ...elementNodes],
+				nodes: [...boundaryNodes, ...groupNodes, ...elementNodes],
 				edges,
 				pendingLayout: null,
 				...(layout ? { viewport: layout.viewport } : {}),

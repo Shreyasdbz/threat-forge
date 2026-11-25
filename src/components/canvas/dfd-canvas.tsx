@@ -10,7 +10,6 @@ import {
 	ReactFlow,
 	SelectionMode,
 	useReactFlow,
-	ViewportPortal,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { EyeOff, Layers3 } from "lucide-react";
@@ -25,11 +24,13 @@ import { useSettingsStore } from "@/stores/settings-store";
 import { useUiStore } from "@/stores/ui-store";
 import { buildEdgeMenuItems, buildNodeMenuItems, CanvasContextMenu } from "./canvas-context-menu";
 import { DataFlowEdge } from "./edges/data-flow-edge";
+import { ArchitectureGroupNode } from "./nodes/architecture-group-node";
 import { DfdElementNode } from "./nodes/dfd-element-node";
 import { TextAnnotationNode } from "./nodes/text-annotation-node";
 import { TrustBoundaryNode } from "./nodes/trust-boundary-node";
 
 const nodeTypes = {
+	architectureGroup: ArchitectureGroupNode,
 	dfdElement: DfdElementNode,
 	textAnnotation: TextAnnotationNode,
 	trustBoundary: TrustBoundaryNode,
@@ -272,6 +273,7 @@ export function DfdCanvas() {
 	}, []);
 
 	const onNodeClick = useCallback((_event: React.MouseEvent, node: DfdNode) => {
+		if (node.type === "architectureGroup") return;
 		if (node.data.isBoundary) {
 			useModelStore.getState().setSelectedBoundary(node.id);
 		} else {
@@ -297,7 +299,7 @@ export function DfdCanvas() {
 	/** Alt+Drag to duplicate: create ghost at original position, swap positions on drop */
 	const onNodeDragStart = useCallback<OnNodeDrag<DfdNode>>(
 		(event, node) => {
-			if (event.altKey && !node.data.isBoundary) {
+			if (event.altKey && !node.data.isBoundary && node.type !== "architectureGroup") {
 				const model = useModelStore.getState().model;
 				if (!model) return;
 
@@ -384,7 +386,7 @@ export function DfdCanvas() {
 
 	const onNodeContextMenu = useCallback((event: React.MouseEvent, node: DfdNode) => {
 		event.preventDefault();
-		if (node.data.isBoundary) return;
+		if (node.data.isBoundary || node.type === "architectureGroup") return;
 		setContextMenu({ x: event.clientX, y: event.clientY, nodeId: node.id });
 	}, []);
 
@@ -464,10 +466,6 @@ export function DfdCanvas() {
 		const style = getComputedStyle(document.documentElement);
 		return {
 			dotColor: style.getPropertyValue("--color-muted-foreground").trim() || "oklch(0.35 0 0)",
-			minimapNodeColor:
-				style.getPropertyValue("--color-muted-foreground").trim() || "oklch(0.4 0 0)",
-			minimapMaskColor:
-				style.getPropertyValue("--color-background").trim() || "oklch(0.1 0 0 / 0.7)",
 		};
 	}, [effectivePresetId]);
 
@@ -532,37 +530,22 @@ export function DfdCanvas() {
 					size={1}
 					color={canvasColors.dotColor}
 				/>
-				{groups.length > 0 && (
-					<ViewportPortal>
-						{groups.map((group) => {
-							const { position, size } = group;
-							if (!position || !size || size.width <= 0 || size.height <= 0) return null;
-							return (
-								<div
-									key={group.id}
-									aria-hidden="true"
-									className="pointer-events-none absolute rounded-lg border border-primary/40 bg-primary/[0.035]"
-									style={{
-										left: position.x,
-										top: position.y,
-										width: size.width,
-										height: size.height,
-									}}
-								>
-									<span className="absolute left-1 top-1 whitespace-nowrap rounded bg-card px-2 py-0.5 text-xs font-medium text-primary">
-										{group.name}
-									</span>
-								</div>
-							);
-						})}
-					</ViewportPortal>
-				)}
 				<Controls className="!bg-card !border-border !shadow-md [&>button]:!bg-card [&>button]:!border-border [&>button]:!text-foreground [&>button:hover]:!bg-accent" />
 				{minimapVisible && (
 					<MiniMap
 						className="!bg-card !border !border-border !rounded-md !shadow-sm"
-						nodeColor={canvasColors.minimapNodeColor}
-						maskColor={canvasColors.minimapMaskColor}
+						nodeColor={(node) =>
+							node.data.isBoundary || node.type === "architectureGroup"
+								? "transparent"
+								: "var(--color-primary)"
+						}
+						nodeStrokeColor={(node) =>
+							node.type === "architectureGroup" ? "var(--color-primary)" : "var(--color-border)"
+						}
+						nodeStrokeWidth={3}
+						maskColor="color-mix(in srgb, var(--color-background) 45%, transparent)"
+						maskStrokeColor="var(--color-muted-foreground)"
+						maskStrokeWidth={1}
 						style={{ width: 160, height: 120 }}
 					/>
 				)}

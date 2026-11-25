@@ -7,13 +7,44 @@ import {
 	useViewport,
 } from "@xyflow/react";
 import { Lock, Plus } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { nodeToRect } from "@/lib/canvas-utils";
 import { cn } from "@/lib/utils";
 import { type DfdEdgeData, useCanvasStore } from "@/stores/canvas-store";
 import { useHistoryStore } from "@/stores/history-store";
 import { useModelStore } from "@/stores/model-store";
 import { useUiStore } from "@/stores/ui-store";
 import type { ThreatModel } from "@/types/threat-model";
+
+function clearLabelPosition(
+	x: number,
+	y: number,
+	width: number,
+	height: number,
+	nodes: ReturnType<typeof nodeToRect>[],
+	fallback?: { x: number; y: number },
+) {
+	const overlaps = (cx: number, cy: number, node: ReturnType<typeof nodeToRect>) =>
+		cx + width / 2 + 6 > node.x &&
+		cx - width / 2 - 6 < node.x + node.width &&
+		cy + height / 2 + 6 > node.y &&
+		cy - height / 2 - 6 < node.y + node.height;
+	const blocking = nodes.filter((node) => overlaps(x, y, node));
+	if (!blocking.length) return { x, y };
+	if (fallback && !nodes.some((node) => overlaps(fallback.x, fallback.y, node))) return fallback;
+
+	const outside = (rects: typeof nodes) => [
+		{ x: Math.min(...rects.map((node) => node.x)) - width / 2 - 7, y },
+		{ x: Math.max(...rects.map((node) => node.x + node.width)) + width / 2 + 7, y },
+		{ x, y: Math.min(...rects.map((node) => node.y)) - height / 2 - 7 },
+		{ x, y: Math.max(...rects.map((node) => node.y + node.height)) + height / 2 + 7 },
+	];
+	return (
+		[...outside(blocking), ...outside(nodes)]
+			.sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))
+			.find((point) => !nodes.some((node) => overlaps(point.x, point.y, node))) ?? { x, y }
+	);
+}
 
 /**
  * Build a quadratic bezier from source to target that passes through the waypoint.
@@ -49,6 +80,34 @@ export function DataFlowEdge({
 }: EdgeProps) {
 	const edgeData = data as DfdEdgeData | undefined;
 	const { setEdges } = useReactFlow();
+	const nodes = useCanvasStore((state) => state.nodes);
+	const { obstacles, midpoint } = useMemo(() => {
+		const byId = new Map(nodes.map((node) => [node.id, node]));
+		const rects = new Map(
+			nodes
+				.filter((node) => !node.data.isBoundary && node.type !== "architectureGroup")
+				.map((node) => {
+					const rect = nodeToRect(node);
+					const parent = node.parentId ? byId.get(node.parentId) : undefined;
+					return [
+						node.id,
+						parent
+							? { ...rect, x: rect.x + parent.position.x, y: rect.y + parent.position.y }
+							: rect,
+					] as const;
+				}),
+		);
+		const a = rects.get(source);
+		const b = rects.get(target);
+		const midpoint =
+			a && b && source !== target
+				? {
+						x: (a.x + a.width / 2 + b.x + b.width / 2) / 2,
+						y: (a.y + a.height / 2 + b.y + b.height / 2) / 2,
+					}
+				: undefined;
+		return { obstacles: [...rects.values()], midpoint };
+	}, [nodes, source, target]);
 
 	const isSelfLoop = source === target;
 
@@ -76,15 +135,22 @@ export function DataFlowEdge({
 	const hasTextLabel =
 		edgeData?.name || edgeData?.protocol || (edgeData?.data && edgeData.data.length > 0);
 	// Show the label chip if there's text content, authenticated (lock icon), or flow number
-	const hasLabel = hasTextLabel || isAuthenticated || edgeData?.flowNumber != null;
+	const hasLabel = Boolean(hasTextLabel || isAuthenticated || edgeData?.flowNumber != null);
 
 	// Custom label position (user-dragged offset from default)
 	const offsetX = (edgeData?.labelOffsetX as number) ?? 0;
 	const offsetY = (edgeData?.labelOffsetY as number) ?? 0;
 	const hasCustomPosition = offsetX !== 0 || offsetY !== 0;
 
-	const labelX = defaultLabelX + offsetX;
-	const labelY = defaultLabelY + offsetY;
+	const [labelSize, setLabelSize] = useState({ width: 0, height: 0 });
+	const { x: labelX, y: labelY } = clearLabelPosition(
+		defaultLabelX + offsetX,
+		defaultLabelY + offsetY,
+		labelSize.width,
+		labelSize.height,
+		obstacles,
+		hasCustomPosition ? undefined : midpoint,
+	);
 
 	// When a label exists and has been dragged, route edge through the label as a waypoint
 	const edgePath =
@@ -98,6 +164,7 @@ export function DataFlowEdge({
 
 	const [isHovered, setIsHovered] = useState(false);
 	const [isEditing, setIsEditing] = useState(false);
+	const showLabel = hasLabel && !isEditing;
 	const { zoom } = useViewport();
 
 	// --- Draggable label via native pointer events ---
@@ -106,6 +173,28 @@ export function DataFlowEdge({
 	// DOM element stops propagation before it reaches ReactFlow's container,
 	// preventing pane-click deselection and pan/drag interference.
 	const labelRef = useRef<HTMLButtonElement>(null);
+	useLayoutEffect(() => {
+		if (!showLabel) return;
+		const label = labelRef.current;
+		if (!label) return;
+		const measure = () =>
+			setLabelSize((size) =>
+				size.width === label.offsetWidth && size.height === label.offsetHeight
+					? size
+					: { width: label.offsetWidth, height: label.offsetHeight },
+			);
+		measure();
+		let frame = 0;
+		const observer = new ResizeObserver(() => {
+			cancelAnimationFrame(frame);
+			frame = requestAnimationFrame(measure);
+		});
+		observer.observe(label);
+		return () => {
+			observer.disconnect();
+			cancelAnimationFrame(frame);
+		};
+	}, [showLabel]);
 	const isDragging = useRef(false);
 	const didDrag = useRef(false);
 	const dragStartPos = useRef({ x: 0, y: 0 });
@@ -113,10 +202,29 @@ export function DataFlowEdge({
 	const wasSelectedBefore = useRef(false);
 
 	// Keep reactive values in a ref so the native listener always reads fresh values
-	const stateRef = useRef({ offsetX, offsetY, zoom, selected: !!selected });
-	stateRef.current = { offsetX, offsetY, zoom, selected: !!selected };
+	const stateRef = useRef({
+		offsetX,
+		offsetY,
+		labelX,
+		labelY,
+		defaultLabelX,
+		defaultLabelY,
+		zoom,
+		selected: !!selected,
+	});
+	stateRef.current = {
+		offsetX,
+		offsetY,
+		labelX,
+		labelY,
+		defaultLabelX,
+		defaultLabelY,
+		zoom,
+		selected: !!selected,
+	};
 
 	useEffect(() => {
+		if (!showLabel) return;
 		const el = labelRef.current;
 		if (!el) return;
 
@@ -130,7 +238,8 @@ export function DataFlowEdge({
 			e.stopPropagation();
 			e.preventDefault();
 
-			const { offsetX: ox, offsetY: oy, zoom: z, selected: sel } = stateRef.current;
+			const start = stateRef.current;
+			const { offsetX: ox, offsetY: oy, zoom: z, selected: sel } = start;
 			wasSelectedBefore.current = sel;
 
 			// Capture pre-drag model with current label offset baked in (for undo)
@@ -152,7 +261,10 @@ export function DataFlowEdge({
 			isDragging.current = true;
 			didDrag.current = false;
 			dragStartPos.current = { x: e.clientX, y: e.clientY };
-			dragStartOffset.current = { x: ox, y: oy };
+			dragStartOffset.current = {
+				x: start.labelX - start.defaultLabelX,
+				y: start.labelY - start.defaultLabelY,
+			};
 
 			const currentZoom = z;
 
@@ -223,7 +335,7 @@ export function DataFlowEdge({
 			if (activeMoveListener) document.removeEventListener("pointermove", activeMoveListener);
 			if (activeUpListener) document.removeEventListener("pointerup", activeUpListener);
 		};
-	}, [id, setEdges]);
+	}, [id, setEdges, showLabel]);
 
 	return (
 		<>
@@ -287,12 +399,13 @@ export function DataFlowEdge({
 				</path>
 			)}
 			<EdgeLabelRenderer>
-				{hasLabel && !isEditing && (
+				{showLabel && (
 					<button
 						ref={labelRef}
+						data-testid={`flow-label-${id}`}
 						type="button"
 						className={cn(
-							"pointer-events-auto nodrag nopan absolute z-10 flex flex-col items-start gap-0.5 rounded border px-1.5 py-1 text-left transition-colors",
+							"pointer-events-auto nodrag nopan absolute left-0 top-0 z-10 flex w-max max-w-48 flex-col items-start gap-0.5 break-all rounded border px-1.5 py-1 text-left transition-colors",
 							selected
 								? "border-tf-signal bg-tf-signal/10 text-foreground cursor-grab active:cursor-grabbing"
 								: "border-border bg-card text-muted-foreground hover:border-muted-foreground cursor-pointer",

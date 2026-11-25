@@ -110,6 +110,26 @@ describe("clipboard-store", () => {
 			expect(nodes.every((n) => n.selected)).toBe(true);
 		});
 
+		it("does not select architecture group outlines", () => {
+			useModelStore
+				.getState()
+				.setModel({ ...createTestModel(), groups: [{ id: "el-1", name: "Frontend" }] }, null);
+			useCanvasStore.getState().syncFromModel();
+			useClipboardStore.getState().selectAll();
+			const nodes = useCanvasStore.getState().nodes;
+			expect(new Set(nodes.map((node) => node.id)).size).toBe(nodes.length);
+			expect(nodes.find((node) => node.data.architectureGroupId === "el-1")).toMatchObject({
+				type: "architectureGroup",
+				selectable: false,
+			});
+			expect(nodes.filter((node) => node.selected).map((node) => node.id)).toEqual([
+				"boundary-1",
+				"el-1",
+				"el-2",
+				"el-3",
+			]);
+		});
+
 		it("is a no-op when there are no nodes", () => {
 			useClipboardStore.getState().selectAll();
 			expect(useCanvasStore.getState().nodes).toHaveLength(0);

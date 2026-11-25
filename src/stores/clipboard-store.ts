@@ -30,7 +30,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
 	selectAll: () => {
 		const nodes = useCanvasStore.getState().nodes;
 		if (nodes.length === 0) return;
-		const updated = nodes.map((n) => ({ ...n, selected: true }));
+		const updated = nodes.map((n) => (n.selectable === false ? n : { ...n, selected: true }));
 		useCanvasStore.setState({ nodes: updated });
 	},
 
