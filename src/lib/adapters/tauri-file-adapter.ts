@@ -3,6 +3,13 @@ import { confirm } from "@tauri-apps/plugin-dialog";
 import type { ThreatModel } from "@/types/threat-model";
 import type { FileAdapter, OpenedDocument, SavedDocument } from "./file-adapter";
 
+export function checkDocumentUpdate(
+	path: string,
+	revision: string,
+): Promise<(OpenedDocument & { path: string; revision: string; sourceYaml: string }) | null> {
+	return invoke("check_document_update", { path, revision });
+}
+
 export class TauriFileAdapter implements FileAdapter {
 	async createNewModel(title: string, author: string): Promise<ThreatModel> {
 		return invoke<ThreatModel>("create_new_model", { title, author });

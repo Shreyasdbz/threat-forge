@@ -17,6 +17,7 @@ export interface ModelState {
 	filePath: string | null;
 	fileRevision?: string;
 	sourceYaml?: string;
+	fileSync?: "updated" | "conflict" | "unavailable";
 	/** Whether the model has unsaved changes */
 	isDirty: boolean;
 	/** Currently selected element ID */
@@ -131,6 +132,11 @@ export function createModelStore(deps: ModelStoreDeps): StoreApi<ModelState> {
 				fileRevision:
 					fileRevision ?? (state.filePath === filePath ? state.fileRevision : undefined),
 				sourceYaml: sourceYaml ?? (state.filePath === filePath ? state.sourceYaml : undefined),
+				fileSync:
+					state.filePath === filePath &&
+					(fileRevision == null || state.fileRevision === fileRevision)
+						? state.fileSync
+						: undefined,
 				isDirty: false,
 				selectedElementId: null,
 				selectedEdgeId: null,
@@ -144,6 +150,7 @@ export function createModelStore(deps: ModelStoreDeps): StoreApi<ModelState> {
 				filePath: null,
 				fileRevision: undefined,
 				sourceYaml: undefined,
+				fileSync: undefined,
 				isDirty: false,
 				selectedElementId: null,
 				selectedEdgeId: null,

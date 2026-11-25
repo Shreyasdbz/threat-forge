@@ -2,6 +2,7 @@ import { ReactFlowProvider } from "@xyflow/react";
 import { useCallback, useEffect } from "react";
 import { useAutosave } from "@/hooks/use-autosave";
 import { useCloseGuard } from "@/hooks/use-close-guard";
+import { useDocumentSync } from "@/hooks/use-document-sync";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { useNativeMenu } from "@/hooks/use-native-menu";
 import { useOnboardingTriggers } from "@/hooks/use-onboarding-triggers";
@@ -44,6 +45,7 @@ export function AppLayout() {
 	useKeyboardShortcuts();
 	useNativeMenu();
 	useAutosave();
+	const reloadExternalChanges = useDocumentSync();
 	// Browser workspace persistence: restore reads storage after first paint and marks
 	// availability; the autosave hook only writes once it reports available.
 	useWorkspaceRestore();
@@ -167,7 +169,7 @@ export function AppLayout() {
 					)}
 				</div>
 
-				<StatusBar />
+				<StatusBar onReloadExternal={reloadExternalChanges} />
 
 				{/* Dialogs */}
 				{settingsDialogOpen && <SettingsDialog />}

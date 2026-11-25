@@ -367,4 +367,11 @@ npm run ci:docker:build  # Docker lint + test + Tauri build
 | Input Validation | React escapes rendered content by default; LLM output remains untrusted |
 | AI Tool Authorization | Every model-requested mutation is validated, reviewed, and executed only under a single-use grant bound to one call id, tool, canonical input digest, and iteration; the bounded loop is cancellable and undoable. No self-authorization from model output, tool results, or document content — see [`ai-tool-loop.md`](ai-tool-loop.md) |
 
+Desktop checks the exact byte revisions of open, native-dialog-approved `.thf` files.
+Clean tabs reload valid external changes in place; the status bar reports the reload.
+The indicator reports disk changes, not who made them. Dirty tabs keep their edits
+and pause file autosave on conflicts. Use **Save As** to preserve those edits in a
+different file, or confirm **Reload disk version** to discard them. An unreadable
+or invalid file does not replace the open document. Browser tabs do not watch disk.
+
 See [SECURITY.md](../../SECURITY.md) for the full security policy and vulnerability reporting.

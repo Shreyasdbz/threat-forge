@@ -146,7 +146,12 @@ export function useFileOperations() {
 					current.filePath === filePath &&
 					current.fileRevision === expectedRevision
 				) {
-					target.setState({ filePath: path, fileRevision: revision, sourceYaml: savedYaml });
+					target.setState({
+						filePath: path,
+						fileRevision: revision,
+						sourceYaml: savedYaml,
+						fileSync: undefined,
+					});
 				}
 				return true;
 			} catch (err) {

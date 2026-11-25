@@ -98,10 +98,11 @@ function describeLocalPersistence(
 	}
 }
 
-export function StatusBar() {
+export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promise<void> }) {
 	const model = useModelStore((s) => s.model);
 	const isDirty = useModelStore((s) => s.isDirty);
 	const filePath = useModelStore((s) => s.filePath);
+	const fileSync = useModelStore((s) => s.fileSync);
 	const autosaveEnabled = useSettingsStore((s) => s.settings.autosaveEnabled);
 	const pastLength = useHistoryStore((s) => s.past.length);
 	const futureLength = useHistoryStore((s) => s.future.length);
@@ -130,6 +131,7 @@ export function StatusBar() {
 
 	function renderSaveStatus() {
 		if (isDirty) {
+			if (fileSync === "conflict" || fileSync === "unavailable") return "Unsaved changes";
 			return autosaveEnabled && filePath ? "Autosave pending..." : "Unsaved changes";
 		}
 		return "Saved";
@@ -143,6 +145,27 @@ export function StatusBar() {
 			{model ? (
 				<>
 					<span>{renderSaveStatus()}</span>
+					{fileSync && (
+						<>
+							<Separator />
+							<span role="status">
+								{fileSync === "updated"
+									? "Reloaded external changes"
+									: fileSync === "conflict"
+										? "File changed on disk. Use Save As to keep your edits."
+										: "File unavailable on disk. Use Save As to keep a copy."}
+							</span>
+							{fileSync === "conflict" && onReloadExternal && (
+								<button
+									type="button"
+									className="ml-2 font-medium text-foreground underline underline-offset-2"
+									onClick={() => void onReloadExternal()}
+								>
+									Reload disk version
+								</button>
+							)}
+						</>
+					)}
 					{(pastLength > 0 || futureLength > 0) && (
 						<>
 							<Separator />

@@ -10,9 +10,10 @@ mod scene;
 mod stride;
 
 use commands::{
-    analyze_stride, cancel_ai_stream, check_for_update, confirm_quit, create_new_model,
-    delete_api_key, export_html, get_api_key_status, import_threat_model, install_update,
-    open_threat_model, save_threat_model, set_api_key, start_ai_stream, ApprovedDocuments,
+    analyze_stride, cancel_ai_stream, check_document_update, check_for_update, confirm_quit,
+    create_new_model, delete_api_key, export_html, get_api_key_status, import_threat_model,
+    install_update, open_threat_model, save_threat_model, set_api_key, start_ai_stream,
+    ApprovedDocuments,
 };
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -84,6 +85,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             create_new_model,
             open_threat_model,
+            check_document_update,
             save_threat_model,
             analyze_stride,
             set_api_key,

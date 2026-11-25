@@ -20,14 +20,37 @@ pub struct WrittenDocument {
 }
 
 pub fn read_document(path: &Path) -> Result<DocumentSnapshot, ThreatForgeError> {
-    let bytes = fs::read(path).map_err(|source| ThreatForgeError::FileRead {
+    parse_document(path, &read_bytes(path)?)
+}
+
+pub(crate) fn read_document_if_changed(
+    path: &Path,
+    expected: &str,
+) -> Result<Option<DocumentSnapshot>, ThreatForgeError> {
+    let bytes = read_bytes(path)?;
+    let current = revision(&bytes);
+    if current == expected {
+        return Ok(None);
+    }
+    parse_document_with_revision(path, &bytes, current).map(Some)
+}
+
+fn read_bytes(path: &Path) -> Result<Vec<u8>, ThreatForgeError> {
+    fs::read(path).map_err(|source| ThreatForgeError::FileRead {
         path: path.display().to_string(),
         source,
-    })?;
-    parse_document(path, &bytes)
+    })
 }
 
 fn parse_document(path: &Path, bytes: &[u8]) -> Result<DocumentSnapshot, ThreatForgeError> {
+    parse_document_with_revision(path, bytes, revision(bytes))
+}
+
+fn parse_document_with_revision(
+    path: &Path,
+    bytes: &[u8],
+    revision: String,
+) -> Result<DocumentSnapshot, ThreatForgeError> {
     let yaml_error = |source| ThreatForgeError::YamlParse {
         path: path.display().to_string(),
         source,
@@ -37,7 +60,7 @@ fn parse_document(path: &Path, bytes: &[u8]) -> Result<DocumentSnapshot, ThreatF
     validate_model(&model)?;
     Ok(DocumentSnapshot {
         model,
-        revision: revision(bytes),
+        revision,
         raw,
     })
 }

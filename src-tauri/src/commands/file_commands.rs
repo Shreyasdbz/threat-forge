@@ -81,17 +81,37 @@ pub async fn open_threat_model(
             approved.approve(&picked.into_path().map_err(|_| UNAPPROVED)?)?
         }
     };
-    let mut snapshot = file_io::read_document(&path).map_err(|error| error.user_message())?;
+    let snapshot = file_io::read_document(&path).map_err(|error| error.user_message())?;
+    opened_document(path, snapshot).map(Some)
+}
+
+#[tauri::command]
+pub async fn check_document_update(
+    approved: State<'_, ApprovedDocuments>,
+    path: PathBuf,
+    revision: String,
+) -> Result<Option<OpenedDocument>, String> {
+    let path = approved.require(&path)?;
+    file_io::read_document_if_changed(&path, &revision)
+        .map_err(|error| error.user_message())?
+        .map(|snapshot| opened_document(path, snapshot))
+        .transpose()
+}
+
+fn opened_document(
+    path: PathBuf,
+    mut snapshot: file_io::DocumentSnapshot,
+) -> Result<OpenedDocument, String> {
     file_io::merge_layout_into_model(&mut snapshot.model, &path);
     let source_yaml = snapshot
         .source_yaml()
         .map_err(|error| error.user_message())?;
-    Ok(Some(OpenedDocument {
+    Ok(OpenedDocument {
         model: snapshot.model,
         path,
         revision: snapshot.revision,
         source_yaml,
-    }))
+    })
 }
 
 #[tauri::command]
@@ -186,5 +206,32 @@ mod tests {
             std::os::unix::fs::symlink(dir.path().join("private.thf"), &document).unwrap();
             assert!(grants.require(&document).is_err());
         }
+    }
+
+    #[test]
+    fn desktop_update_check_ignores_own_revision_and_loads_atomic_external_edits() {
+        let dir = tempfile::tempdir().unwrap();
+        let grants = ApprovedDocuments::default();
+        let path = grants.approve(&dir.path().join("model.thf")).unwrap();
+        let first = file_io::write_document(&path, None, ThreatModel::new("First", "")).unwrap();
+        assert!(file_io::read_document_if_changed(&path, &first.revision)
+            .unwrap()
+            .is_none());
+
+        let second = file_io::write_document(
+            &path,
+            Some(&first.revision),
+            ThreatModel::new("External", ""),
+        )
+        .unwrap();
+        let update = file_io::read_document_if_changed(&path, &first.revision)
+            .unwrap()
+            .unwrap();
+        let opened = opened_document(path.clone(), update).unwrap();
+        assert_eq!(opened.model.metadata.title, "External");
+        assert_eq!(opened.revision, second.revision);
+
+        std::fs::write(&path, "invalid: [").unwrap();
+        assert!(file_io::read_document_if_changed(&path, &second.revision).is_err());
     }
 }

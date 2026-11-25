@@ -12,6 +12,7 @@ import { useSettingsStore } from "@/stores/settings-store";
 export function useAutosave(): AutosaveStatus {
 	const isDirty = useModelStore((s) => s.isDirty);
 	const filePath = useModelStore((s) => s.filePath);
+	const fileSync = useModelStore((s) => s.fileSync);
 	const enabled = useSettingsStore((s) => s.settings.autosaveEnabled);
 	const intervalSeconds = useSettingsStore((s) => s.settings.autosaveIntervalSeconds);
 	const { saveModel } = useFileOperations();
@@ -28,7 +29,13 @@ export function useAutosave(): AutosaveStatus {
 	}, []);
 
 	useEffect(() => {
-		if (!enabled || !isDirty || !filePath) {
+		if (
+			!enabled ||
+			!isDirty ||
+			!filePath ||
+			fileSync === "conflict" ||
+			fileSync === "unavailable"
+		) {
 			clearTimer();
 			return;
 		}
@@ -48,7 +55,7 @@ export function useAutosave(): AutosaveStatus {
 		}, intervalSeconds * 1000);
 
 		return clearTimer;
-	}, [enabled, isDirty, filePath, intervalSeconds, saveModel, clearTimer]);
+	}, [enabled, isDirty, filePath, fileSync, intervalSeconds, saveModel, clearTimer]);
 
 	// Reset status when dirty changes (user edits after an autosave)
 	useEffect(() => {
