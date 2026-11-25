@@ -1,6 +1,8 @@
+use crate::file_io::merge_layout_into_model;
 use crate::models::{Position, Size, ThreatModel};
-use crate::scene::{COLUMN_GAP, CONTAINER_INSET, ELEMENT_HEIGHT, ELEMENT_WIDTH, ROW_GAP};
+use crate::scene::{Scene, COLUMN_GAP, CONTAINER_INSET, ELEMENT_HEIGHT, ELEMENT_WIDTH, ROW_GAP};
 use std::collections::HashSet;
+use std::path::Path;
 
 pub(super) const MAX_COORD: f64 = 100_000.0;
 
@@ -11,26 +13,23 @@ pub(super) fn size_of(size: Option<&Size>) -> Size {
     })
 }
 
-pub(super) fn position(
-    model: &mut ThreatModel,
+fn position_slot<'a>(
+    model: &'a mut ThreatModel,
     id: &str,
-    x: f64,
-    y: f64,
-    relative: bool,
-) -> Result<(), String> {
-    let slot = if let Some(element) = model.elements.iter_mut().find(|node| node.id == id) {
-        &mut element.position
+) -> Result<&'a mut Option<Position>, String> {
+    if let Some(element) = model.elements.iter_mut().find(|node| node.id == id) {
+        Ok(&mut element.position)
     } else if let Some(boundary) = model.trust_boundaries.iter_mut().find(|node| node.id == id) {
-        &mut boundary.position
+        Ok(&mut boundary.position)
     } else if let Some(group) = model.groups.iter_mut().find(|node| node.id == id) {
-        &mut group.position
+        Ok(&mut group.position)
     } else {
-        return Err(format!("Node not found: {id}"));
-    };
-    let (x, y) = match (relative, slot.as_ref()) {
-        (true, Some(old)) => (x + old.x, y + old.y),
-        _ => (x, y),
-    };
+        Err(format!("Node not found: {id}"))
+    }
+}
+
+pub(super) fn position(model: &mut ThreatModel, id: &str, x: f64, y: f64) -> Result<(), String> {
+    let slot = position_slot(model, id)?;
     if ![x, y]
         .into_iter()
         .all(|value| value.is_finite() && value.abs() <= MAX_COORD)
@@ -39,6 +38,24 @@ pub(super) fn position(
     }
     *slot = Some(Position { x, y });
     Ok(())
+}
+
+pub(super) fn move_node(
+    model: &mut ThreatModel,
+    path: &Path,
+    id: &str,
+    dx: f64,
+    dy: f64,
+) -> Result<(), String> {
+    let origin = match position_slot(model, id)?.clone() {
+        Some(position) => position,
+        None => {
+            let mut resolved = model.clone();
+            merge_layout_into_model(&mut resolved, path);
+            Scene::node_position(&resolved, id)?
+        }
+    };
+    position(model, id, origin.x + dx, origin.y + dy)
 }
 
 pub(super) fn resize(

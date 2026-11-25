@@ -212,7 +212,7 @@ enum Mutation {
 }
 
 impl Mutation {
-    fn apply(self, model: &mut ThreatModel) -> Result<String, ErrorData> {
+    fn apply(self, model: &mut ThreatModel, path: &Path) -> Result<String, ErrorData> {
         match self {
             Self::AddElement(req) => ThreatForgeServer::apply_add_element(model, req),
             Self::UpdateElement(req) => ThreatForgeServer::apply_update_element(model, req),
@@ -226,11 +226,11 @@ impl Mutation {
             Self::AddThreat(req) => ThreatForgeServer::apply_add_threat(model, req),
             Self::DeleteThreat(req) => ThreatForgeServer::apply_delete_threat(model, req),
             Self::SetPosition(req) => {
-                layout::position(model, &req.id, req.x, req.y, false).map_err(mcp_err)?;
+                layout::position(model, &req.id, req.x, req.y).map_err(mcp_err)?;
                 Ok(format!("Positioned node: {}", req.id))
             }
             Self::MoveNode(req) => {
-                layout::position(model, &req.id, req.dx, req.dy, true).map_err(mcp_err)?;
+                layout::move_node(model, path, &req.id, req.dx, req.dy).map_err(mcp_err)?;
                 Ok(format!("Moved node: {}", req.id))
             }
             Self::ResizeNode(req) => {
@@ -467,7 +467,7 @@ impl ThreatForgeServer {
         for (index, mutation) in req.operations.into_iter().enumerate() {
             let before = model.clone();
             let result = mutation
-                .apply(&mut model)
+                .apply(&mut model, &path)
                 .map_err(|error| mcp_err(format!("Operation {}: {}", index + 1, error.message)))?;
             prepare_document(Some(&before), &mut model).map_err(|error| {
                 mcp_err(format!("Operation {}: {}", index + 1, error.user_message()))
@@ -852,7 +852,7 @@ impl ThreatForgeServer {
                 ..
             },
         ) = self.read()?;
-        let result = mutation.apply(&mut model)?;
+        let result = mutation.apply(&mut model, &path)?;
         self.save(&path, &revision, model)?;
         Ok(text_result(result))
     }

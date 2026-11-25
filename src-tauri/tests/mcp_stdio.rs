@@ -451,3 +451,37 @@ fn workspace_batches_are_atomic_and_undo_redo_refuses_external_edits() {
     assert!(conflict.to_string().contains("changed on disk"));
     assert_eq!(std::fs::read_to_string(&path).unwrap(), external);
 }
+
+#[test]
+fn workspace_relative_moves_use_sidecar_and_scene_fallback_positions() {
+    let dir = tempfile::tempdir().unwrap();
+    let original = MODEL_THF
+        .replace("elements: []", "elements:\n- id: api\n  type: process\n  name: API\n- id: worker\n  type: process\n  name: Worker")
+        .replace("  name: Level 0 DFD", "  name: Level 0 DFD\n  layout_file: layout.json");
+    std::fs::write(dir.path().join("work.thf"), original).unwrap();
+    std::fs::write(
+        dir.path().join("layout.json"),
+        br#"{"diagram_id":"main-dfd","viewport":{"x":0,"y":0,"zoom":1},"nodes":[{"id":"api","x":120,"y":240}]}"#,
+    )
+    .unwrap();
+    let mut server = McpServer::spawn_workspace(dir.path());
+    server.start_workspace();
+    server.tool(2, "open_document", json!({ "path": "work.thf" }));
+    server.tool(3, "move_node", json!({ "id": "api", "dx": 10, "dy": -20 }));
+    server.tool_json(
+        4,
+        "batch_transaction",
+        json!({ "operations": [
+        { "tool": "move_node", "arguments": { "id": "worker", "dx": 10, "dy": -20 } }
+    ] }),
+    );
+    let model = server.tool_json(5, "get_model", json!({}));
+    assert_eq!(
+        model["elements"][0]["position"],
+        json!({ "x": 130.0, "y": 220.0 })
+    );
+    assert_eq!(
+        model["elements"][1]["position"],
+        json!({ "x": 402.0, "y": 28.0 })
+    );
+}

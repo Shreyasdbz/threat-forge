@@ -103,6 +103,27 @@ pub(crate) struct Scene<'a> {
 
 impl<'a> Scene<'a> {
     pub fn from_model(model: &'a ThreatModel) -> Result<Self, &'static str> {
+        Self::build(model, |_, _| {})
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn node_position(model: &'a ThreatModel, id: &str) -> Result<Position, String> {
+        let mut position = None;
+        Self::build(model, |node_id, rect| {
+            if node_id == id {
+                position = Some(Position {
+                    x: rect.x,
+                    y: rect.y,
+                });
+            }
+        })?;
+        position.ok_or_else(|| format!("Node not found: {id}"))
+    }
+
+    fn build(
+        model: &'a ThreatModel,
+        mut local_rect: impl FnMut(&str, Rect),
+    ) -> Result<Self, &'static str> {
         if model.elements.len()
             + model.groups.len()
             + model.trust_boundaries.len()
@@ -127,6 +148,7 @@ impl<'a> Scene<'a> {
                     height: 300.0,
                 },
             );
+            local_rect(&boundary.id, rect);
             for id in &boundary.contains {
                 membership.insert(id.as_str(), rect);
             }
@@ -158,6 +180,7 @@ impl<'a> Scene<'a> {
                     height: 280.0,
                 },
             );
+            local_rect(&group.id, rect);
             rects.insert(group.id.as_str(), rect);
             containers.push(Node {
                 caption: String::new(),
@@ -201,7 +224,13 @@ impl<'a> Scene<'a> {
             );
             // Trust boundary children use relative coordinates in the editor. Architecture
             // groups supply a fallback origin only when an element has no explicit position.
-            if let Some(parent) = boundary.or(group.filter(|_| element.position.is_none())) {
+            if let Some(group) = group.filter(|_| boundary.is_none() && element.position.is_none())
+            {
+                rect.x += group.x;
+                rect.y += group.y;
+            }
+            local_rect(&element.id, rect);
+            if let Some(parent) = boundary {
                 rect.x += parent.x;
                 rect.y += parent.y;
             }
