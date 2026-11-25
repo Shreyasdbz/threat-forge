@@ -55,7 +55,10 @@ export function describeActionReview(
 	action: AiAction,
 	impact: ReturnType<typeof reviewDeletion>,
 ): string {
-	const summary = describeAction(action);
+	const singleLine = (text: string) => text.replace(/[\s\p{Cc}\p{Bidi_Control}]+/gu, " ").trim();
+	const summary = isDestructiveAction(action.action)
+		? singleLine(describeAction(action))
+		: describeAction(action);
 	if (!impact) return summary;
 	const impacts = [
 		[
@@ -65,7 +68,10 @@ export function describeActionReview(
 		["Relationships removed", impact.relationships.map(({ id }) => id)],
 		[
 			action.action === "delete_threat" ? "Threat" : "Threats removed",
-			impact.threats.map(({ id, title, category }) => `${title} (${category}; ${id})`),
+			impact.threats.map(
+				({ id, title, category }) =>
+					`${singleLine(title)} (${singleLine(category)}; ${singleLine(id)})`,
+			),
 		],
 		["Membership removed from boundaries", impact.membership],
 	] as const;
@@ -73,7 +79,7 @@ export function describeActionReview(
 		summary,
 		...impacts
 			.filter(([, ids]) => ids.length > 0)
-			.map(([label, ids]) => `${label}: ${ids.join(", ")}`),
+			.map(([label, ids]) => `${label}: ${ids.map(singleLine).join(", ")}`),
 	].join("\n");
 }
 
