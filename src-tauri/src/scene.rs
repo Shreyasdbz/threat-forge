@@ -397,6 +397,17 @@ impl<'a> Scene<'a> {
                 bottom = bottom.max(label_y + 32.0);
             }
         }
+        if !shapes.offset_labels.is_empty() {
+            let labels = parse_svg(&format!(
+                r#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><g font-family="{INTER_FAMILY}, sans-serif">{}</g></svg>"#,
+                shapes.offset_labels
+            ))?;
+            let bounds = labels.root().abs_bounding_box();
+            x = x.min(f64::from(bounds.left()) - 8.0);
+            y = y.min(f64::from(bounds.top()) - 8.0);
+            right = right.max(f64::from(bounds.right()) + 8.0);
+            bottom = bottom.max(f64::from(bounds.bottom()) + 8.0);
+        }
         for node in &self.nodes {
             node.draw(&mut shapes);
         }
@@ -433,6 +444,7 @@ impl<'a> Scene<'a> {
 #[derive(Default)]
 struct SvgShapes {
     markup: String,
+    offset_labels: String,
     characters: IntSet<u32>,
 }
 
@@ -573,10 +585,18 @@ impl Edge<'_> {
         } else {
             ""
         };
-        let _ = writeln!(
+        let _ = write!(
             shapes.markup,
-            r##"<path d="{path}" fill="none" stroke="#606973" stroke-width="1.25" marker-end="url(#arrow)"{dash}/><text x="{label_x:.2}" y="{label_y:.2}" text-anchor="{anchor}" font-size="13" font-weight="500" fill="#505863">{label}</text>"##
+            r##"<path d="{path}" fill="none" stroke="#606973" stroke-width="1.25" marker-end="url(#arrow)"{dash}/>"##
         );
+        let text = format!(
+            r##"<text x="{label_x:.2}" y="{label_y:.2}" text-anchor="{anchor}" font-size="13" font-weight="500" fill="#505863">{label}</text>"##
+        );
+        shapes.markup.push_str(&text);
+        shapes.markup.push('\n');
+        if self.offset != (0.0, 0.0) && !label.is_empty() {
+            shapes.offset_labels.push_str(&text);
+        }
         (label_x, label_y)
     }
 }
@@ -622,7 +642,7 @@ fn xml_text(text: impl Iterator<Item = char>) -> String {
     output
 }
 
-fn png(svg: &str) -> Result<Vec<u8>, &'static str> {
+fn parse_svg(svg: &str) -> Result<usvg::Tree, &'static str> {
     static FONTS: OnceLock<std::sync::Arc<usvg::fontdb::Database>> = OnceLock::new();
     let fontdb = FONTS.get_or_init(|| {
         let mut db = usvg::fontdb::Database::new();
@@ -642,7 +662,11 @@ fn png(svg: &str) -> Result<Vec<u8>, &'static str> {
         fontdb: fontdb.clone(),
         ..Default::default()
     };
-    let tree = usvg::Tree::from_str(svg, &options).map_err(|_| "Could not render the diagram.")?;
+    usvg::Tree::from_str(svg, &options).map_err(|_| "Could not render the diagram.")
+}
+
+fn png(svg: &str) -> Result<Vec<u8>, &'static str> {
+    let tree = parse_svg(svg)?;
     let size = tree.size().to_int_size();
     if size.width() > MAX_SIDE as u32 || size.height() > MAX_SIDE as u32 {
         return Err("The diagram is too large to render.");
@@ -693,6 +717,53 @@ mod tests {
             .markup
             .contains("M20.00 10.00 Q84.00 34.00 100.00 10.00"));
         assert!(shapes.markup.contains("<text x=\"72.00\" y=\"22.00\""));
+    }
+
+    #[test]
+    fn export_bounds_fit_a_wide_offset_label() {
+        let from = Rect {
+            x: 0.0,
+            y: 0.0,
+            width: 20.0,
+            height: 20.0,
+        };
+        let to = Rect { x: 100.0, ..from };
+        let scene = Scene {
+            title: "Wide flow label",
+            containers: vec![],
+            nodes: vec![],
+            edges: vec![Edge {
+                from,
+                to,
+                name: "WWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+                dashed: false,
+                loops: false,
+                lane: 0,
+                offset: (1000.0, 0.0),
+            }],
+        };
+        let svg = scene.svg().unwrap();
+        let width = |svg: &str| {
+            svg.split("viewBox=\"")
+                .nth(1)
+                .unwrap()
+                .split_whitespace()
+                .nth(2)
+                .unwrap()
+                .parse::<f64>()
+                .unwrap()
+        };
+        let mut shapes = SvgShapes::default();
+        scene.edges[0].draw(&mut shapes);
+        let measured = parse_svg(&format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><g font-family="{INTER_FAMILY}, sans-serif">{}</g></svg>"#,
+            shapes.offset_labels
+        )).unwrap();
+        let right = f64::from(measured.root().abs_bounding_box().right());
+        assert!(right > 1060.0 + 64.0);
+        assert!(width(&svg) >= right + 7.99);
+        let png = tiny_skia::Pixmap::decode_png(&scene.png().unwrap()).unwrap();
+        assert_eq!(f64::from(png.width()), width(&svg).ceil());
     }
 
     #[test]
