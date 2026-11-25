@@ -413,4 +413,26 @@ mod tests {
         assert_eq!(copy.model.elements[0].position.as_ref().unwrap().x, 120.0);
         assert_eq!(std::fs::read_to_string(&source).unwrap(), externally_edited);
     }
+
+    #[test]
+    fn desktop_poller_loads_yaml_edits_when_layout_remains_unavailable() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("model.thf");
+        let yaml = include_str!("../../../tests/fixtures/thf/legacy-sidecar/model.thf");
+        std::fs::write(&path, yaml).unwrap();
+        let opened = file_io::read_desktop_document(&path).unwrap();
+        let edited = yaml.replace("title:", "title: Changed #");
+        std::fs::write(&path, &edited).unwrap();
+        let update = file_io::read_document_if_changed(&path, &opened.revision)
+            .unwrap()
+            .unwrap();
+        assert_eq!(update.model.metadata.title, "Changed");
+        assert!(update.model.diagrams[0].viewport.is_none());
+
+        std::fs::write(&path, edited.replace("main-dfd.json", "other.json")).unwrap();
+        assert!(matches!(
+            file_io::read_document_if_changed(&path, &update.revision),
+            Err(crate::errors::ThreatForgeError::LegacyLayoutUnavailable)
+        ));
+    }
 }

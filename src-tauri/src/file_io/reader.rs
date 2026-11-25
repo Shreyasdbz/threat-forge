@@ -28,7 +28,7 @@ pub fn merge_layout_into_model(model: &mut ThreatModel, model_path: &Path) {
 }
 
 #[derive(Default, serde::Serialize)]
-pub(crate) struct LegacyLayouts(Vec<(usize, Option<DiagramLayout>)>);
+pub(crate) struct LegacyLayouts(Vec<(usize, String, Option<DiagramLayout>)>);
 
 impl LegacyLayouts {
     pub(crate) fn capture(
@@ -46,7 +46,7 @@ impl LegacyLayouts {
                         return None;
                     };
                     let layout = read(Path::new(layout_file));
-                    Some((index, layout))
+                    Some((index, layout_file.clone(), layout))
                 })
                 .collect(),
         )
@@ -57,11 +57,11 @@ impl LegacyLayouts {
     }
 
     pub(crate) fn has_unavailable(&self) -> bool {
-        self.0.iter().any(|(_, layout)| layout.is_none())
+        self.0.iter().any(|(_, _, layout)| layout.is_none())
     }
 
     pub fn merge_into(&self, model: &mut ThreatModel) {
-        for (index, layout) in &self.0 {
+        for (index, _, layout) in &self.0 {
             let Some(layout) = layout else { continue };
             let diagram = &mut model.diagrams[*index];
 

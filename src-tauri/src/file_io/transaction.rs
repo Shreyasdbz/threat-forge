@@ -39,16 +39,20 @@ pub(crate) fn read_document_if_changed(
     expected: &str,
 ) -> Result<Option<DocumentSnapshot>, ThreatForgeError> {
     let snapshot = read_desktop_document(path)?;
-    if snapshot.revision != expected
-        && snapshot
-            .model
-            .diagrams
-            .iter()
-            .any(|diagram| diagram.layout_file.is_some() && diagram.viewport.is_none())
+    if snapshot.revision == expected {
+        return Ok(None);
+    }
+    let layout = desktop_layout_state(&snapshot.revision);
+    if layout.is_some_and(|layout| layout.starts_with("unavailable:"))
+        && layout != desktop_layout_state(expected)
     {
         return Err(ThreatForgeError::LegacyLayoutUnavailable);
     }
-    Ok((snapshot.revision != expected).then_some(snapshot))
+    Ok(Some(snapshot))
+}
+
+fn desktop_layout_state(revision: &str) -> Option<&str> {
+    revision.split_once(':').map(|(_, layout)| layout)
 }
 
 pub(crate) fn read_desktop_document(path: &Path) -> Result<DocumentSnapshot, ThreatForgeError> {
@@ -189,8 +193,8 @@ pub(crate) fn verify_desktop_copy_source(
             .any(|diagram| diagram.layout_file.is_some() && diagram.viewport.is_none())
         {
             let captured_layout = expected
-                .and_then(|revision| revision.split_once(':'))
-                .is_some_and(|(_, layout)| layout.starts_with("loaded:"));
+                .and_then(desktop_layout_state)
+                .is_some_and(|layout| layout.starts_with("loaded:"));
             if !captured_layout {
                 return Err(ThreatForgeError::LegacyLayoutUnavailable);
             }
