@@ -257,11 +257,23 @@ enum Mutation {
 }
 
 impl Mutation {
+    fn changes_layout(&self) -> bool {
+        matches!(
+            self,
+            Self::SetPosition(_) | Self::MoveNode(_) | Self::ResizeNode(_) | Self::AutoLayout(_)
+        )
+    }
+
     fn apply_prepared(
         self,
         model: &mut ThreatModel,
         layouts: &LegacyLayouts,
     ) -> Result<serde_json::Value, ErrorData> {
+        if self.changes_layout() && layouts.has_unavailable() {
+            return Err(mcp_err(
+                crate::errors::ThreatForgeError::LegacyLayoutUnavailable.user_message(),
+            ));
+        }
         let reports_cascade = matches!(&self, Self::DeleteElement(_) | Self::DeleteDataFlow(_));
         let before = model.clone();
         let message = self.apply(model, layouts)?;
@@ -984,7 +996,7 @@ impl ThreatForgeServer {
                 ..
             },
         ) = self.read_target()?;
-        let layouts = if matches!(&mutation, Mutation::MoveNode(_)) {
+        let layouts = if mutation.changes_layout() {
             path.read_layouts(&model)
         } else {
             LegacyLayouts::default()

@@ -533,6 +533,65 @@ fn workspace_batch_preview_is_scoped_to_the_selected_document() {
     );
 }
 
+#[test]
+fn workspace_layout_mutations_refuse_unavailable_legacy_geometry() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("work.thf");
+    let original = MODEL_THF
+        .replace(
+            "elements: []",
+            "elements:\n- id: api\n  type: process\n  name: API",
+        )
+        .replace(
+            "  name: Level 0 DFD",
+            "  name: Level 0 DFD\n  layout_file: layout.json",
+        );
+    std::fs::write(&path, &original).unwrap();
+    let layout = r#"{"diagram_id":"main-dfd","viewport":{"x":0,"y":0,"zoom":1},"nodes":[{"id":"api","x":120,"y":240}]}"#;
+    let sidecar = dir.path().join("layout.json");
+    std::fs::write(&sidecar, format!("{layout}{}", " ".repeat(4 * 1024 * 1024))).unwrap();
+    let mut server = McpServer::spawn_workspace(dir.path());
+    server.start_workspace();
+    server.tool(2, "open_document", json!({ "path": "work.thf" }));
+    let move_args = json!({ "id": "api", "dx": 10, "dy": -20 });
+    let moved = server.request_raw(
+        3,
+        "tools/call",
+        json!({
+            "name": "move_node", "arguments": move_args
+        }),
+    );
+    assert!(
+        moved
+            .to_string()
+            .contains("legacy layout could not be loaded safely"),
+        "{moved}"
+    );
+    let batch = server.request_raw(
+        4,
+        "tools/call",
+        json!({
+            "name": "batch_transaction", "arguments": {"operations":[
+                {"tool":"move_node","arguments": move_args}
+            ]}
+        }),
+    );
+    assert!(
+        batch
+            .to_string()
+            .contains("legacy layout could not be loaded safely"),
+        "{batch}"
+    );
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    std::fs::write(&sidecar, layout).unwrap();
+    server.tool(5, "move_node", move_args);
+    let model = server.tool_json(6, "get_model", json!({}));
+    assert_eq!(
+        model["elements"][0]["position"],
+        json!({ "x": 130.0, "y": 220.0 })
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn workspace_rejects_a_replaced_root() {

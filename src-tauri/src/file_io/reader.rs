@@ -56,7 +56,7 @@ impl LegacyLayouts {
         self.0.is_empty()
     }
 
-    pub(super) fn has_unavailable(&self) -> bool {
+    pub(crate) fn has_unavailable(&self) -> bool {
         self.0.iter().any(|(_, layout)| layout.is_none())
     }
 
