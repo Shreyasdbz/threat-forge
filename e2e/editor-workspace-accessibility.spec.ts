@@ -1,0 +1,86 @@
+import { expect, test } from "./fixtures";
+import { assertNoSeriousAccessibilityViolations } from "./support/accessibility";
+import { openDocument } from "./support/interactions";
+
+const fixture = "tests/fixtures/thf/architecture-canonical-full.thf";
+
+for (const colorScheme of ["light", "dark"] as const) {
+	test.describe(`${colorScheme} editor`, () => {
+		test.use({ colorScheme });
+
+		test("main editor states pass automated WCAG checks", async ({ page }) => {
+			await page.goto("/app");
+			await expect(page.getByTestId("empty-canvas")).toBeVisible();
+			await test.step("empty workspace", async () => {
+				await assertNoSeriousAccessibilityViolations(page);
+			});
+			await openDocument(page, fixture);
+			await page.getByTestId("node-web-app").click();
+			await expect(page.getByRole("heading", { name: "Web Application" })).toBeVisible();
+
+			for (const tab of ["Properties", "Architecture", "Threats", "AI"]) {
+				await test.step(tab, async () => {
+					await page.getByRole("tab", { name: tab, exact: true }).click();
+					await expect(page.getByRole("tabpanel", { name: tab, exact: true })).toBeVisible();
+					await assertNoSeriousAccessibilityViolations(page);
+				});
+			}
+
+			await test.step("settings", async () => {
+				await page.getByTestId("btn-settings-dialog").click();
+				await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+				await assertNoSeriousAccessibilityViolations(page);
+			});
+		});
+	});
+}
+
+test("operates the inspector, dialogs and a canvas selection by keyboard", async ({ page }) => {
+	await page.goto("/app");
+	await openDocument(page, fixture);
+	const tabs = page.getByRole("tablist", { name: "Inspector" });
+	const properties = tabs.getByRole("tab", { name: "Properties" });
+	const architecture = tabs.getByRole("tab", { name: "Architecture" });
+	await properties.focus();
+	await page.keyboard.press("ArrowRight");
+	await expect(architecture).toBeFocused();
+	await expect(properties).toHaveAttribute("aria-selected", "true");
+	await page.keyboard.press("Enter");
+	await expect(architecture).toHaveAttribute("aria-selected", "true");
+	await page.keyboard.press("Tab");
+	await expect(page.getByRole("tabpanel", { name: "Architecture", exact: true })).toBeFocused();
+
+	const settings = page.getByTestId("btn-settings-dialog");
+	await settings.press("Enter");
+	const dialog = page.getByRole("dialog", { name: "Settings" });
+	await expect(dialog).toBeVisible();
+	await expect(dialog.getByRole("button", { name: "General" })).toBeFocused();
+	await page.keyboard.press("Escape");
+	await expect(dialog).toBeHidden();
+	await expect(settings).toBeFocused();
+
+	await page.keyboard.press("Control+k");
+	const commands = page.getByRole("dialog", { name: "Command palette" });
+	await expect(commands.getByRole("textbox", { name: "Search commands" })).toBeFocused();
+	await page.keyboard.press("ArrowDown");
+	await page.keyboard.press("Escape");
+	await expect(commands).toBeHidden();
+	await expect(settings).toBeFocused();
+
+	await page.getByRole("button", { name: "Select boundary" }).first().press("Enter");
+	await expect(properties).toHaveAttribute("aria-selected", "true");
+	await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(
+		"Corporate Network",
+	);
+});
+
+test("reflows editor chrome at a 200% zoom-equivalent viewport", async ({ page }) => {
+	await page.setViewportSize({ width: 720, height: 450 });
+	await page.goto("/app");
+	await openDocument(page, fixture);
+	const tabs = page.getByRole("tablist", { name: "Inspector" });
+	await tabs.getByRole("tab", { name: "Architecture" }).scrollIntoViewIfNeeded();
+	await expect(tabs).toBeInViewport();
+	await expect(page.getByRole("main")).toHaveCSS("min-height", "320px");
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(720);
+});

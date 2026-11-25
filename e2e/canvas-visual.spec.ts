@@ -133,6 +133,16 @@ test.describe("Canvas Visual Regression", () => {
 });
 
 for (const colorScheme of ["light", "dark"] as const) {
+	test(`selected component inspector matches the ${colorScheme} baseline`, async ({ page }) => {
+		await page.emulateMedia({ colorScheme });
+		await page.goto("/app");
+		await openDocument(page, "tests/fixtures/thf/architecture-canonical-full.thf");
+		await page.getByTestId("node-web-app").click();
+		const inspector = page.getByTestId("right-panel");
+		await expect(inspector.getByRole("heading", { name: "Web Application" })).toBeVisible();
+		await expect(inspector).toHaveScreenshot(`inspector-properties-${colorScheme}.png`);
+	});
+
 	test(`architecture canvas and minimap match the ${colorScheme} baseline`, async ({ page }) => {
 		await page.emulateMedia({ colorScheme });
 		await page.goto("/app");
