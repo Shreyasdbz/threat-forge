@@ -139,8 +139,10 @@ export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promi
 				: "File changed on disk. Use Save As to keep your edits."
 			: fileSync === "layout-unavailable" && !desktopMissingSidecar
 				? "Layout sidecar unavailable on disk. Restore it and reopen, or use Save As to keep the loaded layout."
-				: fileSync === "unavailable" && !desktopMissingSidecar
-					? "File unavailable on disk. Use Save As to keep a copy."
+				: fileSync === "unavailable"
+					? desktopMissingSidecar
+						? "File unavailable on disk."
+						: "File unavailable on disk. Use Save As to keep a copy."
 					: fileSync === "updated" && !desktopMissingSidecar
 						? "Reloaded external changes"
 						: null;

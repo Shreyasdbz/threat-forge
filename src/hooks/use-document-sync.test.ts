@@ -85,7 +85,8 @@ describe("desktop document sync", () => {
 		stores.model.getState().setModel(legacy, path, "one");
 		mocks.checkDocumentUpdate
 			.mockResolvedValueOnce({ ...update, model: { ...legacy, metadata: update.model.metadata } })
-			.mockRejectedValueOnce("legacy_layout_unavailable");
+			.mockRejectedValueOnce("legacy_layout_unavailable")
+			.mockRejectedValueOnce("Invalid file");
 		renderHook(() => useDocumentSync());
 		render(createElement(StatusBar));
 		const bar = screen.getByTestId("status-bar");
@@ -97,6 +98,13 @@ describe("desktop document sync", () => {
 		expect(bar).toHaveTextContent("Restore it and reopen before saving.");
 		await poll();
 		expect(stores.model.getState().fileSync).toBe("layout-unavailable");
+		expect(bar).not.toHaveTextContent("Save As");
+		await poll();
+		expect(stores.model.getState().fileSync).toBe("unavailable");
+		expect(screen.getByText("File unavailable on disk.")).toBeVisible();
+		expect(
+			screen.getByText("Layout sidecar not loaded. Restore it and reopen before saving."),
+		).toBeVisible();
 		expect(bar).not.toHaveTextContent("Save As");
 	});
 
