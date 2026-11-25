@@ -26,6 +26,7 @@ pub struct WrittenDocument {
     pub yaml: String,
 }
 
+#[cfg(test)]
 pub fn read_document(path: &Path) -> Result<DocumentSnapshot, ThreatForgeError> {
     parse_document(path, &read_bytes(path)?)
 }
@@ -34,14 +35,31 @@ pub(crate) fn read_document_if_changed(
     path: &Path,
     expected: &str,
 ) -> Result<Option<DocumentSnapshot>, ThreatForgeError> {
-    let bytes = read_bytes(path)?;
-    let current = revision(&bytes);
-    if current == expected {
-        return Ok(None);
-    }
-    parse_document_with_revision(path, &bytes, current).map(Some)
+    let snapshot = read_desktop_document(path)?;
+    Ok((snapshot.revision != expected).then_some(snapshot))
 }
 
+pub(crate) fn read_desktop_document(path: &Path) -> Result<DocumentSnapshot, ThreatForgeError> {
+    let target = WriteTarget::from_path(path)?;
+    let mut snapshot = target.read_document()?;
+    let layouts = target.read_layouts(&snapshot.model);
+    snapshot.revision = desktop_revision(&snapshot.revision, &layouts)?;
+    layouts.merge_into(&mut snapshot.model);
+    Ok(snapshot)
+}
+
+fn desktop_revision(content: &str, layouts: &LegacyLayouts) -> Result<String, ThreatForgeError> {
+    if layouts.is_empty() {
+        return Ok(content.to_owned());
+    }
+    let bytes = serde_json::to_vec(layouts).map_err(|source| ThreatForgeError::JsonParse {
+        path: "diagram layout".into(),
+        source,
+    })?;
+    Ok(format!("{content}:{}", revision(&bytes)))
+}
+
+#[cfg(test)]
 fn read_bytes(path: &Path) -> Result<Vec<u8>, ThreatForgeError> {
     fs::read(path).map_err(|source| ThreatForgeError::FileRead {
         path: path.display().to_string(),
@@ -86,12 +104,26 @@ pub(crate) fn commit_document(
     write_document(path, expected, proposed).map(|written| written.revision)
 }
 
+#[cfg(test)]
 pub fn write_document(
     path: &Path,
     expected: Option<&str>,
     proposed: ThreatModel,
 ) -> Result<WrittenDocument, ThreatForgeError> {
     WriteTarget::from_path(path)?.write_document(expected, proposed)
+}
+
+pub(crate) fn write_desktop_document(
+    path: &Path,
+    expected: &str,
+    proposed: ThreatModel,
+) -> Result<WrittenDocument, ThreatForgeError> {
+    write_with_base(
+        &WriteTarget::from_path(path)?,
+        Some(expected),
+        proposed,
+        Base::Desktop,
+    )
 }
 
 pub fn copy_document(
@@ -105,6 +137,7 @@ pub fn copy_document(
 
 enum Base<'a> {
     Destination,
+    Desktop,
     Source(Option<&'a str>),
 }
 
@@ -181,7 +214,7 @@ pub(crate) struct WriteTarget {
 }
 
 impl WriteTarget {
-    fn from_path(path: &Path) -> Result<Self, ThreatForgeError> {
+    pub(super) fn from_path(path: &Path) -> Result<Self, ThreatForgeError> {
         let path = resolve_target(path)?;
         let parent = path.parent().ok_or(ThreatForgeError::UnapprovedPath)?;
         WriteRoot::open(parent)?.target(&path)
@@ -230,30 +263,32 @@ impl WriteTarget {
     }
 
     pub(crate) fn read_layouts(&self, model: &ThreatModel) -> LegacyLayouts {
-        LegacyLayouts::capture(model, |relative| {
-            if relative.extension()?.to_str()? != "json" {
+        LegacyLayouts::capture(model, |relative| self.read_sidecar(relative))
+    }
+
+    fn read_sidecar(&self, relative: &Path) -> Option<crate::models::DiagramLayout> {
+        if relative.extension()?.to_str()? != "json" {
+            return None;
+        }
+        let mut components = relative.components().peekable();
+        let mut dir = self.dir.try_clone().ok()?;
+        while let Some(part) = components.next() {
+            let Component::Normal(name) = part else {
                 return None;
+            };
+            if components.peek().is_some() {
+                dir = dir.open_dir_nofollow(name).ok()?;
+            } else if dir.symlink_metadata(name).ok()?.is_file() {
+                let file = dir
+                    .open_with(
+                        name,
+                        OpenOptions::new().read(true).follow(FollowSymlinks::No),
+                    )
+                    .ok()?;
+                return serde_json::from_reader(io::BufReader::new(file)).ok();
             }
-            let mut components = relative.components().peekable();
-            let mut dir = self.dir.try_clone().ok()?;
-            while let Some(part) = components.next() {
-                let Component::Normal(name) = part else {
-                    return None;
-                };
-                if components.peek().is_some() {
-                    dir = dir.open_dir_nofollow(name).ok()?;
-                } else if dir.symlink_metadata(name).ok()?.is_file() {
-                    let file = dir
-                        .open_with(
-                            name,
-                            OpenOptions::new().read(true).follow(FollowSymlinks::No),
-                        )
-                        .ok()?;
-                    return serde_json::from_reader(file).ok();
-                }
-            }
-            None
-        })
+        }
+        None
     }
 
     pub(crate) fn read_document_for_search(
@@ -308,7 +343,7 @@ impl WriteTarget {
         bytes: &[u8],
     ) -> Result<String, ThreatForgeError> {
         let _lock = self.lock_document()?;
-        self.checked_destination(Some(expected))?;
+        self.checked_destination(Some(expected), false)?;
         let snapshot = parse_document(self.path(), bytes)?;
         self.atomic_write(bytes)?;
         Ok(snapshot.revision)
@@ -339,12 +374,25 @@ impl WriteTarget {
     fn checked_destination(
         &self,
         expected: Option<&str>,
+        desktop: bool,
     ) -> Result<Option<Vec<u8>>, ThreatForgeError> {
         self.metadata(self.name())?;
         match self.read_bytes() {
-            Ok(bytes) if expected == Some(revision(&bytes).as_str()) => Ok(Some(bytes)),
+            Ok(bytes) => {
+                let content = revision(&bytes);
+                let current = if desktop {
+                    let snapshot = parse_document(self.path(), &bytes)?;
+                    desktop_revision(&content, &self.read_layouts(&snapshot.model))?
+                } else {
+                    content
+                };
+                if expected == Some(current.as_str()) {
+                    Ok(Some(bytes))
+                } else {
+                    Err(ThreatForgeError::DocumentConflict)
+                }
+            }
             Err(e) if e.kind() == io::ErrorKind::NotFound && expected.is_none() => Ok(None),
-            Ok(_) => Err(ThreatForgeError::DocumentConflict),
             Err(e) if e.kind() == io::ErrorKind::NotFound => {
                 Err(ThreatForgeError::DocumentConflict)
             }
@@ -403,9 +451,10 @@ fn write_with_base(
 ) -> Result<WrittenDocument, ThreatForgeError> {
     let path = target.path();
     let _lock = target.lock_document()?;
-    let destination = target.checked_destination(expected)?;
+    let desktop = matches!(base, Base::Desktop);
+    let destination = target.checked_destination(expected, desktop)?;
     let prior = match base {
-        Base::Destination => destination.as_deref(),
+        Base::Destination | Base::Desktop => destination.as_deref(),
         Base::Source(source) => source.map(str::as_bytes),
     }
     .map(|bytes| parse_document(path, bytes))
@@ -426,9 +475,22 @@ fn write_with_base(
         "# ThreatForge Threat Model\n# Generated by ThreatForge v{}\n{yaml}",
         env!("CARGO_PKG_VERSION"),
     );
-    target.atomic_write(content.as_bytes())?;
+    let content_revision = revision(content.as_bytes());
+    let revision = if desktop || matches!(base, Base::Source(_)) {
+        desktop_revision(&content_revision, &target.read_layouts(&proposed))?
+    } else {
+        content_revision
+    };
+    if desktop {
+        target.atomic_write_checked(content.as_bytes(), || {
+            target.checked_destination(expected, true)?;
+            Ok(())
+        })?;
+    } else {
+        target.atomic_write(content.as_bytes())?;
+    }
     Ok(WrittenDocument {
-        revision: revision(content.as_bytes()),
+        revision,
         yaml: content,
     })
 }
@@ -561,24 +623,6 @@ pub fn resolve_target(path: &Path) -> Result<PathBuf, ThreatForgeError> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(target),
         Err(_) => Err(ThreatForgeError::UnapprovedPath),
     }
-}
-
-pub fn resolve_sidecar(root: &Path, relative: &Path) -> Result<PathBuf, ThreatForgeError> {
-    if relative
-        .components()
-        .any(|part| !matches!(part, Component::Normal(_)))
-        || relative.extension().and_then(|ext| ext.to_str()) != Some("json")
-    {
-        return Err(ThreatForgeError::UnapprovedPath);
-    }
-    let root = root
-        .canonicalize()
-        .map_err(|_| ThreatForgeError::UnapprovedPath)?;
-    let path = resolve_target(&root.join(relative))?;
-    if !path.starts_with(root) {
-        return Err(ThreatForgeError::UnapprovedPath);
-    }
-    Ok(path)
 }
 
 pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), ThreatForgeError> {
@@ -750,13 +794,18 @@ mod tests {
     #[test]
     fn sidecar_paths_cannot_escape_the_model_directory() {
         let dir = tempfile::tempdir().unwrap();
-        assert!(resolve_sidecar(dir.path(), Path::new("../private.json")).is_err());
-        assert!(resolve_sidecar(dir.path(), &dir.path().join("private.json")).is_err());
+        let target = WriteTarget::from_path(&dir.path().join("model.thf")).unwrap();
+        assert!(target.read_sidecar(Path::new("../private.json")).is_none());
+        assert!(target
+            .read_sidecar(&dir.path().join("private.json"))
+            .is_none());
         #[cfg(unix)]
         {
             let outside = tempfile::tempdir().unwrap();
             std::os::unix::fs::symlink(outside.path(), dir.path().join("link")).unwrap();
-            assert!(resolve_sidecar(dir.path(), Path::new("link/private.json")).is_err());
+            assert!(target
+                .read_sidecar(Path::new("link/private.json"))
+                .is_none());
         }
     }
 }

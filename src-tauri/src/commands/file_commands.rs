@@ -82,7 +82,7 @@ pub async fn open_threat_model(
             approved.approve(&picked.into_path().map_err(|_| UNAPPROVED)?)?
         }
     };
-    let snapshot = file_io::read_document(&path).map_err(|error| error.user_message())?;
+    let snapshot = file_io::read_desktop_document(&path).map_err(|error| error.user_message())?;
     opened_document(path, snapshot).map(Some)
 }
 
@@ -101,9 +101,8 @@ pub async fn check_document_update(
 
 fn opened_document(
     path: PathBuf,
-    mut snapshot: file_io::DocumentSnapshot,
+    snapshot: file_io::DocumentSnapshot,
 ) -> Result<OpenedDocument, String> {
-    file_io::merge_layout_into_model(&mut snapshot.model, &path);
     let source_yaml = snapshot
         .source_yaml()
         .map_err(|error| error.user_message())?;
@@ -199,7 +198,7 @@ pub async fn save_threat_model(
     } else {
         let expected_revision =
             expected_revision.ok_or("Reopen the file before saving, or save to a new file.")?;
-        file_io::write_document(&path, Some(&expected_revision), model)
+        file_io::write_desktop_document(&path, &expected_revision, model)
     }
     .map_err(|error| error.user_message())?;
     Ok(Some(SavedDocument {
@@ -279,5 +278,39 @@ mod tests {
 
         std::fs::write(&path, "invalid: [").unwrap();
         assert!(file_io::read_document_if_changed(&path, &second.revision).is_err());
+    }
+
+    #[test]
+    fn desktop_detects_sidecar_only_edits_and_rejects_stale_migration() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("model.thf");
+        let yaml = include_str!("../../../tests/fixtures/thf/legacy-sidecar/model.thf");
+        let layout = include_str!(
+            "../../../tests/fixtures/thf/legacy-sidecar/.threatforge/layouts/main-dfd.json"
+        );
+        let sidecar = dir.path().join(".threatforge/layouts/main-dfd.json");
+        std::fs::create_dir_all(sidecar.parent().unwrap()).unwrap();
+        std::fs::write(&path, yaml).unwrap();
+        std::fs::write(&sidecar, layout).unwrap();
+        let first = file_io::read_desktop_document(&path).unwrap();
+        assert_eq!(first.model.elements[0].position.as_ref().unwrap().x, 120.0);
+        std::fs::write(&sidecar, layout.replace("120.0", "300.0")).unwrap();
+        let fresh = file_io::read_document_if_changed(&path, &first.revision)
+            .unwrap()
+            .unwrap();
+        assert_eq!(fresh.model.elements[0].position.as_ref().unwrap().x, 300.0);
+        let stale = file_io::write_desktop_document(&path, &first.revision, first.model);
+        assert!(matches!(
+            stale,
+            Err(crate::errors::ThreatForgeError::DocumentConflict)
+        ));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), yaml);
+        let mut migrated = fresh.model;
+        migrated.diagrams[0].layout_file = None;
+        let saved = file_io::write_desktop_document(&path, &fresh.revision, migrated).unwrap();
+        std::fs::write(&sidecar, layout).unwrap();
+        assert!(file_io::read_document_if_changed(&path, &saved.revision)
+            .unwrap()
+            .is_none());
     }
 }

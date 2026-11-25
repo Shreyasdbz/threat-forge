@@ -14,45 +14,23 @@ pub(crate) fn validate_model(model: &ThreatModel) -> Result<(), ThreatForgeError
     validate_references(model)
 }
 
-/// Read a diagram layout JSON file
-pub fn read_layout(path: &Path) -> Result<DiagramLayout, ThreatForgeError> {
-    let contents = std::fs::read_to_string(path).map_err(|e| ThreatForgeError::FileRead {
-        path: path.display().to_string(),
-        source: e,
-    })?;
-
-    let layout: DiagramLayout =
-        serde_json::from_str(&contents).map_err(|e| ThreatForgeError::JsonParse {
-            path: path.display().to_string(),
-            source: e,
-        })?;
-
-    Ok(layout)
-}
-
 /// Migrate old-format models that use sidecar layout JSON files.
 ///
 /// Detects diagrams with `layout_file: Some(...)` and `viewport: None`,
 /// reads the sidecar JSON, and merges positions into inline model fields.
 /// Failures are non-fatal — missing layout files are silently skipped.
+#[cfg(test)]
 pub fn merge_layout_into_model(model: &mut ThreatModel, model_path: &Path) {
-    LegacyLayouts::read(model, model_path).merge_into(model);
+    let parent = model_path.parent().unwrap().canonicalize().unwrap();
+    let target =
+        super::WriteTarget::from_path(&parent.join(model_path.file_name().unwrap())).unwrap();
+    target.read_layouts(model).merge_into(model);
 }
 
 #[derive(Default, serde::Serialize)]
 pub(crate) struct LegacyLayouts(Vec<(usize, Option<DiagramLayout>)>);
 
 impl LegacyLayouts {
-    pub fn read(model: &ThreatModel, model_path: &Path) -> Self {
-        let Some(model_dir) = model_path.parent() else {
-            return Self::default();
-        };
-        Self::capture(model, |relative| {
-            let path = super::resolve_sidecar(model_dir, relative).ok()?;
-            read_layout(&path).ok()
-        })
-    }
-
     pub(crate) fn capture(
         model: &ThreatModel,
         read: impl Fn(&Path) -> Option<DiagramLayout>,
