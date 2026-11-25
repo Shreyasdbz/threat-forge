@@ -680,18 +680,19 @@ function ColorField({
 	onOpacityChange,
 }: {
 	label: string;
-	color: string;
+	color: unknown;
 	opacity: number;
 	onColorChange: (color: string) => void;
 	onOpacityChange: (opacity: number) => void;
 }) {
-	const hex = color?.match(/^#([\da-f]{3}|[\da-f]{6})$/i)?.[1];
-	const pickerColor =
+	const hex =
+		typeof color === "string" ? color.match(/^#([\da-f]{3}|[\da-f]{6})$/i)?.[1] : undefined;
+	const swatchColor =
 		hex?.length === 3
 			? `#${[...hex].map((digit) => digit.repeat(2)).join("")}`
 			: hex
 				? `#${hex}`
-				: "#888888";
+				: undefined;
 	return (
 		<div className={ROW}>
 			<span className={LABEL}>{label}</span>
@@ -699,15 +700,15 @@ function ColorField({
 				<span className="relative grid size-7 shrink-0 place-items-center rounded-editor-control hover:bg-editor-hover has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-editor-accent">
 					<span
 						aria-hidden="true"
-						style={{ backgroundColor: hex ? color : undefined }}
-						className={`size-5 rounded-sm border border-editor-outline ${color ? "" : "bg-linear-to-br from-transparent from-45% via-editor-secondary-label via-50% to-transparent to-55%"}`}
+						style={{ backgroundColor: swatchColor }}
+						className={`size-5 rounded-sm border border-editor-outline ${swatchColor ? "" : "bg-linear-to-br from-transparent from-45% via-editor-secondary-label via-50% to-transparent to-55%"}`}
 					/>
 					<input
 						type="color"
 						aria-label={label}
-						aria-description={color ? undefined : "Default color"}
-						title={color || "Default color"}
-						value={pickerColor}
+						aria-description={swatchColor ? undefined : "Default color"}
+						title={swatchColor ?? "Default color"}
+						value={swatchColor ?? "#888888"}
 						onChange={(e) => onColorChange(e.target.value)}
 						className="absolute inset-0 size-full cursor-pointer opacity-0"
 					/>
@@ -729,7 +730,7 @@ function ColorField({
 					/>
 					%
 				</label>
-				{color ? (
+				{swatchColor ? (
 					<button
 						type="button"
 						onClick={() => onColorChange("")}

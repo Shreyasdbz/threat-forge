@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { Locator } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { openDocument } from "./support/interactions";
@@ -146,6 +147,34 @@ test("previews configured appearance colors and keeps default opacity aligned", 
 	await fill.fill("#198765");
 	await expect(swatch(fill)).toHaveCSS("background-color", "rgb(25, 135, 101)");
 	await expect(swatch(fill)).toHaveCSS("background-image", "none");
+});
+
+test("keeps the connector inspector usable with invalid colors in browser files", async ({
+	page,
+}) => {
+	const fixture = readFileSync("tests/fixtures/thf/architecture-canonical-full.thf", "utf8");
+	const malformed = fixture
+		.replace("stroke_color: '#ef4444'", "stroke_color: 123")
+		.replace(
+			"target_handle: top\nrelationships:",
+			"target_handle: top\n  stroke_color: invalid\nrelationships:",
+		);
+	const chooser = page.waitForEvent("filechooser");
+	await page.getByTestId("btn-open").click();
+	await (await chooser).setFiles({
+		name: "invalid-connector-colors.thf",
+		mimeType: "text/plain",
+		buffer: Buffer.from(malformed),
+	});
+	for (const id of ["flow-1", "flow-2"]) {
+		await page.getByTestId(`flow-label-${id}`).click();
+		const panel = page.getByTestId("right-panel");
+		const stroke = panel.getByLabel("Stroke Color", { exact: true });
+		await expect(stroke).toHaveAttribute("aria-description", "Default color");
+		await expect(panel.getByRole("button", { name: "Reset stroke color to default" })).toHaveCount(
+			0,
+		);
+	}
 });
 
 test("insets the compact horizontal canvas controls", async ({ page }) => {
