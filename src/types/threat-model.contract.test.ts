@@ -271,7 +271,7 @@ describe("architecture schema contract", () => {
 	const loaded = parseThreatModelYaml(body);
 
 	it("parses the canonical fixture to the TypeScript model", () => {
-		// Numbers compare numerically (the fixture's `x: 104.0` parses to JS `100`);
+		// Numbers compare numerically (the fixture's `x: 104.0` parses to JS `104`);
 		// dates load as plain strings under the thf-yaml schema.
 		expect(loaded).toEqual(maxFilledModel);
 	});
