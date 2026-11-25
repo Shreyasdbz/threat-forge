@@ -240,7 +240,7 @@ describe("canvas-store", () => {
 		expect(model?.data_flows).toHaveLength(2);
 	});
 
-	it("passes source and target handles when provided", () => {
+	it("maps bare handle IDs for rendering while retaining them in the model", () => {
 		useModelStore.getState().setModel(createTestModel(), null);
 		useCanvasStore.getState().syncFromModel();
 
@@ -253,13 +253,15 @@ describe("canvas-store", () => {
 		const { edges } = useCanvasStore.getState();
 		const newEdge = edges.find((e) => e.source === "data-store-1" && e.target === "process-1");
 		expect(newEdge).toBeDefined();
-		expect(newEdge?.sourceHandle).toBe("bottom");
-		expect(newEdge?.targetHandle).toBe("top");
+		expect(newEdge?.sourceHandle).toBe("bottom-source");
+		expect(newEdge?.targetHandle).toBe("top-target");
 
 		// Model store should have the name
 		const model = useModelStore.getState().model;
 		const flow = model?.data_flows.find((f) => f.from === "data-store-1" && f.to === "process-1");
 		expect(flow?.name).toBe("Query Response");
+		expect(flow?.source_handle).toBe("bottom");
+		expect(flow?.target_handle).toBe("top");
 	});
 
 	it("duplicates an element", () => {

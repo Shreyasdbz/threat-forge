@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { confirm } from "@tauri-apps/plugin-dialog";
+import type { DiagramFormat } from "@/lib/export/diagram-export";
 import type { ThreatModel } from "@/types/threat-model";
 import type { FileAdapter, OpenedDocument, SavedDocument } from "./file-adapter";
 
@@ -8,6 +9,18 @@ export function checkDocumentUpdate(
 	revision: string,
 ): Promise<(OpenedDocument & { path: string; revision: string; sourceYaml: string }) | null> {
 	return invoke("check_document_update", { path, revision });
+}
+
+export function renderDiagram(model: ThreatModel): Promise<string> {
+	return invoke("render_diagram", { model });
+}
+
+export function exportDiagram(
+	model: ThreatModel,
+	format: DiagramFormat,
+	defaultName: string,
+): Promise<string | null> {
+	return invoke("export_diagram", { model, format, defaultName });
 }
 
 export class TauriFileAdapter implements FileAdapter {

@@ -128,6 +128,18 @@ The undo journal is session-local, with up to 20 edits per document for the 16 m
 recently edited documents. It does not undo external edits or remove workspace files
 created with `create_document`.
 
+### Editor presentation and export
+
+The editor's **Present diagram** control opens a read-only diagram with **Export SVG**
+and **Export PNG**. The desktop uses the MCP Rust renderer directly; the browser loads
+the same renderer as WebAssembly on demand. Clean documents use the saved model;
+unsaved diagrams include the active canvas layout. Both targets use the bundled
+DejaVu Sans for PNG text.
+
+After changing the Rust scene or its model, regenerate the browser asset with
+`bash scripts/build-scene-wasm.sh` (Rust target `wasm32-unknown-unknown` and
+`wasm-bindgen-cli 0.2.114`). Keep the generated assets with the renderer changes.
+
 ### MCP resources and prompts
 
 Read the active document YAML at `threatforge://active/model` and its SVG at
@@ -213,7 +225,7 @@ Deleting a data flow directly also removes threats targeting it.
 
 ## Limitations
 
-- No real-time sync with the running desktop app (file-based sync only)
-- PNG uses system fonts when available; appearance can differ across hosts.
+- Desktop notices MCP changes through disk revisions, not a direct session connection.
+  Dirty tabs keep their unsaved changes until the user resolves the conflict.
 - Unknown YAML fields on surviving entities are preserved, but comments and original formatting
   are not. See the [file-format contract](file-format.md#unknown-fields-and-downgrade-compatibility).

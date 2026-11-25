@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 import { useModelStore } from "@/stores/model-store";
 import { useUiStore } from "@/stores/ui-store";
 import { AiChatTab } from "./ai-chat-tab";
+import { ArchitectureTab } from "./architecture-tab";
 import { PropertiesTab } from "./properties-tab";
 import { ThreatsTab } from "./threats-tab";
 
@@ -20,6 +21,13 @@ export function RightPanel() {
 					onClick={() => setTab("properties")}
 				>
 					Properties
+				</TabButton>
+				<TabButton
+					testId="tab-architecture"
+					active={tab === "architecture"}
+					onClick={() => setTab("architecture")}
+				>
+					Architecture
 				</TabButton>
 				<TabButton
 					testId="tab-threats"
@@ -41,6 +49,7 @@ export function RightPanel() {
 			{/* Tab content */}
 			<div className="flex-1 overflow-y-auto p-3">
 				{tab === "properties" && <PropertiesTab />}
+				{tab === "architecture" && <ArchitectureTab />}
 				{tab === "threats" && <ThreatsTab />}
 				{tab === "ai" && <AiChatTab />}
 			</div>
@@ -63,9 +72,10 @@ function TabButton({
 		<button
 			type="button"
 			data-testid={testId}
+			aria-pressed={active}
 			onClick={onClick}
 			className={cn(
-				"flex-1 px-3 py-2 text-xs font-medium transition-colors",
+				"flex-1 px-1.5 py-2.5 text-xs font-medium transition-colors",
 				active
 					? "border-b-2 border-primary text-foreground"
 					: "text-muted-foreground hover:text-foreground",

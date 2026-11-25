@@ -54,6 +54,8 @@ struct Node<'a> {
     rect: Rect,
     fill: &'a str,
     stroke: &'a str,
+    fill_opacity: f64,
+    stroke_opacity: f64,
     kind: &'static str,
 }
 
@@ -63,6 +65,7 @@ struct Edge<'a> {
     name: &'a str,
     dashed: bool,
     loops: bool,
+    lane: usize,
 }
 
 pub(crate) struct Scene<'a> {
@@ -107,6 +110,8 @@ impl<'a> Scene<'a> {
                 kind: "boundary",
                 fill: color(boundary.fill_color.as_deref(), "#f0fdf4"),
                 stroke: color(boundary.stroke_color.as_deref(), "#15803d"),
+                fill_opacity: opacity(boundary.fill_opacity),
+                stroke_opacity: opacity(boundary.stroke_opacity),
             });
         }
         for (i, group) in model.groups.iter().enumerate() {
@@ -127,6 +132,8 @@ impl<'a> Scene<'a> {
                 kind: "group",
                 fill: color(group.fill_color.as_deref(), "#eef2ff"),
                 stroke: color(group.stroke_color.as_deref(), "#6366f1"),
+                fill_opacity: opacity(group.fill_opacity),
+                stroke_opacity: opacity(group.stroke_opacity),
             });
         }
         let mut group_positions = HashMap::new();
@@ -171,18 +178,27 @@ impl<'a> Scene<'a> {
                 kind,
                 fill: color(element.fill_color.as_deref(), fill),
                 stroke: color(element.stroke_color.as_deref(), "#334155"),
+                fill_opacity: opacity(element.fill_opacity),
+                stroke_opacity: opacity(element.stroke_opacity),
             });
         }
-        let edge = |from: &str, to: &str, name, dashed| {
+        let mut lanes = HashMap::new();
+        let mut edge = |from: &'a str, to: &'a str, name, dashed| {
+            let from_rect = *rects.get(from)?;
+            let to_rect = *rects.get(to)?;
+            let lane = lanes.entry((from, to)).or_insert(0);
+            let index = *lane;
+            *lane += 1;
             Some(Edge {
-                from: *rects.get(from)?,
-                to: *rects.get(to)?,
+                from: from_rect,
+                to: to_rect,
                 name,
                 dashed,
                 loops: from == to,
+                lane: index,
             })
         };
-        let edges = model
+        let mut edges: Vec<_> = model
             .data_flows
             .iter()
             .filter_map(|f| {
@@ -197,15 +213,15 @@ impl<'a> Scene<'a> {
                     false,
                 )
             })
-            .chain(model.relationships.iter().filter_map(|r| {
-                edge(
-                    &r.from,
-                    &r.to,
-                    r.name.as_deref().unwrap_or(&r.relationship_type),
-                    true,
-                )
-            }))
             .collect();
+        edges.extend(model.relationships.iter().filter_map(|r| {
+            edge(
+                &r.from,
+                &r.to,
+                r.name.as_deref().unwrap_or(&r.relationship_type),
+                true,
+            )
+        }));
         Ok(Self {
             title: &model.metadata.title,
             containers,
@@ -274,10 +290,12 @@ impl Node<'_> {
         };
         let _ = writeln!(
             svg,
-            r#"<g class="{}"><rect x="{x:.2}" y="{y:.2}" width="{width:.2}" height="{height:.2}" rx="{rx}" fill="{}" stroke="{}"{dash}/><text x="{:.2}" y="{label_y:.2}" font-size="14">{label}</text></g>"#,
+            r#"<g class="{}"><rect x="{x:.2}" y="{y:.2}" width="{width:.2}" height="{height:.2}" rx="{rx}" fill="{}" fill-opacity="{:.2}" stroke="{}" stroke-opacity="{:.2}"{dash}/><text x="{:.2}" y="{label_y:.2}" font-size="14">{label}</text></g>"#,
             self.kind,
             self.fill,
+            self.fill_opacity,
             self.stroke,
+            self.stroke_opacity,
             x + 10.0
         );
     }
@@ -287,7 +305,10 @@ impl Edge<'_> {
     fn draw(&self, svg: &mut String) {
         let (x, y) = self.from.toward(self.to.center());
         let (to_x, to_y) = self.to.toward(self.from.center());
-        let (path, label_x, label_y) = if self.loops {
+        let mid_x = (x + to_x) / 2.0;
+        let mid_y = (y + to_y) / 2.0;
+        let offset = self.lane as f64 * 36.0;
+        let (path, label_x, label_y, anchor) = if self.loops {
             let (cx, _) = self.from.center();
             let top = self.from.y;
             (
@@ -295,19 +316,35 @@ impl Edge<'_> {
                     "M{:.2} {top:.2} C{:.2} {:.2} {:.2} {:.2} {:.2} {top:.2}",
                     cx - 16.0,
                     cx - 36.0,
-                    top - 54.0,
+                    top - 54.0 - offset,
                     cx + 36.0,
-                    top - 54.0,
+                    top - 54.0 - offset,
                     cx + 16.0
                 ),
                 cx,
-                top - 46.0,
+                top - 46.0 - offset * 0.75,
+                "middle",
+            )
+        } else if (to_y - y).abs() > (to_x - x).abs() {
+            let bend = mid_x + offset;
+            (
+                format!("M{x:.2} {y:.2} Q{bend:.2} {mid_y:.2} {to_x:.2} {to_y:.2}"),
+                mid_x
+                    + if self.lane == 0 {
+                        -7.0
+                    } else {
+                        offset / 2.0 + 7.0
+                    },
+                mid_y + 4.0 + self.lane.saturating_sub(1) as f64 * 14.0,
+                if self.lane == 0 { "end" } else { "start" },
             )
         } else {
+            let bend = mid_y + offset;
             (
-                format!("M{x:.2} {y:.2} L{to_x:.2} {to_y:.2}"),
-                (x + to_x) / 2.0,
-                (y + to_y) / 2.0 - 8.0,
+                format!("M{x:.2} {y:.2} Q{mid_x:.2} {bend:.2} {to_x:.2} {to_y:.2}"),
+                mid_x,
+                mid_y + offset / 2.0 + if self.lane == 0 { -8.0 } else { 14.0 },
+                "middle",
             )
         };
         let label = xml_text(self.name, 80);
@@ -318,9 +355,13 @@ impl Edge<'_> {
         };
         let _ = writeln!(
             svg,
-            r##"<path d="{path}" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"{dash}/><text x="{label_x:.2}" y="{label_y:.2}" text-anchor="middle" font-size="12">{label}</text>"##
+            r##"<path d="{path}" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"{dash}/><text x="{label_x:.2}" y="{label_y:.2}" text-anchor="{anchor}" font-size="12">{label}</text>"##
         );
     }
+}
+
+fn opacity(value: Option<f64>) -> f64 {
+    bounded(value.unwrap_or(1.0), 1.0, 0.0, 1.0)
 }
 
 fn bounded(value: f64, fallback: f64, min: f64, max: f64) -> f64 {
@@ -362,19 +403,8 @@ pub(crate) fn png(svg: &str) -> Result<Vec<u8>, &'static str> {
     static FONTS: OnceLock<std::sync::Arc<usvg::fontdb::Database>> = OnceLock::new();
     let fontdb = FONTS.get_or_init(|| {
         let mut db = usvg::fontdb::Database::new();
-        db.load_system_fonts();
-        for family in ["DejaVu Sans", "Liberation Sans", "Arial", "Helvetica"] {
-            if db
-                .query(&usvg::fontdb::Query {
-                    families: &[usvg::fontdb::Family::Name(family)],
-                    ..usvg::fontdb::Query::default()
-                })
-                .is_some()
-            {
-                db.set_sans_serif_family(family);
-                break;
-            }
-        }
+        db.load_font_data(include_bytes!("../assets/fonts/DejaVuSans.ttf").to_vec());
+        db.set_sans_serif_family("DejaVu Sans");
         std::sync::Arc::new(db)
     });
     let options = usvg::Options {

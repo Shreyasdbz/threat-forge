@@ -48,6 +48,7 @@ export interface ModelState {
 
 	// Metadata editing
 	updateMetadata: (updates: Partial<Metadata>) => void;
+	addArchitectureSection: (kind: "layers" | "groups", name: string) => void;
 
 	// Element editing
 	updateElement: (id: string, updates: Partial<Element>) => void;
@@ -185,6 +186,19 @@ export function createModelStore(deps: ModelStoreDeps): StoreApi<ModelState> {
 			if (!model) return;
 			set({
 				model: { ...model, metadata: { ...model.metadata, ...updates } },
+				isDirty: true,
+			});
+		},
+
+		addArchitectureSection: (kind, name) => {
+			const { model } = get();
+			const label = name.trim();
+			if (!model || !label) return;
+
+			captureHistory(model);
+			const entry = { id: `${kind}-${crypto.randomUUID()}`, name: label };
+			set({
+				model: { ...model, [kind]: [...(model[kind] ?? []), entry] },
 				isDirty: true,
 			});
 		},

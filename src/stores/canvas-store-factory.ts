@@ -228,13 +228,19 @@ export function boundaryToNode(
 }
 
 export function flowToEdge(flow: DataFlow): DfdEdge {
+	function handleId(id: string | undefined, kind: "source" | "target") {
+		return id === "top" || id === "right" || id === "bottom" || id === "left"
+			? `${id}-${kind}`
+			: id;
+	}
+
 	return {
 		id: flow.id,
 		source: flow.from,
 		target: flow.to,
 		type: "dataFlow",
-		sourceHandle: flow.source_handle,
-		targetHandle: flow.target_handle,
+		sourceHandle: handleId(flow.source_handle, "source"),
+		targetHandle: handleId(flow.target_handle, "target"),
 		...(flow.stroke_color
 			? {
 					markerEnd: {

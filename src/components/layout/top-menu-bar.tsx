@@ -5,17 +5,22 @@ import {
 	FolderOpen,
 	LayoutPanelLeft,
 	PanelRight,
+	Presentation,
 	Save,
 	Settings,
 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { useFileOperations } from "@/hooks/use-file-operations";
 import { documentDisplayTitle } from "@/lib/document-display-title";
+import { captureCanvasIntoModel } from "@/lib/model-capture";
+import { useCanvasStore } from "@/stores/canvas-store";
 import { useModelStore } from "@/stores/model-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useUiStore } from "@/stores/ui-store";
+import type { ThreatModel } from "@/types/threat-model";
 import { GuidePicker } from "../onboarding/guide-picker";
 import { Keytip } from "../ui/keytip";
+import { DiagramPresentation } from "./diagram-presentation";
 
 export function TopMenuBar() {
 	const isDirty = useModelStore((s) => s.isDirty);
@@ -33,6 +38,7 @@ export function TopMenuBar() {
 	const { newModel, openModel, saveModel, saveModelAs, exportAsHtml } = useFileOperations();
 	const [guidePickerOpen, setGuidePickerOpen] = useState(false);
 	const [editingTitle, setEditingTitle] = useState(false);
+	const [presentation, setPresentation] = useState<ThreatModel>();
 	const titleInputRef = useRef<HTMLInputElement>(null);
 
 	// Show file basename when saved, otherwise model title — from the shared helper so the tab,
@@ -122,6 +128,21 @@ export function TopMenuBar() {
 					onClick={() => void exportAsHtml()}
 					disabled={!model}
 				/>
+				<MenuButton
+					testId="btn-present"
+					icon={<Presentation className="h-3.5 w-3.5" />}
+					tooltip="Present diagram and export SVG or PNG"
+					onClick={() => {
+						if (model)
+							setPresentation(
+								isDirty ? captureCanvasIntoModel(model, useCanvasStore.getState()) : model,
+							);
+					}}
+					disabled={!model}
+				/>
+				{presentation && (
+					<DiagramPresentation model={presentation} onClose={() => setPresentation(undefined)} />
+				)}
 			</div>
 
 			{/* Spacer */}

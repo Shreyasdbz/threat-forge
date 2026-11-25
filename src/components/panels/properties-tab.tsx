@@ -1,5 +1,5 @@
 import { MarkerType } from "@xyflow/react";
-import { ArrowLeftRight } from "lucide-react";
+import { ArrowLeftRight, Box, MousePointer2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getComponent, listCategories, listComponents } from "@/lib/registry/registry";
 import { type DfdEdge, type DfdEdgeData, useCanvasStore } from "@/stores/canvas-store";
@@ -38,9 +38,13 @@ export function PropertiesTab() {
 	}
 
 	return (
-		<p className="text-xs text-muted-foreground">
-			Select an element or connector on the canvas to view its properties.
-		</p>
+		<div className="rounded-lg border border-dashed border-border px-4 py-5 text-center">
+			<MousePointer2 className="mx-auto mb-2 size-5 text-muted-foreground" aria-hidden="true" />
+			<h2 className="text-sm font-medium">Nothing selected</h2>
+			<p className="mt-1 text-xs text-muted-foreground">
+				Select an element or connector on the canvas to view its properties.
+			</p>
+		</div>
 	);
 }
 
@@ -206,6 +210,7 @@ const FONT_SIZE_OPTIONS = [12, 14, 16, 20, 24, 32, 48];
 function ElementProperties({ elementId }: { elementId: string }) {
 	const model = useModelStore((s) => s.model);
 	const updateElement = useModelStore((s) => s.updateElement);
+	const setTab = useUiStore((s) => s.setRightPanelTab);
 
 	// Read current colors from canvas node data (must be before early return for hooks rules)
 	const node = useCanvasStore((s) => s.nodes.find((n) => n.id === elementId));
@@ -264,6 +269,10 @@ function ElementProperties({ elementId }: { elementId: string }) {
 
 	return (
 		<div className="flex flex-col gap-3">
+			<div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 p-2.5">
+				<Box className="size-4 shrink-0 text-primary" aria-hidden="true" />
+				<h2 className="min-w-0 break-words text-sm font-semibold">{element.name}</h2>
+			</div>
 			<ReadOnlyField label="ID" value={element.id} />
 
 			{/* Type dropdown — hidden for text annotations */}
@@ -340,6 +349,38 @@ function ElementProperties({ elementId }: { elementId: string }) {
 				placeholder="Describe this element..."
 				onChange={(value) => updateElement(element.id, { description: value })}
 			/>
+
+			{!isTextAnnotation && (
+				<fieldset className="grid grid-cols-2 gap-2 rounded-md border border-border p-2">
+					<legend className="px-1 text-xs font-semibold">Architecture</legend>
+					{(["layer", "group"] as const).map((field) => (
+						<label key={field} className="min-w-0 text-xs text-muted-foreground">
+							<span>{field === "layer" ? "Layer" : "Group"}</span>
+							<select
+								value={element[field] ?? ""}
+								onChange={(event) =>
+									updateElement(element.id, { [field]: event.target.value || undefined })
+								}
+								className="mt-1 w-full rounded border border-border bg-background px-1 py-1 text-foreground"
+							>
+								<option value="">Unassigned</option>
+								{(field === "layer" ? model?.layers : model?.groups)?.map((option) => (
+									<option key={option.id} value={option.id}>
+										{option.name}
+									</option>
+								))}
+							</select>
+						</label>
+					))}
+					<button
+						type="button"
+						className="col-span-2 justify-self-start text-xs text-primary underline underline-offset-2"
+						onClick={() => setTab("architecture")}
+					>
+						Browse layers and groups
+					</button>
+				</fieldset>
+			)}
 
 			{/* Technologies — not for text annotations */}
 			{!isTextAnnotation && (

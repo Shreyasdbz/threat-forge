@@ -9,7 +9,7 @@ pub fn read_threat_model(path: &Path) -> Result<ThreatModel, ThreatForgeError> {
     super::read_document(path).map(|snapshot| snapshot.model)
 }
 
-pub(super) fn validate_model(model: &ThreatModel) -> Result<(), ThreatForgeError> {
+pub(crate) fn validate_model(model: &ThreatModel) -> Result<(), ThreatForgeError> {
     validate_version(&model.version)?;
     validate_references(model)
 }

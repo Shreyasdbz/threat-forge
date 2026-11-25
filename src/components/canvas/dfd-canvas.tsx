@@ -10,9 +10,10 @@ import {
 	ReactFlow,
 	SelectionMode,
 	useReactFlow,
+	ViewportPortal,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { EyeOff } from "lucide-react";
+import { EyeOff, Layers3 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import type { DfdEdge, DfdNode } from "@/stores/canvas-store";
@@ -61,6 +62,8 @@ export function DfdCanvas() {
 	const reconnectEdge = useCanvasStore((s) => s.reconnectEdge);
 	const syncFromModel = useCanvasStore((s) => s.syncFromModel);
 	const model = useModelStore((s) => s.model);
+	const groups = model?.groups ?? [];
+	const layerCount = model?.layers?.length ?? 0;
 	// Which document is active. A change is a tab switch (or a New/Open/Import/template, which now
 	// activate a new tab), and drives the once-per-activation viewport decision below (#54 step 7).
 	const activeDocumentId = useDocumentRegistry((s) => s.activeDocumentId);
@@ -469,7 +472,22 @@ export function DfdCanvas() {
 	}, [effectivePresetId]);
 
 	return (
-		<div className="h-full w-full">
+		<div className="relative h-full w-full">
+			{(groups.length > 0 || layerCount > 0) && (
+				<button
+					type="button"
+					className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-muted-foreground shadow-sm hover:text-foreground"
+					onClick={() => {
+						const ui = useUiStore.getState();
+						if (!ui.rightPanelOpen) ui.toggleRightPanel();
+						ui.setRightPanelTab("architecture");
+					}}
+				>
+					<Layers3 className="size-3.5 text-primary" aria-hidden="true" />
+					{layerCount} {layerCount === 1 ? "layer" : "layers"} · {groups.length}{" "}
+					{groups.length === 1 ? "group" : "groups"}
+				</button>
+			)}
 			<ReactFlow<DfdNode, DfdEdge>
 				nodes={nodes}
 				edges={edges}
@@ -510,10 +528,35 @@ export function DfdCanvas() {
 			>
 				<Background
 					variant={BackgroundVariant.Dots}
-					gap={16}
+					gap={24}
 					size={1}
 					color={canvasColors.dotColor}
 				/>
+				{groups.length > 0 && (
+					<ViewportPortal>
+						{groups.map((group) => {
+							const { position, size } = group;
+							if (!position || !size || size.width <= 0 || size.height <= 0) return null;
+							return (
+								<div
+									key={group.id}
+									aria-hidden="true"
+									className="pointer-events-none absolute rounded-lg border border-primary/40 bg-primary/[0.035]"
+									style={{
+										left: position.x,
+										top: position.y,
+										width: size.width,
+										height: size.height,
+									}}
+								>
+									<span className="absolute left-1 top-1 whitespace-nowrap rounded bg-card px-2 py-0.5 text-xs font-medium text-primary">
+										{group.name}
+									</span>
+								</div>
+							);
+						})}
+					</ViewportPortal>
+				)}
 				<Controls className="!bg-card !border-border !shadow-md [&>button]:!bg-card [&>button]:!border-border [&>button]:!text-foreground [&>button:hover]:!bg-accent" />
 				{minimapVisible && (
 					<MiniMap

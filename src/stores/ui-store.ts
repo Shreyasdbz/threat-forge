@@ -3,7 +3,7 @@ import { applyTheme, getSystemThemeMode, onSystemThemeChange } from "@/lib/theme
 import { DEFAULT_DARK_PRESET, DEFAULT_LIGHT_PRESET, THEME_PRESETS } from "@/lib/themes/presets";
 import type { ThemeMode } from "@/types/theme";
 
-export type RightPanelTab = "properties" | "threats" | "ai";
+export type RightPanelTab = "properties" | "architecture" | "threats" | "ai";
 
 const THEME_STORAGE_KEY = "threatforge-theme";
 

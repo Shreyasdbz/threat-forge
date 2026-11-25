@@ -1,5 +1,6 @@
 use crate::file_io;
 use crate::models::ThreatModel;
+use crate::scene::{self, Scene};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -112,6 +113,50 @@ fn opened_document(
         revision: snapshot.revision,
         source_yaml,
     })
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DiagramFormat {
+    Svg,
+    Png,
+}
+
+#[tauri::command]
+pub async fn render_diagram(model: ThreatModel) -> Result<String, String> {
+    file_io::validate_model(&model).map_err(|error| error.user_message())?;
+    Ok(Scene::from_model(&model)?.svg())
+}
+
+#[tauri::command]
+pub async fn export_diagram(
+    app: AppHandle,
+    model: ThreatModel,
+    format: DiagramFormat,
+    default_name: String,
+) -> Result<Option<PathBuf>, String> {
+    let extension = match format {
+        DiagramFormat::Svg => "svg",
+        DiagramFormat::Png => "png",
+    };
+    let svg = render_diagram(model).await?;
+    let bytes = match format {
+        DiagramFormat::Svg => svg.into_bytes(),
+        DiagramFormat::Png => scene::png(&svg)?,
+    };
+    let name = default_name.rsplit(['/', '\\']).next().unwrap_or("diagram");
+    let Some(picked) = app
+        .dialog()
+        .file()
+        .add_filter("Diagram", &[extension])
+        .set_file_name(format!("{name}.{extension}"))
+        .blocking_save_file()
+    else {
+        return Ok(None);
+    };
+    let path = selected_path(&picked.into_path().map_err(|_| UNAPPROVED)?, extension)?;
+    file_io::atomic_write(&path, &bytes).map_err(|error| error.user_message())?;
+    Ok(Some(path))
 }
 
 #[tauri::command]

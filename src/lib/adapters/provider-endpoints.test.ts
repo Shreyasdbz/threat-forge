@@ -139,8 +139,8 @@ describe("provider endpoint drift", () => {
 			.filter((directive) => /^script-src(-elem|-attr)?\s/.test(directive));
 		expect(
 			scriptDirectives,
-			"the web CSP must set `script-src 'self'` and no -elem/-attr override",
-		).toEqual(["script-src 'self'"]);
+			"the web CSP must permit only same-origin scripts and WebAssembly, with no -elem/-attr override",
+		).toEqual(["script-src 'self' 'wasm-unsafe-eval'"]);
 	});
 
 	it("fails the web build's non-connect vectors closed", () => {
