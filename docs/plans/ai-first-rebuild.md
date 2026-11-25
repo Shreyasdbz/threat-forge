@@ -62,9 +62,9 @@ Gate: the same document produces matching artifacts from the editor and MCP.
 
 ## C5 — Interoperability and release
 
-Add browser TM7 import and additional formats. Verify signed distributions and
-updater behavior end to end, and enable visual regression in CI with controlled
-baseline environments.
+Add browser TM7 import and additional formats, and enable visual regression in CI
+with controlled baseline environments. End-to-end verification of signed Linux
+distributions and the updater is deferred to [#369](https://github.com/Shreyasdbz/threat-forge/issues/369).
 
 ## Existing branch overlap
 
