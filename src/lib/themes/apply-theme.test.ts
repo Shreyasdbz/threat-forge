@@ -11,11 +11,13 @@ describe("applyTheme", () => {
 	beforeEach(() => {
 		// Clean up inline styles on documentElement
 		document.documentElement.removeAttribute("style");
+		delete document.documentElement.dataset.themePreset;
 		document.documentElement.classList.remove("dark", "light");
 	});
 
 	afterEach(() => {
 		document.documentElement.removeAttribute("style");
+		delete document.documentElement.dataset.themePreset;
 		document.documentElement.classList.remove("dark", "light");
 	});
 
@@ -56,6 +58,7 @@ describe("applyTheme", () => {
 		applyTheme(daylight);
 		const style = document.documentElement.style;
 
+		expect(document.documentElement.dataset.themePreset).toBe(daylight.id);
 		expect(style.getPropertyValue("--color-background")).toBe(daylight.tokens.background);
 		expect(style.getPropertyValue("--color-foreground")).toBe(daylight.tokens.foreground);
 	});
@@ -67,6 +70,7 @@ describe("clearThemeOverrides", () => {
 		expect(document.documentElement.style.getPropertyValue("--color-background")).toBeTruthy();
 
 		clearThemeOverrides();
+		expect(document.documentElement.dataset.themePreset).toBeUndefined();
 		expect(document.documentElement.style.getPropertyValue("--color-background")).toBe("");
 		expect(document.documentElement.style.getPropertyValue("--color-foreground")).toBe("");
 		expect(document.documentElement.style.getPropertyValue("--color-sidebar")).toBe("");

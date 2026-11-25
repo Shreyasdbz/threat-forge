@@ -1,6 +1,8 @@
 import { expect, test } from "./fixtures";
 import { openDocument } from "./support/interactions";
 
+test.use({ colorScheme: "light" });
+
 test.beforeEach(async ({ page }) => {
 	await page.goto("/app");
 	await openDocument(page, "tests/fixtures/thf/architecture-canonical-full.thf");
@@ -15,11 +17,23 @@ test("fits every inspector tab label at the default panel width", async ({ page 
 			tabs.evaluateAll((buttons) =>
 				buttons.map((button) => {
 					const label = button.lastElementChild;
-					return Boolean(label && label.clientWidth && label.scrollWidth <= label.clientWidth);
+					return Boolean(label?.clientWidth && label.scrollWidth <= label.clientWidth);
 				}),
 			),
 		)
 		.toEqual([true, true, true, true]);
+});
+
+test("renders the neutral dot grid at a consistent diagram-space scale", async ({ page }) => {
+	const dot = page.getByTestId("rf__background").locator("circle");
+	const pattern = page.getByTestId("rf__background").locator("pattern");
+	await expect(dot).toBeAttached();
+	const diameter = async () => Number(await dot.getAttribute("r")) * 2;
+	const before = await diameter();
+	await expect(dot).toHaveCSS("fill", "rgb(196, 203, 213)");
+	await page.locator(".react-flow__controls-zoomin").click();
+	await expect.poll(diameter).toBeGreaterThan(before);
+	expect(Number(await pattern.getAttribute("width")) / (await diameter())).toBeCloseTo(20);
 });
 
 test("moves and resizes a group outline independently of its members, with undo", async ({

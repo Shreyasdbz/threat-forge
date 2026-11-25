@@ -55,13 +55,13 @@ export function DiagramPresentation({
 			aria-labelledby="presentation-title"
 			onClose={onClose}
 			onKeyDown={(event) => event.stopPropagation()}
-			className="fixed inset-0 m-auto h-[calc(100%-2rem)] max-h-none w-[calc(100%-2rem)] max-w-none overflow-hidden rounded-editor-panel border border-editor-line bg-editor-surface p-0 text-foreground shadow-editor-dialog backdrop:bg-black/50"
+			className="fixed inset-0 m-auto h-[calc(100%-2rem)] max-h-none w-[calc(100%-2rem)] max-w-none overflow-hidden rounded-editor-dialog border border-editor-separator bg-editor-raised p-0 text-foreground shadow-editor-dialog backdrop:bg-black/50"
 		>
 			<div className="flex h-full flex-col">
 				<header className="flex shrink-0 flex-wrap items-center gap-4 border-b border-editor-line px-6 py-4">
 					<div className="min-w-0 flex-1">
-						<p className="text-xs font-medium text-muted-foreground">Presentation</p>
-						<h2 id="presentation-title" className="truncate text-editor-heading font-semibold">
+						<p className="text-editor-caption text-editor-secondary-label">Presentation</p>
+						<h2 id="presentation-title" className="truncate text-editor-title3">
 							{model.metadata.title}
 						</h2>
 					</div>
@@ -88,7 +88,7 @@ export function DiagramPresentation({
 					</button>
 				</header>
 				{error && (
-					<p role="alert" className="px-4 py-2 text-sm text-destructive">
+					<p role="alert" className="px-4 py-2 text-editor-body text-destructive">
 						{error}
 					</p>
 				)}
@@ -100,7 +100,7 @@ export function DiagramPresentation({
 							className="h-full min-h-0 w-full object-contain"
 						/>
 					) : !error ? (
-						<p role="status" className="text-sm text-muted-foreground">
+						<p role="status" className="text-editor-body text-muted-foreground">
 							Preparing diagram…
 						</p>
 					) : null}

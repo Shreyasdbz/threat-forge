@@ -93,11 +93,9 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 	const hexBorderColor = strokeColor
 		? hexToRgba(strokeColor, strokeOpacity)
 		: selected
-			? "var(--color-editor-accent)"
-			: "var(--color-editor-outline)";
-	const hexFillColor = fillColor
-		? hexToRgba(fillColor, fillOpacity)
-		: "var(--color-editor-surface)";
+			? "var(--editor-accent)"
+			: "var(--editor-outline)";
+	const hexFillColor = fillColor ? hexToRgba(fillColor, fillOpacity) : "var(--editor-surface)";
 
 	const innerContent = (
 		<>
@@ -109,7 +107,7 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 						ref={inputRef}
 						defaultValue={nodeData.label}
 						autoFocus
-						className="w-full bg-transparent text-center text-editor-body font-semibold text-foreground outline-none"
+						className="w-full bg-transparent text-center text-editor-headline text-foreground outline-none"
 						onBlur={(e) => commitLabel(e.target.value)}
 						onKeyDown={(e) => {
 							e.stopPropagation();
@@ -119,7 +117,7 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 					/>
 				) : (
 					<div
-						className="flex items-center justify-center gap-2 text-editor-body font-semibold text-foreground cursor-text"
+						className="flex items-center justify-center gap-2 text-editor-headline text-foreground cursor-text"
 						onDoubleClick={() => setIsEditing(true)}
 					>
 						<IconRenderer icon={resolvedIcon} className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -129,7 +127,7 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 					</div>
 				)}
 				{(nodeData.trustZone || nodeData.technologies.length > 0) && (
-					<div className="mt-1 truncate text-editor-small text-muted-foreground">
+					<div className="mt-1 truncate text-editor-caption text-muted-foreground">
 						{[nodeData.trustZone, nodeData.technologies.join(" · ")].filter(Boolean).join(" / ")}
 					</div>
 				)}
@@ -189,8 +187,10 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 				nodeData.elementSize ? "h-full w-full overflow-hidden" : "min-h-[72px]",
 				shapeClass(shape),
 				!hasCustomColors && (selected ? "border-editor-accent" : "border-editor-outline"),
-				hasCustomColors && selected && "ring-2 ring-tf-signal ring-offset-1 ring-offset-background",
-				connectedToSelectedEdge && !selected && "ring-2 ring-tf-signal/30",
+				hasCustomColors &&
+					selected &&
+					"ring-2 ring-editor-accent ring-offset-1 ring-offset-editor-canvas",
+				connectedToSelectedEdge && !selected && "ring-2 ring-editor-accent/30",
 			)}
 			style={{ width: nodeData.elementSize ? undefined : DEFAULT_NODE_WIDTH, ...customStyle }}
 		>

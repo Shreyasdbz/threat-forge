@@ -89,22 +89,24 @@ export function GuideTooltip({
 			}}
 		>
 			{/* Step counter */}
-			<div className="mb-1 text-xs text-muted-foreground">
+			<div className="mb-1 text-editor-caption text-muted-foreground">
 				Step {stepIndex + 1} of {totalSteps}
 			</div>
 
 			{/* Title */}
-			<h3 className="mb-1.5 text-sm font-semibold text-foreground">{step.title}</h3>
+			<h3 className="mb-1.5 text-editor-headline text-foreground">{step.title}</h3>
 
 			{/* Content */}
-			<p className="mb-4 text-xs leading-relaxed text-muted-foreground">{step.content}</p>
+			<p className="mb-4 text-editor-caption leading-relaxed text-muted-foreground">
+				{step.content}
+			</p>
 
 			{/* Navigation */}
 			<div className="flex items-center justify-between">
 				<button
 					type="button"
 					onClick={onDismiss}
-					className="text-xs text-muted-foreground hover:text-foreground"
+					className="text-editor-caption text-muted-foreground hover:text-foreground"
 				>
 					Skip
 				</button>
@@ -113,7 +115,7 @@ export function GuideTooltip({
 						<button
 							type="button"
 							onClick={onPrev}
-							className="rounded px-3 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+							className="rounded px-3 py-1 text-editor-caption text-muted-foreground hover:bg-accent hover:text-foreground"
 						>
 							Back
 						</button>
@@ -121,7 +123,7 @@ export function GuideTooltip({
 					<button
 						type="button"
 						onClick={onNext}
-						className="rounded bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+						className="rounded bg-primary px-3 py-1 text-editor-footnote text-primary-foreground hover:bg-primary/90"
 					>
 						{isLastStep ? "Done" : "Next"}
 					</button>

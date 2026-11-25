@@ -1,4 +1,5 @@
 import { ReactFlowProvider } from "@xyflow/react";
+import { LucideProvider } from "lucide-react";
 import { useCallback, useEffect } from "react";
 import { useAutosave } from "@/hooks/use-autosave";
 import { useCloseGuard } from "@/hooks/use-close-guard";
@@ -119,66 +120,68 @@ export function AppLayout() {
 
 	return (
 		<ReactFlowProvider>
-			<div
-				data-testid="app-layout"
-				className="flex h-full w-full flex-col bg-editor-canvas font-sans text-editor-body text-foreground"
-			>
-				<TopMenuBar />
-				<UpdateBar />
+			<LucideProvider size={16} strokeWidth={1.5} absoluteStrokeWidth>
+				<div
+					data-testid="app-layout"
+					className="editor-workspace flex h-full w-full flex-col bg-editor-canvas font-sans text-editor-body text-foreground"
+				>
+					<TopMenuBar />
+					<UpdateBar />
 
-				<div className="flex flex-1 overflow-hidden">
-					{/* Left sidebar — Component palette */}
-					{leftPanelOpen && (
-						<aside
-							className="relative shrink-0 border-r border-editor-line bg-editor-surface"
-							style={{ width: leftPanelWidth }}
-						>
-							<ComponentPalette />
-							<ResizeHandle side="right" onResize={handleLeftResize} />
-						</aside>
-					)}
+					<div className="flex flex-1 overflow-hidden">
+						{/* Left sidebar — Component palette */}
+						{leftPanelOpen && (
+							<aside
+								className="relative shrink-0 border-r border-editor-separator bg-editor-grouped-background"
+								style={{ width: leftPanelWidth }}
+							>
+								<ComponentPalette />
+								<ResizeHandle side="right" onResize={handleLeftResize} />
+							</aside>
+						)}
 
-					{/* Main canvas area: the tab strip sits above the canvas, which becomes the tabpanel
+						{/* Main canvas area: the tab strip sits above the canvas, which becomes the tabpanel
 					    the tablist controls. The role/labelling go on the wrapper, not on <main>, so the
 					    main landmark survives (`#54` D4). */}
-					<main className="flex flex-1 flex-col overflow-hidden">
-						<DocumentTabStrip />
-						<div
-							className="flex-1 overflow-hidden"
-							{...(activeDocumentId
-								? {
-										id: "document-panel",
-										role: "tabpanel",
-										"aria-labelledby": `tab-${activeDocumentId}`,
-									}
-								: {})}
-						>
-							<Canvas />
-						</div>
-					</main>
+						<main className="flex flex-1 flex-col overflow-hidden">
+							<DocumentTabStrip />
+							<div
+								className="flex-1 overflow-hidden"
+								{...(activeDocumentId
+									? {
+											id: "document-panel",
+											role: "tabpanel",
+											"aria-labelledby": `tab-${activeDocumentId}`,
+										}
+									: {})}
+							>
+								<Canvas />
+							</div>
+						</main>
 
-					{/* Right panel — Properties / Threats */}
-					{rightPanelOpen && (
-						<aside
-							className="relative shrink-0 border-l border-editor-line bg-editor-surface"
-							style={{ width: rightPanelWidth }}
-						>
-							<ResizeHandle side="left" onResize={handleRightResize} />
-							<RightPanel />
-						</aside>
-					)}
+						{/* Right panel — Properties / Threats */}
+						{rightPanelOpen && (
+							<aside
+								className="relative shrink-0 border-l border-editor-separator bg-editor-grouped-background"
+								style={{ width: rightPanelWidth }}
+							>
+								<ResizeHandle side="left" onResize={handleRightResize} />
+								<RightPanel />
+							</aside>
+						)}
+					</div>
+
+					<StatusBar onReloadExternal={reloadExternalChanges} />
+
+					{/* Dialogs */}
+					{settingsDialogOpen && <SettingsDialog />}
+					{keyboardShortcutsDialogOpen && <KeyboardShortcutsDialog />}
+					<CommandPalette open={commandPaletteOpen} onClose={closeCommandPalette} />
+					<GuideProvider />
+					<WhatsNewOverlay />
+					{closeGuardModal}
 				</div>
-
-				<StatusBar onReloadExternal={reloadExternalChanges} />
-
-				{/* Dialogs */}
-				{settingsDialogOpen && <SettingsDialog />}
-				{keyboardShortcutsDialogOpen && <KeyboardShortcutsDialog />}
-				<CommandPalette open={commandPaletteOpen} onClose={closeCommandPalette} />
-				<GuideProvider />
-				<WhatsNewOverlay />
-				{closeGuardModal}
-			</div>
+			</LucideProvider>
 		</ReactFlowProvider>
 	);
 }

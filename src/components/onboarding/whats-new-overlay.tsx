@@ -39,17 +39,19 @@ export function WhatsNewOverlay() {
 				onKeyDown={(e) => e.stopPropagation()}
 			>
 				<h2 className="mb-1 text-lg font-semibold text-foreground">What's New</h2>
-				<p className="mb-4 text-xs text-muted-foreground">Recent updates to Threat Forge</p>
+				<p className="mb-4 text-editor-caption text-muted-foreground">
+					Recent updates to Threat Forge
+				</p>
 
 				{unseenEntries.map((entry) => (
 					<div key={entry.version} className="mb-4">
 						<div className="mb-2 flex items-baseline gap-2">
-							<span className="text-sm font-medium text-foreground">v{entry.version}</span>
-							<span className="text-xs text-muted-foreground">{entry.date}</span>
+							<span className="text-editor-footnote text-foreground">v{entry.version}</span>
+							<span className="text-editor-caption text-muted-foreground">{entry.date}</span>
 						</div>
 						<ul className="space-y-1">
 							{entry.changes.map((change) => (
-								<li key={change} className="flex gap-2 text-xs text-foreground/80">
+								<li key={change} className="flex gap-2 text-editor-caption text-foreground/80">
 									<span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-primary" />
 									{change}
 								</li>
@@ -61,7 +63,7 @@ export function WhatsNewOverlay() {
 				<button
 					type="button"
 					onClick={dismiss}
-					className="mt-2 w-full rounded bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+					className="mt-2 w-full rounded bg-primary px-3 py-1.5 text-editor-footnote text-primary-foreground transition-colors hover:bg-primary/90"
 				>
 					Got it
 				</button>

@@ -33,7 +33,7 @@ export function Canvas() {
 		<div data-testid="canvas-area" className="h-full w-full">
 			<Suspense
 				fallback={
-					<div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+					<div className="flex h-full items-center justify-center text-editor-body text-muted-foreground">
 						Loading canvas...
 					</div>
 				}
@@ -65,8 +65,8 @@ function EmptyCanvas() {
 					alt="Threat Forge"
 					className="mb-4 size-12 [@media(max-height:850px)]:mb-3 [@media(max-height:850px)]:size-10"
 				/>
-				<h2 className="text-editor-title font-semibold tracking-tight">Threat Forge</h2>
-				<p className="mt-2 max-w-sm text-center text-sm text-muted-foreground">
+				<h2 className="text-editor-title2">Threat Forge</h2>
+				<p className="mt-2 max-w-sm text-center text-editor-body text-muted-foreground">
 					Nothing open. Start a new model, or open one you saved earlier.
 				</p>
 
@@ -74,7 +74,7 @@ function EmptyCanvas() {
 					<button
 						type="button"
 						data-testid="btn-empty-new"
-						className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+						className="min-h-8 rounded-editor-control bg-editor-accent px-4 py-2 text-editor-headline text-editor-on-accent transition-colors duration-120 ease-editor hover:bg-editor-accent/90"
 						onClick={() => void newModel()}
 					>
 						New Model
@@ -82,7 +82,7 @@ function EmptyCanvas() {
 					<button
 						type="button"
 						data-testid="btn-empty-open"
-						className="flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-accent"
+						className="flex min-h-8 items-center gap-2 rounded-editor-control bg-editor-fill px-4 py-2 text-editor-headline transition-colors duration-120 ease-editor hover:bg-editor-hover"
 						onClick={() => void openModel()}
 					>
 						<FolderOpen className="h-4 w-4" />
@@ -91,14 +91,14 @@ function EmptyCanvas() {
 				</div>
 
 				{/* Templates */}
-				<div className="mt-8 w-full max-w-2xl">
+				<div className="@container mt-8 w-full max-w-2xl">
 					<p
 						data-testid="empty-canvas-contrast-target"
-						className="mb-3 text-center text-xs font-medium uppercase tracking-wider text-foreground opacity-95"
+						className="mb-3 text-center text-editor-footnote text-foreground opacity-95"
 					>
 						Start from a template
 					</p>
-					<div className="grid grid-cols-3 gap-3">
+					<div className="grid grid-cols-2 gap-px rounded-editor-panel bg-editor-separator p-px @min-[40rem]:grid-cols-3">
 						{TEMPLATES.map((t) => (
 							<TemplateCard key={t.id} template={t} onSelect={openTemplate} />
 						))}
@@ -114,7 +114,7 @@ function EmptyCanvas() {
 			<footer className="flex w-full shrink-0 items-center justify-center gap-4 border-t border-border/50 px-4 py-3">
 				<span
 					data-testid="empty-canvas-contrast-target"
-					className="text-xs text-foreground opacity-95"
+					className="text-editor-caption text-foreground opacity-95"
 				>
 					Built by Exit Zero Labs LLC
 				</span>
@@ -123,7 +123,7 @@ function EmptyCanvas() {
 					type="button"
 					onClick={() => void openExternalUrl("https://github.com/exit-zero-labs/threat-forge")}
 					data-testid="empty-canvas-contrast-target"
-					className="flex items-center gap-1 text-xs text-foreground opacity-95 transition-opacity hover:opacity-100"
+					className="flex items-center gap-1 text-editor-caption text-foreground opacity-95 transition-opacity hover:opacity-100"
 				>
 					<GithubIcon className="h-3 w-3" />
 					GitHub
@@ -131,7 +131,7 @@ function EmptyCanvas() {
 				<span className="text-muted-foreground/30">·</span>
 				<span
 					data-testid="empty-canvas-contrast-target"
-					className="text-xs text-foreground opacity-95"
+					className="text-editor-caption text-foreground opacity-95"
 				>
 					v{__APP_VERSION__ ?? "dev"}
 				</span>
@@ -163,11 +163,13 @@ function TemplateCard({
 			type="button"
 			data-testid={`template-${template.id}`}
 			onClick={() => onSelect(template.id)}
-			className="flex flex-col items-start gap-1.5 rounded-editor-control border border-editor-line bg-editor-surface p-3 text-left transition-colors hover:bg-editor-hover"
+			className="grid grid-cols-[1rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 bg-editor-surface p-3 text-left transition-colors duration-120 ease-editor first:rounded-tl-editor-panel last:rounded-br-editor-panel hover:bg-editor-hover"
 		>
 			<Icon className="size-4 text-muted-foreground" />
-			<span className="text-sm font-medium text-foreground">{template.name}</span>
-			<span className="text-xs text-muted-foreground leading-snug">{template.description}</span>
+			<span className="text-editor-footnote text-foreground">{template.name}</span>
+			<span className="col-start-2 text-editor-caption text-muted-foreground">
+				{template.description}
+			</span>
 		</button>
 	);
 }
@@ -206,7 +208,7 @@ function RotatingTip() {
 	return (
 		<p
 			data-testid="rotating-tip-contrast-target"
-			className="text-center text-xs italic text-foreground"
+			className="text-center text-editor-caption italic text-foreground"
 			style={{
 				opacity: visible ? 1 : 0,
 				transition: reduceMotion ? "none" : "opacity 400ms ease-in-out",

@@ -14,13 +14,13 @@ export function PropertiesTab() {
 	const model = useModelStore((s) => s.model);
 
 	if (!model) {
-		return <p className="text-xs text-muted-foreground">No model open.</p>;
+		return <p className="text-editor-caption text-muted-foreground">No model open.</p>;
 	}
 
 	if (selectedEdgeId) {
 		const flow = model.data_flows.find((f) => f.id === selectedEdgeId);
 		if (!flow) {
-			return <p className="text-xs text-muted-foreground">Data flow not found.</p>;
+			return <p className="text-editor-caption text-muted-foreground">Data flow not found.</p>;
 		}
 		return <EdgeProperties flow={flow} />;
 	}
@@ -28,7 +28,7 @@ export function PropertiesTab() {
 	if (selectedBoundaryId) {
 		const boundary = model.trust_boundaries.find((b) => b.id === selectedBoundaryId);
 		if (!boundary) {
-			return <p className="text-xs text-muted-foreground">Trust boundary not found.</p>;
+			return <p className="text-editor-caption text-muted-foreground">Trust boundary not found.</p>;
 		}
 		return <TrustBoundaryProperties boundaryId={selectedBoundaryId} />;
 	}
@@ -40,8 +40,8 @@ export function PropertiesTab() {
 	return (
 		<div className="px-2 py-8 text-left">
 			<MousePointer2 className="mb-3 size-4 text-muted-foreground" aria-hidden="true" />
-			<h2 className="text-sm font-medium">Nothing selected</h2>
-			<p className="mt-1 text-xs text-muted-foreground">
+			<h2 className="text-editor-footnote">Nothing selected</h2>
+			<p className="mt-1 text-editor-caption text-muted-foreground">
 				Select an element or connector on the canvas to view its properties.
 			</p>
 		</div>
@@ -95,16 +95,14 @@ function EdgeProperties({ flow }: { flow: DataFlow }) {
 			<button
 				type="button"
 				onClick={() => reverseEdge(flow.id)}
-				className="flex items-center gap-1.5 self-start rounded border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+				className="flex items-center gap-1.5 self-start rounded border border-border px-2 py-1 text-editor-caption text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 			>
 				<ArrowLeftRight className="h-3 w-3" />
 				Flip Direction
 			</button>
 
 			<label className="block">
-				<span className="mb-1 block text-editor-small font-semibold text-muted-foreground">
-					Flow #
-				</span>
+				<span className="mb-1 block text-editor-footnote text-muted-foreground">Flow #</span>
 				<input
 					type="number"
 					min="1"
@@ -159,7 +157,7 @@ function EdgeProperties({ flow }: { flow: DataFlow }) {
 					}}
 					className="h-3.5 w-3.5 rounded border-border accent-primary"
 				/>
-				<span className="text-xs text-foreground">Authenticated</span>
+				<span className="text-editor-caption text-foreground">Authenticated</span>
 			</label>
 
 			<ColorField
@@ -190,7 +188,7 @@ function FlowThreats({ flowId }: { flowId: string }) {
 
 	return (
 		<div className="border-t border-border pt-3">
-			<p className="mb-1.5 text-[10px] font-medium text-muted-foreground">
+			<p className="mb-1.5 text-editor-caption2 text-muted-foreground">
 				Related Threats ({relatedThreats.length})
 			</p>
 			<div className="flex flex-col gap-1">
@@ -223,7 +221,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 
 	const element = model?.elements.find((e) => e.id === elementId);
 	if (!element) {
-		return <p className="text-xs text-muted-foreground">Element not found.</p>;
+		return <p className="text-editor-caption text-muted-foreground">Element not found.</p>;
 	}
 
 	const isTextAnnotation = element.type === "text";
@@ -273,92 +271,89 @@ function ElementProperties({ elementId }: { elementId: string }) {
 		<div className="flex flex-col gap-3">
 			<div className="flex items-center gap-2 pb-2">
 				<Box className="size-4 shrink-0 text-primary" aria-hidden="true" />
-				<h2 className="min-w-0 break-words text-editor-heading font-semibold">{element.name}</h2>
+				<h2 className="min-w-0 break-words text-editor-title3">{element.name}</h2>
 			</div>
-			<ReadOnlyField label="ID" value={element.id} />
+			<div className="divide-y divide-editor-separator rounded-editor-panel bg-editor-surface [&>*]:px-3 [&>*]:py-2">
+				<ReadOnlyField label="ID" value={element.id} />
 
-			{/* Type dropdown — hidden for text annotations */}
-			{!isTextAnnotation && (
-				<label className="block">
-					<span className="mb-1 block text-editor-small font-semibold text-muted-foreground">
-						Type
-					</span>
-					<select
-						value={element.type}
-						onChange={(e) => handleTypeChange(e.target.value)}
-						className="w-full rounded-editor-control border border-editor-line bg-editor-surface px-2 py-1.5 text-editor-body focus:border-primary focus:outline-none"
-					>
-						<option value="generic">Generic</option>
-						{componentsByCategory.map((group) => (
-							<optgroup key={group.category} label={group.category}>
-								{group.items.map((comp) => (
-									<option key={comp.id} value={comp.id}>
-										{comp.label}
-									</option>
-								))}
-							</optgroup>
-						))}
-					</select>
-				</label>
-			)}
+				{/* Type dropdown — hidden for text annotations */}
+				{!isTextAnnotation && (
+					<label className="block">
+						<span className="mb-1 block text-editor-footnote text-muted-foreground">Type</span>
+						<select
+							value={element.type}
+							onChange={(e) => handleTypeChange(e.target.value)}
+							className="w-full rounded-editor-control border border-editor-line bg-editor-surface px-2 py-1.5 text-editor-body focus:border-primary focus:outline-none"
+						>
+							<option value="generic">Generic</option>
+							{componentsByCategory.map((group) => (
+								<optgroup key={group.category} label={group.category}>
+									{group.items.map((comp) => (
+										<option key={comp.id} value={comp.id}>
+											{comp.label}
+										</option>
+									))}
+								</optgroup>
+							))}
+						</select>
+					</label>
+				)}
 
-			{isTextAnnotation && <ReadOnlyField label="Type" value="Text Annotation" />}
+				{isTextAnnotation && <ReadOnlyField label="Type" value="Text Annotation" />}
 
-			{/* Sub-type dropdown (conditional, not for text) */}
-			{!isTextAnnotation && subtypes.length > 0 && (
-				<label className="block">
-					<span className="mb-1 block text-editor-small font-semibold text-muted-foreground">
-						Sub Type
-					</span>
-					<select
-						value={element.subtype ?? ""}
-						onChange={(e) => handleSubtypeChange(e.target.value)}
-						className="w-full rounded-editor-control border border-editor-line bg-editor-surface px-2 py-1.5 text-editor-body focus:border-primary focus:outline-none"
-					>
-						<option value="">None</option>
-						{subtypes.map((st) => (
-							<option key={st.id} value={st.id}>
-								{st.label}
-							</option>
-						))}
-					</select>
-				</label>
-			)}
+				{/* Sub-type dropdown (conditional, not for text) */}
+				{!isTextAnnotation && subtypes.length > 0 && (
+					<label className="block">
+						<span className="mb-1 block text-editor-footnote text-muted-foreground">Sub Type</span>
+						<select
+							value={element.subtype ?? ""}
+							onChange={(e) => handleSubtypeChange(e.target.value)}
+							className="w-full rounded-editor-control border border-editor-line bg-editor-surface px-2 py-1.5 text-editor-body focus:border-primary focus:outline-none"
+						>
+							<option value="">None</option>
+							{subtypes.map((st) => (
+								<option key={st.id} value={st.id}>
+									{st.label}
+								</option>
+							))}
+						</select>
+					</label>
+				)}
 
-			<EditableField
-				label={isTextAnnotation ? "Text" : "Name"}
-				value={element.name}
-				onChange={(value) => {
-					updateElement(element.id, { name: value });
-					syncNodeLabel(element.id, value);
-				}}
-			/>
-
-			{/* Trust Zone — not for text annotations */}
-			{!isTextAnnotation && (
 				<EditableField
-					label="Trust Zone"
-					value={element.trust_zone}
-					placeholder="e.g. internal, dmz, external"
+					label={isTextAnnotation ? "Text" : "Name"}
+					value={element.name}
 					onChange={(value) => {
-						updateElement(element.id, { trust_zone: value });
-						syncNodeTrustZone(element.id, value);
+						updateElement(element.id, { name: value });
+						syncNodeLabel(element.id, value);
 					}}
 				/>
-			)}
 
-			<EditableTextarea
-				label="Description"
-				value={element.description}
-				placeholder="Describe this element..."
-				onChange={(value) => updateElement(element.id, { description: value })}
-			/>
+				{/* Trust Zone — not for text annotations */}
+				{!isTextAnnotation && (
+					<EditableField
+						label="Trust Zone"
+						value={element.trust_zone}
+						placeholder="e.g. internal, dmz, external"
+						onChange={(value) => {
+							updateElement(element.id, { trust_zone: value });
+							syncNodeTrustZone(element.id, value);
+						}}
+					/>
+				)}
 
+				<EditableTextarea
+					label="Description"
+					value={element.description}
+					placeholder="Describe this element..."
+					onChange={(value) => updateElement(element.id, { description: value })}
+				/>
+			</div>
 			{!isTextAnnotation && (
-				<fieldset className="mt-3 grid grid-cols-2 gap-3 border-t border-editor-line pt-3">
-					<legend className="pr-2 text-editor-small font-semibold">Architecture</legend>
+				<fieldset className="mt-3 grid grid-cols-2 gap-3 rounded-editor-panel bg-editor-surface p-3">
+					<legend className="px-1 text-editor-headline">Architecture</legend>
 					{(["layer", "group"] as const).map((field) => (
-						<label key={field} className="min-w-0 text-xs text-muted-foreground">
+						<label key={field} className="min-w-0 text-editor-caption text-muted-foreground">
 							<span>{field === "layer" ? "Layer" : "Group"}</span>
 							<select
 								value={element[field] ?? ""}
@@ -378,7 +373,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 					))}
 					<button
 						type="button"
-						className="col-span-2 -ml-2 justify-self-start rounded-editor-control px-2 py-1 text-editor-small text-muted-foreground hover:bg-editor-hover hover:text-foreground"
+						className="col-span-2 -ml-2 justify-self-start rounded-editor-control px-2 py-1 text-editor-caption text-muted-foreground hover:bg-editor-hover hover:text-foreground"
 						onClick={() => setTab("architecture")}
 					>
 						Browse layers and groups
@@ -416,9 +411,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 					/>
 
 					<label className="block">
-						<span className="mb-1 block text-editor-small font-semibold text-muted-foreground">
-							Font Size
-						</span>
+						<span className="mb-1 block text-editor-footnote text-muted-foreground">Font Size</span>
 						<select
 							value={element.font_size ?? 14}
 							onChange={(e) => {
@@ -437,7 +430,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 					</label>
 
 					<div>
-						<span className="mb-1 block text-editor-small font-semibold text-muted-foreground">
+						<span className="mb-1 block text-editor-footnote text-muted-foreground">
 							Font Weight
 						</span>
 						<div className="flex gap-1">
@@ -449,7 +442,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 										updateElement(element.id, { font_weight: weight });
 										syncElementNodeData({ fontWeight: weight });
 									}}
-									className={`flex-1 rounded border px-2 py-1 text-xs transition-colors ${
+									className={`flex-1 rounded border px-2 py-1 text-editor-caption transition-colors ${
 										(element.font_weight ?? "normal") === weight
 											? "border-primary bg-accent text-accent-foreground"
 											: "border-border bg-background text-muted-foreground hover:bg-accent/50"
@@ -466,7 +459,8 @@ function ElementProperties({ elementId }: { elementId: string }) {
 
 			{/* Fill/Stroke colors — not for text annotations */}
 			{!isTextAnnotation && (
-				<>
+				<fieldset className="mt-3 divide-y divide-editor-separator rounded-editor-panel bg-editor-surface [&>div]:px-3 [&>div]:py-2">
+					<legend className="px-1 text-editor-headline">Appearance</legend>
 					<ColorField
 						label="Fill Color"
 						color={fillColor}
@@ -494,13 +488,13 @@ function ElementProperties({ elementId }: { elementId: string }) {
 							updateElement(element.id, { stroke_opacity: opacity });
 						}}
 					/>
-				</>
+				</fieldset>
 			)}
 
 			{/* Related threats — not for text annotations */}
 			{!isTextAnnotation && relatedThreats.length > 0 && (
 				<div className="border-t border-border pt-3">
-					<p className="mb-1.5 text-[10px] font-medium text-muted-foreground">
+					<p className="mb-1.5 text-editor-caption2 text-muted-foreground">
 						Related Threats ({relatedThreats.length})
 					</p>
 					<div className="flex flex-col gap-1">
@@ -538,7 +532,7 @@ function ThreatLink({
 				setSelectedThreat(threatId);
 				setRightPanelTab("threats");
 			}}
-			className="flex items-center justify-between rounded px-1.5 py-1 text-xs hover:bg-accent transition-colors text-left"
+			className="flex items-center justify-between rounded px-1.5 py-1 text-editor-caption hover:bg-accent transition-colors text-left"
 		>
 			<span className="truncate">{title}</span>
 			<SeverityDot severity={severity} />
@@ -573,7 +567,7 @@ function TrustBoundaryProperties({ boundaryId }: { boundaryId: string }) {
 	const strokeOpacity = (node?.data.boundaryStrokeOpacity as number) ?? 0.6;
 
 	if (!boundary) {
-		return <p className="text-xs text-muted-foreground">Boundary not found.</p>;
+		return <p className="text-editor-caption text-muted-foreground">Boundary not found.</p>;
 	}
 
 	const syncBoundaryNodeData = (updates: Record<string, unknown>) => {
@@ -657,9 +651,7 @@ function ColorField({
 }) {
 	return (
 		<div className="flex flex-wrap items-center gap-2">
-			<span className="min-w-20 flex-1 text-editor-small font-semibold text-muted-foreground">
-				{label}
-			</span>
+			<span className="min-w-20 flex-1 text-editor-footnote text-muted-foreground">{label}</span>
 			<input
 				type="color"
 				aria-label={label}
@@ -667,7 +659,7 @@ function ColorField({
 				onChange={(e) => onColorChange(e.target.value)}
 				className="size-6 cursor-pointer rounded-editor-control border border-editor-line bg-transparent p-0"
 			/>
-			<label className="flex items-center gap-1 text-editor-small text-muted-foreground">
+			<label className="flex items-center gap-1 text-editor-caption text-muted-foreground">
 				<input
 					type="number"
 					aria-label={`${label} opacity (%)`}
@@ -689,7 +681,7 @@ function ColorField({
 					type="button"
 					onClick={() => onColorChange("")}
 					aria-label={`Reset ${label.toLowerCase()} to default`}
-					className="rounded-editor-control px-1 py-1 text-editor-small text-muted-foreground hover:bg-editor-hover"
+					className="rounded-editor-control px-1 py-1 text-editor-caption text-muted-foreground hover:bg-editor-hover"
 				>
 					Reset
 				</button>
@@ -716,10 +708,16 @@ function syncNodeTrustZone(elementId: string, trustZone: string) {
 
 function ReadOnlyField({ label, value }: { label: string; value: string }) {
 	return (
-		<div>
-			<dt className="text-[10px] font-medium text-muted-foreground">{label}</dt>
-			<dd className="mt-0.5 text-xs text-foreground/80">{value}</dd>
-		</div>
+		<dl className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-editor-control bg-editor-surface px-3 py-2">
+			<dt className="text-editor-footnote text-muted-foreground">{label}</dt>
+			<dd
+				className={
+					label === "ID" ? "break-all font-editor-mono text-editor-caption" : "text-editor-body"
+				}
+			>
+				{value}
+			</dd>
+		</dl>
 	);
 }
 
@@ -736,9 +734,7 @@ function EditableField({
 }) {
 	return (
 		<label className="block">
-			<span className="mb-1 block text-editor-small font-semibold text-muted-foreground">
-				{label}
-			</span>
+			<span className="mb-1 block text-editor-footnote text-muted-foreground">{label}</span>
 			<input
 				type="text"
 				value={value}
@@ -763,9 +759,7 @@ function EditableTextarea({
 }) {
 	return (
 		<label className="block">
-			<span className="mb-1 block text-editor-small font-semibold text-muted-foreground">
-				{label}
-			</span>
+			<span className="mb-1 block text-editor-footnote text-muted-foreground">{label}</span>
 			<textarea
 				value={value}
 				placeholder={placeholder}
@@ -812,9 +806,7 @@ function CommaSeparatedField({
 
 	return (
 		<label className="block">
-			<span className="mb-1 block text-editor-small font-semibold text-muted-foreground">
-				{label}
-			</span>
+			<span className="mb-1 block text-editor-footnote text-muted-foreground">{label}</span>
 			<input
 				type="text"
 				value={rawText}

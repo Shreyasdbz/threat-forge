@@ -140,7 +140,7 @@ export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promi
 	return (
 		<footer
 			data-testid="status-bar"
-			className="flex h-8 shrink-0 items-center border-t border-editor-line bg-editor-surface px-4 text-editor-small text-muted-foreground"
+			className="flex h-8 shrink-0 items-center border-t border-editor-line bg-editor-surface px-4 text-editor-caption text-muted-foreground"
 		>
 			{model ? (
 				<>

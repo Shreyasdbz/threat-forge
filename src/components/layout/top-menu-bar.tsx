@@ -77,7 +77,7 @@ export function TopMenuBar() {
 						ref={titleInputRef}
 						defaultValue={model.metadata.title}
 						autoFocus
-						className="w-40 rounded border border-primary bg-background px-1.5 py-0.5 text-sm font-semibold tracking-tight text-foreground focus:outline-none"
+						className="w-40 rounded border border-primary bg-background px-1.5 py-0.5 text-editor-headline text-foreground focus:outline-none"
 						onKeyDown={(e) => {
 							e.stopPropagation();
 							if (e.key === "Enter") commitTitle();
@@ -87,7 +87,7 @@ export function TopMenuBar() {
 					/>
 				) : (
 					<span
-						className="min-w-0 truncate text-sm font-semibold tracking-tight cursor-default"
+						className="min-w-0 truncate text-editor-headline cursor-default"
 						onDoubleClick={() => {
 							if (model) setEditingTitle(true);
 						}}
@@ -102,33 +102,33 @@ export function TopMenuBar() {
 			<div className="ml-2 flex shrink-0 items-center gap-1">
 				<MenuButton
 					testId="btn-new"
-					icon={<FilePlus className="size-4" />}
+					icon={<FilePlus size={20} />}
 					tooltip={keytipsVisible ? `New Model (${modKey}N)` : "New Model"}
 					onClick={() => void newModel()}
 				/>
 				<MenuButton
 					testId="btn-open"
-					icon={<FolderOpen className="size-4" />}
+					icon={<FolderOpen size={20} />}
 					tooltip={keytipsVisible ? `Open Model (${modKey}O)` : "Open Model"}
 					onClick={() => void openModel()}
 				/>
 				<MenuButton
 					testId="btn-save"
-					icon={<Save className="size-4" />}
+					icon={<Save size={20} />}
 					tooltip={keytipsVisible ? `Save (${modKey}S)` : "Save"}
 					onClick={() => void saveModel()}
 					disabled={!model}
 				/>
 				<MenuButton
 					testId="btn-export"
-					icon={<FileOutput className="size-4" />}
+					icon={<FileOutput size={20} />}
 					tooltip={`Export HTML (${modKey}${isMac ? "⇧" : "Shift+"}E)`}
 					onClick={() => void exportAsHtml()}
 					disabled={!model}
 				/>
 				<MenuButton
 					testId="btn-present"
-					icon={<Presentation className="size-4" />}
+					icon={<Presentation size={20} />}
 					tooltip="Present diagram and export SVG or PNG"
 					onClick={() => {
 						if (model)
@@ -140,7 +140,7 @@ export function TopMenuBar() {
 				/>
 				<MenuButton
 					testId="btn-import"
-					icon={<FileUp className="size-4" />}
+					icon={<FileUp size={20} />}
 					tooltip="Import Microsoft Threat Model (.tm7)"
 					onClick={() => void importModel()}
 				/>
@@ -156,7 +156,7 @@ export function TopMenuBar() {
 				<section
 					aria-label={`Canvas summary: ${countLabel(componentCount, "component")}, ${countLabel(dataFlowCount, "data flow")}, ${countLabel(threatCount, "identified threat")}, ${countLabel(mitigatedThreatCount, "mitigated threat")}`}
 					data-testid="canvas-count-badge"
-					className="flex shrink-0 items-center text-editor-small text-muted-foreground"
+					className="flex shrink-0 items-center text-editor-caption text-muted-foreground"
 				>
 					<dl className="flex items-center gap-3">
 						<CountItem label="Components" value={componentCount} />
@@ -176,13 +176,13 @@ export function TopMenuBar() {
 			<div className="flex shrink-0 items-center gap-1">
 				<MenuButton
 					testId="btn-toggle-left-panel"
-					icon={<LayoutPanelLeft className="h-4 w-4" />}
+					icon={<LayoutPanelLeft size={20} />}
 					tooltip="Toggle component palette"
 					onClick={toggleLeftPanel}
 				/>
 				<MenuButton
 					testId="btn-toggle-right-panel"
-					icon={<PanelRight className="h-4 w-4" />}
+					icon={<PanelRight size={20} />}
 					tooltip="Toggle properties panel"
 					onClick={toggleRightPanel}
 				/>
@@ -194,13 +194,13 @@ export function TopMenuBar() {
 			<div className="flex shrink-0 items-center gap-1">
 				<MenuButton
 					testId="btn-guide-picker"
-					icon={<BookOpen className="h-4 w-4" />}
+					icon={<BookOpen size={20} />}
 					tooltip="Guided Tours"
 					onClick={() => setGuidePickerOpen(true)}
 				/>
 				<MenuButton
 					testId="btn-settings-dialog"
-					icon={<Settings className="h-4 w-4" />}
+					icon={<Settings size={20} />}
 					tooltip={`Settings (${modKey},)`}
 					onClick={openSettingsDialog}
 				/>

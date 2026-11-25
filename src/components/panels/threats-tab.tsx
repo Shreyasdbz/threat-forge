@@ -53,7 +53,7 @@ export function ThreatsTab() {
 	const [filterByElement, setFilterByElement] = useState(false);
 
 	if (!model) {
-		return <p className="text-xs text-muted-foreground">No model open.</p>;
+		return <p className="text-editor-caption text-muted-foreground">No model open.</p>;
 	}
 
 	const hasElements = model.elements.length > 0;
@@ -67,7 +67,8 @@ export function ThreatsTab() {
 		: null;
 
 	return (
-		<div className="flex flex-col gap-3">
+		<div className="flex flex-col gap-4">
+			<h2 className="text-editor-title3">Threats</h2>
 			{/* Analyze button */}
 			<button
 				type="button"
@@ -75,7 +76,7 @@ export function ThreatsTab() {
 				disabled={!hasElements || isAnalyzing}
 				onClick={() => void analyzeThreats()}
 				className={cn(
-					"flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-colors",
+					"flex min-h-8 items-center justify-center gap-2 self-start rounded-editor-control px-3 py-1.5 text-editor-footnote transition-colors duration-120 ease-editor",
 					hasElements
 						? "bg-primary text-primary-foreground hover:bg-primary/90"
 						: "cursor-not-allowed bg-muted text-muted-foreground",
@@ -99,7 +100,7 @@ export function ThreatsTab() {
 				<button
 					type="button"
 					onClick={() => setFilterByElement(!filterByElement)}
-					className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+					className="flex items-center gap-1.5 text-editor-caption text-muted-foreground hover:text-foreground transition-colors"
 				>
 					<Shield className="h-3 w-3" />
 					{filterByElement
@@ -112,14 +113,14 @@ export function ThreatsTab() {
 			{!hasElements && (
 				<div className="flex flex-col items-center gap-2 py-6 text-center">
 					<AlertTriangle className="h-8 w-8 text-muted-foreground/50" />
-					<p className="text-xs text-muted-foreground">
+					<p className="text-editor-caption text-muted-foreground">
 						Add elements to the canvas, then run STRIDE analysis to identify threats.
 					</p>
 				</div>
 			)}
 
 			{hasElements && threats.length === 0 && (
-				<p className="text-xs text-muted-foreground">
+				<p className="text-editor-caption text-muted-foreground">
 					{filterByElement
 						? "No threats linked to this element."
 						: 'No threats identified yet. Click "Run STRIDE Analysis" to get started.'}
@@ -171,7 +172,7 @@ function ThreatCard({
 		<div
 			data-testid="threat-card"
 			className={cn(
-				"rounded-md border text-xs transition-colors",
+				"rounded-md border text-editor-caption transition-colors",
 				isSelected ? "border-primary bg-primary/5" : "border-border hover:bg-accent",
 			)}
 			onContextMenu={(event) => {
@@ -208,7 +209,7 @@ function ThreatCard({
 							setSelectedElement(linkedElement.id);
 							setRightPanelTab("properties");
 						}}
-						className="text-[10px] text-muted-foreground hover:text-primary transition-colors"
+						className="text-editor-caption2 text-muted-foreground hover:text-primary transition-colors"
 					>
 						{linkedElement.name}
 					</button>
@@ -256,7 +257,7 @@ function ThreatEditor({ threat }: { threat: Threat }) {
 					type="text"
 					value={threat.title}
 					onChange={(e) => updateThreat(threat.id, { title: e.target.value })}
-					className="w-full rounded border border-border bg-background px-2 py-1 text-xs focus:border-primary focus:outline-none"
+					className="w-full rounded border border-border bg-background px-2 py-1 text-editor-caption focus:border-primary focus:outline-none"
 				/>
 			</FieldGroup>
 
@@ -270,7 +271,7 @@ function ThreatEditor({ threat }: { threat: Threat }) {
 								category: e.target.value as StrideCategory,
 							})
 						}
-						className="w-full rounded border border-border bg-background px-2 py-1 text-xs focus:border-primary focus:outline-none"
+						className="w-full rounded border border-border bg-background px-2 py-1 text-editor-caption focus:border-primary focus:outline-none"
 					>
 						{STRIDE_CATEGORIES.map((c) => (
 							<option key={c} value={c}>
@@ -288,7 +289,7 @@ function ThreatEditor({ threat }: { threat: Threat }) {
 								severity: e.target.value as Severity,
 							})
 						}
-						className="w-full rounded border border-border bg-background px-2 py-1 text-xs focus:border-primary focus:outline-none"
+						className="w-full rounded border border-border bg-background px-2 py-1 text-editor-caption focus:border-primary focus:outline-none"
 					>
 						{SEVERITIES.map((s) => (
 							<option key={s} value={s}>
@@ -305,7 +306,7 @@ function ThreatEditor({ threat }: { threat: Threat }) {
 					value={threat.description}
 					onChange={(e) => updateThreat(threat.id, { description: e.target.value })}
 					rows={3}
-					className="w-full resize-none rounded border border-border bg-background px-2 py-1 text-xs focus:border-primary focus:outline-none"
+					className="w-full resize-none rounded border border-border bg-background px-2 py-1 text-editor-caption focus:border-primary focus:outline-none"
 				/>
 			</FieldGroup>
 
@@ -318,7 +319,7 @@ function ThreatEditor({ threat }: { threat: Threat }) {
 							setSelectedElement(linkedElement.id);
 							setRightPanelTab("properties");
 						}}
-						className="text-xs text-primary hover:underline"
+						className="text-editor-caption text-primary hover:underline"
 					>
 						{linkedElement.name} (
 						{getComponent(linkedElement.type)?.label ?? linkedElement.type.replace("_", " ")})
@@ -335,7 +336,7 @@ function ThreatEditor({ threat }: { threat: Threat }) {
 							status: e.target.value as MitigationStatus,
 						})
 					}
-					className="w-full rounded border border-border bg-background px-2 py-1 text-xs focus:border-primary focus:outline-none"
+					className="w-full rounded border border-border bg-background px-2 py-1 text-editor-caption focus:border-primary focus:outline-none"
 				>
 					{MITIGATION_STATUSES.map((s) => (
 						<option key={s} value={s}>
@@ -351,7 +352,7 @@ function ThreatEditor({ threat }: { threat: Threat }) {
 					onChange={(e) => handleMitigationChange({ description: e.target.value })}
 					rows={2}
 					placeholder="Describe the mitigation approach..."
-					className="w-full resize-none rounded border border-border bg-background px-2 py-1 text-xs placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
+					className="w-full resize-none rounded border border-border bg-background px-2 py-1 text-editor-caption placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
 				/>
 			</FieldGroup>
 
@@ -362,7 +363,7 @@ function ThreatEditor({ threat }: { threat: Threat }) {
 					deleteThreat(threat.id);
 					setSelectedThreat(null);
 				}}
-				className="flex items-center gap-1 self-start rounded px-2 py-1 text-xs text-destructive hover:bg-destructive/10 transition-colors"
+				className="flex items-center gap-1 self-start rounded px-2 py-1 text-editor-caption text-destructive hover:bg-destructive/10 transition-colors"
 			>
 				<Trash2 className="h-3 w-3" />
 				Delete threat
@@ -375,7 +376,7 @@ function FieldGroup({ label, children }: { label: string; children: React.ReactN
 	return (
 		// biome-ignore lint/a11y/noLabelWithoutControl: children always contain a form control
 		<label className="block">
-			<span className="mb-0.5 block text-[10px] font-medium text-muted-foreground">{label}</span>
+			<span className="mb-0.5 block text-editor-caption2 text-muted-foreground">{label}</span>
 			{children}
 		</label>
 	);
@@ -383,18 +384,18 @@ function FieldGroup({ label, children }: { label: string; children: React.ReactN
 
 function SeverityBadge({ severity }: { severity: string }) {
 	const colorMap: Record<string, string> = {
-		critical: "bg-red-500/20 text-red-400",
-		high: "bg-orange-500/20 text-orange-400",
-		medium: "bg-yellow-500/20 text-yellow-400",
-		low: "bg-blue-500/20 text-blue-400",
-		info: "bg-gray-500/20 text-gray-400",
+		critical: "bg-editor-danger/10 text-editor-danger",
+		high: "bg-editor-warning/10 text-editor-warning",
+		medium: "bg-editor-warning/10 text-editor-warning",
+		low: "bg-editor-fill text-editor-secondary-label",
+		info: "bg-editor-fill text-editor-secondary-label",
 	};
 
 	return (
 		<span
 			className={cn(
-				"rounded px-1.5 py-0.5 text-[10px] font-medium uppercase",
-				colorMap[severity] ?? "bg-gray-500/20 text-gray-400",
+				"rounded-editor-control px-1.5 py-0.5 text-editor-caption2 capitalize",
+				colorMap[severity] ?? "bg-editor-fill text-editor-secondary-label",
 			)}
 		>
 			{severity}
@@ -413,7 +414,7 @@ function CategoryBadge({ category }: { category: StrideCategory }) {
 					: category.charAt(0);
 
 	return (
-		<span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground">
+		<span className="rounded bg-secondary px-1.5 py-0.5 text-editor-caption2 text-secondary-foreground">
 			{initial}
 		</span>
 	);
@@ -421,15 +422,15 @@ function CategoryBadge({ category }: { category: StrideCategory }) {
 
 function MitigationBadge({ status }: { status: MitigationStatus }) {
 	const colorMap: Record<MitigationStatus, string> = {
-		not_started: "bg-gray-500/20 text-gray-400",
-		in_progress: "bg-blue-500/20 text-blue-400",
-		mitigated: "bg-green-500/20 text-green-400",
-		accepted: "bg-yellow-500/20 text-yellow-400",
-		transferred: "bg-purple-500/20 text-purple-400",
+		not_started: "bg-editor-fill text-editor-secondary-label",
+		in_progress: "bg-editor-fill text-editor-secondary-label",
+		mitigated: "bg-editor-success/10 text-editor-success",
+		accepted: "bg-editor-fill text-editor-secondary-label",
+		transferred: "bg-editor-fill text-editor-secondary-label",
 	};
 
 	return (
-		<span className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium", colorMap[status])}>
+		<span className={cn("rounded px-1.5 py-0.5 text-editor-caption2", colorMap[status])}>
 			{formatMitigationStatus(status)}
 		</span>
 	);

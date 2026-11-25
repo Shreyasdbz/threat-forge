@@ -168,7 +168,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 			/>
 			{/* Palette */}
 			<div
-				className="fixed left-1/2 top-[20%] z-50 w-full max-w-lg -translate-x-1/2 rounded-lg border border-border bg-card shadow-2xl"
+				className="fixed left-1/2 top-[20%] z-50 w-full max-w-lg -translate-x-1/2 rounded-editor-dialog border border-editor-separator bg-editor-raised shadow-editor-dialog"
 				data-testid="command-palette"
 			>
 				{/* Search input */}
@@ -196,7 +196,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 							setSelectedIndex(0);
 						}}
 						onKeyDown={handleKeyDown}
-						className="w-full bg-transparent py-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+						className="w-full bg-transparent py-3 text-editor-body text-foreground outline-none placeholder:text-muted-foreground"
 						placeholder="Type a command…"
 						data-testid="command-palette-input"
 					/>
@@ -204,13 +204,13 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 				{/* Command list */}
 				<div ref={listRef} className="max-h-72 overflow-y-auto p-1">
 					{filtered.length === 0 && (
-						<div className="px-3 py-6 text-center text-sm text-muted-foreground">
+						<div className="px-3 py-6 text-center text-editor-body text-muted-foreground">
 							No commands found
 						</div>
 					)}
 					{grouped.map((group) => (
 						<div key={group.category}>
-							<div className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
+							<div className="px-3 py-1.5 text-editor-footnote text-muted-foreground">
 								{CATEGORY_LABELS[group.category] ?? group.category}
 							</div>
 							{group.commands.map(({ cmd, globalIndex }) => (
@@ -218,7 +218,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 									key={cmd.id}
 									type="button"
 									data-index={globalIndex}
-									className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-sm ${
+									className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-editor-body ${
 										globalIndex === selectedIndex
 											? "bg-accent text-accent-foreground"
 											: "text-foreground hover:bg-accent/50"
@@ -228,7 +228,9 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 								>
 									<span>{cmd.label}</span>
 									{cmd.shortcut && (
-										<span className="ml-4 text-xs text-muted-foreground">{cmd.shortcut}</span>
+										<span className="ml-4 text-editor-caption text-muted-foreground">
+											{cmd.shortcut}
+										</span>
 									)}
 								</button>
 							))}

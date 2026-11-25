@@ -9,7 +9,7 @@ export function ArchitectureTab() {
 	const selectElement = useModelStore((state) => state.setSelectedElement);
 	const setTab = useUiStore((state) => state.setRightPanelTab);
 
-	if (!model) return <p className="text-xs text-muted-foreground">No model open.</p>;
+	if (!model) return <p className="text-editor-caption text-muted-foreground">No model open.</p>;
 
 	function inspect(id: string) {
 		selectElement(id);
@@ -19,10 +19,10 @@ export function ArchitectureTab() {
 	return (
 		<div className="space-y-6">
 			<div className="pb-2">
-				<h2 className="flex items-center gap-2 text-editor-heading font-semibold">
+				<h2 className="flex items-center gap-2 text-editor-title3">
 					<Layers3 className="size-4 text-primary" aria-hidden="true" /> Architecture
 				</h2>
-				<p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+				<p className="mt-1 text-editor-caption leading-relaxed text-muted-foreground">
 					Layers describe system tiers. Groups organize related components independently of trust
 					boundaries.
 				</p>
@@ -72,11 +72,13 @@ function Section({
 
 	return (
 		<section aria-label={heading} className="space-y-2">
-			<h3 className="flex items-center justify-between text-xs font-semibold">
+			<h3 className="flex items-center justify-between text-editor-footnote">
 				{heading}
 				<span className="text-muted-foreground tabular-nums">{sections.length}</span>
 			</h3>
-			{sections.length === 0 && <p className="text-xs text-muted-foreground">No {kind} yet.</p>}
+			{sections.length === 0 && (
+				<p className="text-editor-caption text-muted-foreground">No {kind} yet.</p>
+			)}
 			{sections.map((section) => {
 				const members = membership.get(section.id) ?? [];
 				const parent = "parent" in section && section.parent ? names.get(section.parent) : null;
@@ -86,10 +88,12 @@ function Section({
 						aria-label={section.name}
 						className="border-t border-editor-line py-3"
 					>
-						<h4 className="break-words text-editor-body font-semibold">{section.name}</h4>
-						{parent && <p className="text-xs text-muted-foreground">Inside {parent}</p>}
+						<h4 className="break-words text-editor-headline">{section.name}</h4>
+						{parent && <p className="text-editor-caption text-muted-foreground">Inside {parent}</p>}
 						{section.description && (
-							<p className="mt-1 text-xs text-muted-foreground">{section.description}</p>
+							<p className="mt-1 text-editor-caption text-muted-foreground">
+								{section.description}
+							</p>
 						)}
 						{members.length > 0 ? (
 							<ul className="mt-2 space-y-1">
@@ -97,7 +101,7 @@ function Section({
 									<li key={element.id}>
 										<button
 											type="button"
-											className="w-full truncate rounded-editor-control px-2 py-1 text-left text-editor-small text-muted-foreground hover:bg-accent hover:text-foreground"
+											className="w-full truncate rounded-editor-control px-2 py-1 text-left text-editor-caption text-muted-foreground hover:bg-accent hover:text-foreground"
 											onClick={() => onInspect(element.id)}
 										>
 											{element.name}
@@ -106,7 +110,9 @@ function Section({
 								))}
 							</ul>
 						) : (
-							<p className="mt-1 text-xs text-muted-foreground">No components assigned</p>
+							<p className="mt-1 text-editor-caption text-muted-foreground">
+								No components assigned
+							</p>
 						)}
 					</article>
 				);
@@ -127,7 +133,7 @@ function Section({
 					value={name}
 					onChange={(event) => setName(event.target.value)}
 					placeholder={`New ${singular} name`}
-					className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1 text-xs"
+					className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1 text-editor-caption"
 				/>
 				<button
 					type="submit"

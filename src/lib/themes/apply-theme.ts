@@ -7,6 +7,7 @@ import type { ThemePreset, ThemeTokens } from "@/types/theme";
  */
 export function applyTheme(preset: ThemePreset): void {
 	const root = document.documentElement;
+	root.dataset.themePreset = preset.id;
 
 	// Toggle dark/light class for Tailwind dark variant
 	if (preset.mode === "dark") {
@@ -30,6 +31,7 @@ export function applyTheme(preset: ThemePreset): void {
  */
 export function clearThemeOverrides(): void {
 	const root = document.documentElement;
+	delete root.dataset.themePreset;
 	const tokenKeys: Array<keyof ThemeTokens> = [
 		"background",
 		"foreground",

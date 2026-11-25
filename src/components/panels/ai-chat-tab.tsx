@@ -72,7 +72,9 @@ export function AiChatTab() {
 
 	if (!model) {
 		return (
-			<p className="text-xs text-muted-foreground">Open a threat model to use AI assistance.</p>
+			<p className="text-editor-caption text-muted-foreground">
+				Open a threat model to use AI assistance.
+			</p>
 		);
 	}
 
@@ -82,7 +84,7 @@ export function AiChatTab() {
 		<div data-ai-chat className="flex h-full min-h-0 min-w-0 flex-col">
 			{/* Header with settings */}
 			<div className="mb-1 flex h-11 shrink-0 items-center justify-between">
-				<h2 className="text-xs font-medium">AI Assistant</h2>
+				<h2 className="text-editor-title3">AI Assistant</h2>
 				<button
 					type="button"
 					onClick={openAiSettings}
@@ -138,17 +140,17 @@ function KeyStorageFault({ message, onConfigure }: { message: string; onConfigur
 	return (
 		<div role="alert" data-testid="key-storage-fault" className="flex flex-1 flex-col">
 			<div className="my-auto flex shrink-0 flex-col items-center gap-3 px-2 py-4 text-center">
-				<AlertTriangle className="size-6 shrink-0 text-amber-600 dark:text-amber-400" />
+				<AlertTriangle className="size-4 shrink-0 text-editor-warning" />
 				<div>
-					<p className="text-xs font-medium text-amber-700 dark:text-amber-400">
-						{KEY_STORAGE_UNREADABLE}
+					<p className="text-editor-headline text-editor-warning">{KEY_STORAGE_UNREADABLE}</p>
+					<p className="mt-1 text-editor-caption leading-relaxed text-muted-foreground">
+						{message}
 					</p>
-					<p className="mt-1 text-xs leading-relaxed text-muted-foreground">{message}</p>
 				</div>
 				<button
 					type="button"
 					onClick={onConfigure}
-					className="min-h-11 shrink-0 rounded-md border border-border px-3 text-xs font-medium hover:bg-accent active:bg-accent focus-visible:outline-1 focus-visible:outline-foreground"
+					className="min-h-11 shrink-0 rounded-md border border-border px-3 text-editor-footnote hover:bg-accent active:bg-accent focus-visible:outline-1 focus-visible:outline-foreground"
 				>
 					Open AI settings
 				</button>
@@ -161,17 +163,17 @@ function EmptyState({ onConfigure }: { onConfigure: () => void }) {
 	return (
 		<div className="flex flex-1 flex-col">
 			<div className="my-auto flex shrink-0 flex-col items-center gap-3 px-2 py-4 text-center">
-				<Bot className="size-6 shrink-0 text-muted-foreground" />
+				<Bot className="size-5 shrink-0 text-muted-foreground" />
 				<div>
-					<p className="text-xs font-medium text-muted-foreground">No API key configured</p>
-					<p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+					<p className="text-editor-headline">No API key configured</p>
+					<p className="mt-1 text-editor-body text-muted-foreground">
 						Add your Anthropic or OpenAI API key to get AI-powered threat analysis.
 					</p>
 				</div>
 				<button
 					type="button"
 					onClick={onConfigure}
-					className="min-h-11 shrink-0 rounded-md border border-border px-3 text-xs font-medium hover:bg-accent active:bg-accent focus-visible:outline-1 focus-visible:outline-foreground"
+					className="min-h-11 shrink-0 rounded-md border border-border px-3 text-editor-footnote hover:bg-accent active:bg-accent focus-visible:outline-1 focus-visible:outline-foreground"
 				>
 					Configure API Key
 				</button>
@@ -209,10 +211,14 @@ function ChatView() {
 
 			{/* Error display */}
 			{error && (
-				<div className="flex items-start gap-1.5 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs leading-relaxed text-foreground">
+				<div className="flex items-start gap-1.5 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-editor-caption leading-relaxed text-foreground">
 					<AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
 					<div className="flex-1">{error}</div>
-					<button type="button" onClick={clearError} className="shrink-0 text-[10px] underline">
+					<button
+						type="button"
+						onClick={clearError}
+						className="shrink-0 text-editor-caption2 underline"
+					>
 						Dismiss
 					</button>
 				</div>
@@ -235,8 +241,8 @@ function MessageList({
 		return (
 			<div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
 				<div className="my-auto flex shrink-0 flex-col items-center gap-2 py-8 text-center">
-					<p className="text-xs font-medium">Explore your threat model</p>
-					<p className="max-w-64 px-2 text-xs leading-relaxed text-muted-foreground">
+					<p className="text-editor-footnote">Explore your threat model</p>
+					<p className="max-w-64 px-2 text-editor-caption leading-relaxed text-muted-foreground">
 						Ask about your architecture, find threats, or work through a mitigation.
 					</p>
 				</div>
@@ -257,7 +263,10 @@ function MessageList({
 				/>
 			))}
 			{isStreaming && (
-				<div role="status" className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+				<div
+					role="status"
+					className="flex items-center gap-2 px-1 text-editor-caption text-muted-foreground"
+				>
 					<Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" /> Thinking…
 				</div>
 			)}
@@ -332,7 +341,7 @@ function TurnConversation({ turn }: { turn: TurnState }) {
 							</div>
 						)}
 						{i < turnStartIndex && toolIds.length > 0 && previousCalls.length === 0 && (
-							<p className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
+							<p className="rounded-lg border border-border px-3 py-2 text-editor-caption text-muted-foreground">
 								{message.content
 									.flatMap((b) => (b.type === "tool_call" ? [b.name.replace(/_/g, " ")] : []))
 									.join(", ")}{" "}
@@ -344,7 +353,10 @@ function TurnConversation({ turn }: { turn: TurnState }) {
 			})}
 
 			{isStreaming && (
-				<div role="status" className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+				<div
+					role="status"
+					className="flex items-center gap-2 px-1 text-editor-caption text-muted-foreground"
+				>
 					<Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" /> Thinking…
 				</div>
 			)}
@@ -352,7 +364,7 @@ function TurnConversation({ turn }: { turn: TurnState }) {
 			{turn.notice && (
 				<div
 					role="status"
-					className="flex items-start gap-1.5 rounded bg-secondary/40 px-2 py-1.5 text-[10px] text-muted-foreground"
+					className="flex items-start gap-1.5 rounded bg-secondary/40 px-2 py-1.5 text-editor-caption2 text-muted-foreground"
 				>
 					<Info className="mt-0.5 h-3 w-3 shrink-0" />
 					<span className="flex-1">{turn.notice}</span>
@@ -362,7 +374,7 @@ function TurnConversation({ turn }: { turn: TurnState }) {
 			{turn.error && (
 				<div
 					role="alert"
-					className="flex items-start gap-1.5 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs leading-relaxed text-foreground"
+					className="flex items-start gap-1.5 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-editor-caption leading-relaxed text-foreground"
 				>
 					<AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
 					<span className="flex-1">{turn.error.message}</span>
@@ -381,7 +393,7 @@ function TurnConversation({ turn }: { turn: TurnState }) {
 								? "This turn has already been undone"
 								: "A later edit has superseded this turn, so it can no longer be undone in one step"
 					}
-					className="flex items-center gap-1 self-start rounded border border-border/50 px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground"
+					className="flex items-center gap-1 self-start rounded border border-border/50 px-1.5 py-0.5 text-editor-caption2 text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground"
 				>
 					<Undo2 className="h-2.5 w-2.5" /> Undo this turn
 				</button>
@@ -508,7 +520,7 @@ function AssistantContent({
 
 			{threats.length > 0 && (
 				<div className="flex flex-col gap-1.5 border-t border-border/30 pt-1.5">
-					<span className="text-[10px] font-medium text-muted-foreground">
+					<span className="text-editor-caption2 text-muted-foreground">
 						Suggested threats ({threats.length}):
 					</span>
 					{threats.map((threat, i) => (
@@ -577,21 +589,21 @@ function ActionPreview({ actions }: { actions: AiAction[] }) {
 	return (
 		<div className="flex flex-col gap-1.5 border-t border-border/30 pt-1.5">
 			<div className="flex items-center justify-between">
-				<span className="text-[10px] font-medium text-muted-foreground">
+				<span className="text-editor-caption2 text-muted-foreground">
 					Suggested changes ({actions.length}):
 				</span>
 				{!allDone && (
 					<button
 						type="button"
 						onClick={handleApplyRemaining}
-						className="flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/20 transition-colors"
+						className="flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-editor-caption2 text-primary hover:bg-primary/20 transition-colors"
 					>
 						<Play className="h-2.5 w-2.5" />
 						{appliedCount === 0 ? "Apply All" : `Apply Remaining (${remainingCount})`}
 					</button>
 				)}
 				{allDone && (
-					<span className="text-[10px] text-muted-foreground">
+					<span className="text-editor-caption2 text-muted-foreground">
 						{appliedCount} applied{failedCount > 0 ? `, ${failedCount} failed` : ""}
 					</span>
 				)}
@@ -622,7 +634,7 @@ function ActionRow({
 	return (
 		<div
 			className={cn(
-				"flex items-center gap-1.5 rounded border p-1.5 text-[10px]",
+				"flex items-center gap-1.5 rounded border p-1.5 text-editor-caption2",
 				status === "applied" && "border-border/50 bg-background/50 opacity-60",
 				status === "failed" && "border-destructive/30 bg-background/50",
 				status === "pending" && "border-border/50 bg-background/50",
@@ -667,7 +679,7 @@ function ThreatSuggestionCard({
 	return (
 		<div className="flex items-start gap-1.5 rounded border border-border/50 bg-background/50 p-1.5">
 			<div className="flex-1">
-				<p className="text-[10px] font-medium">{title}</p>
+				<p className="text-editor-caption2">{title}</p>
 				<div className="mt-0.5 flex items-center gap-1">
 					<span className="rounded bg-secondary/50 px-1 py-0.5 text-[9px]">{category}</span>
 					<span className="rounded bg-secondary/50 px-1 py-0.5 text-[9px] capitalize">
@@ -770,7 +782,7 @@ function ChatInput({ canSend }: { canSend: boolean }) {
 					placeholder="Ask about threats..."
 					aria-label="Message AI assistant"
 					rows={2}
-					className="block max-h-40 w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-sm leading-relaxed placeholder:text-muted-foreground focus:outline-none"
+					className="block max-h-40 w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-editor-body leading-relaxed placeholder:text-muted-foreground focus:outline-none"
 				/>
 			)}
 			<div className="relative flex items-start justify-between gap-1">

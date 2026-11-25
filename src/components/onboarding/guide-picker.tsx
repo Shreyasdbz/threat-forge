@@ -33,12 +33,12 @@ export function GuidePicker({ onClose }: { onClose: () => void }) {
 			{/* Dialog */}
 			<div
 				data-testid="guide-picker"
-				className="relative z-10 w-80 rounded-lg border border-border bg-card p-4 shadow-xl"
+				className="relative z-10 w-80 rounded-editor-dialog border border-editor-separator bg-editor-raised p-4 shadow-editor-dialog"
 				onClick={(e) => e.stopPropagation()}
 				onKeyDown={(e) => e.stopPropagation()}
 			>
 				<div className="mb-3 flex items-center justify-between">
-					<h2 className="text-sm font-semibold text-foreground">Guided Tours</h2>
+					<h2 className="text-editor-headline text-foreground">Guided Tours</h2>
 					<button
 						type="button"
 						onClick={onClose}
@@ -62,8 +62,8 @@ export function GuidePicker({ onClose }: { onClose: () => void }) {
 									{isCompleted ? <Check className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
 								</div>
 								<div className="min-w-0">
-									<div className="text-xs font-medium text-foreground">{guide.name}</div>
-									<div className="text-xs text-muted-foreground">
+									<div className="text-editor-footnote text-foreground">{guide.name}</div>
+									<div className="text-editor-caption text-muted-foreground">
 										{guide.steps.length} steps
 										{isCompleted && " — completed"}
 									</div>

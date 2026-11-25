@@ -1,24 +1,164 @@
 @import "tailwindcss";
 
 @theme static {
-	--color-editor-surface: var(--color-card);
-	--color-editor-canvas: color-mix(in srgb, var(--color-background), var(--color-foreground) 3%);
-	--color-editor-hover: color-mix(in srgb, var(--color-card), var(--color-foreground) 6%);
-	--color-editor-line: color-mix(in srgb, var(--color-card), var(--color-foreground) 13%);
-	--color-editor-outline: color-mix(in srgb, var(--color-card), var(--color-foreground) 32%);
-	--color-editor-selection: color-mix(in srgb, var(--color-card), var(--color-tf-signal-ink) 8%);
-	--color-editor-accent: var(--color-tf-signal-ink);
-	--text-editor-small: 0.75rem;
-	--text-editor-small--line-height: 1rem;
+	--font-editor: system-ui, -apple-system, "SF Pro Text", Inter, "Segoe UI", sans-serif;
+	--font-editor-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+	--text-editor-caption2: 0.6875rem;
+	--text-editor-caption2--line-height: 1rem;
+	--text-editor-caption2--font-weight: 500;
+	--text-editor-caption: 0.75rem;
+	--text-editor-caption--line-height: 1rem;
+	--text-editor-caption--font-weight: 400;
+	--text-editor-footnote: 0.8125rem;
+	--text-editor-footnote--line-height: 1.125rem;
+	--text-editor-footnote--font-weight: 500;
 	--text-editor-body: 0.875rem;
 	--text-editor-body--line-height: 1.25rem;
-	--text-editor-heading: 1.125rem;
-	--text-editor-heading--line-height: 1.5rem;
-	--text-editor-title: 1.75rem;
-	--text-editor-title--line-height: 2rem;
+	--text-editor-body--font-weight: 400;
+	--text-editor-headline: 0.875rem;
+	--text-editor-headline--line-height: 1.25rem;
+	--text-editor-headline--font-weight: 600;
+	--text-editor-title3: 1.125rem;
+	--text-editor-title3--line-height: 1.5rem;
+	--text-editor-title3--font-weight: 600;
+	--text-editor-title3--letter-spacing: -0.015em;
+	--text-editor-title2: 1.5rem;
+	--text-editor-title2--line-height: 2rem;
+	--text-editor-title2--font-weight: 600;
+	--text-editor-title2--letter-spacing: -0.02em;
 	--radius-editor-control: 0.375rem;
-	--radius-editor-panel: 0.75rem;
-	--shadow-editor-dialog: 0 16px 64px rgb(0 0 0 / 0.18);
+	--radius-editor-panel: 0.625rem;
+	--radius-editor-dialog: 0.875rem;
+	--shadow-editor-popover: 0 4px 16px rgb(0 0 0 / 0.15);
+	--shadow-editor-dialog: 0 16px 48px rgb(0 0 0 / 0.24);
+	--ease-editor: cubic-bezier(0.2, 0.65, 0.3, 1);
+}
+
+@theme inline {
+	--color-editor-line: var(--editor-separator);
+	--color-editor-separator: var(--editor-separator);
+	--color-editor-label: var(--editor-label);
+	--color-editor-secondary-label: var(--editor-secondary-label);
+	--color-editor-tertiary-label: var(--editor-tertiary-label);
+	--color-editor-grouped-background: var(--editor-grouped-background);
+	--color-editor-surface: var(--editor-surface);
+	--color-editor-raised: var(--editor-raised);
+	--color-editor-canvas: var(--editor-canvas);
+	--color-editor-outline: var(--editor-outline);
+	--color-editor-fill: var(--editor-fill);
+	--color-editor-hover: var(--editor-hover);
+	--color-editor-pressed: var(--editor-pressed);
+	--color-editor-selection: var(--editor-selection);
+	--color-editor-accent: var(--editor-accent);
+	--color-editor-on-accent: var(--editor-on-accent);
+	--color-editor-danger: var(--editor-danger);
+	--color-editor-warning: var(--editor-warning);
+	--color-editor-success: var(--editor-success);
+}
+
+:root {
+	--editor-label: #f3f5f7;
+	--editor-secondary-label: #b6bec9;
+	--editor-tertiary-label: #9ea8b6;
+	--editor-grouped-background: #14161b;
+	--editor-surface: #1d2026;
+	--editor-raised: #262b33;
+	--editor-canvas: #171a20;
+	--editor-separator: #373d48;
+	--editor-outline: #747f90;
+	--editor-fill: #252a32;
+	--editor-hover: #292f39;
+	--editor-pressed: #333b48;
+	--editor-selection: #243952;
+	--editor-accent: #79b8ff;
+	--editor-on-accent: #111318;
+	--editor-danger: #ff9aa5;
+	--editor-warning: #ffc078;
+	--editor-success: #75d9a2;
+	--editor-canvas-dot: #505a68;
+	--editor-container-ink-mix: 24%;
+}
+
+html.light {
+	--editor-label: #16181c;
+	--editor-secondary-label: #505863;
+	--editor-tertiary-label: #606973;
+	--editor-grouped-background: #f3f5f8;
+	--editor-surface: #ffffff;
+	--editor-raised: #ffffff;
+	--editor-canvas: #f7f8fa;
+	--editor-separator: #cfd4dc;
+	--editor-outline: #828b98;
+	--editor-fill: #f1f3f6;
+	--editor-hover: #ebeef3;
+	--editor-pressed: #e1e6ee;
+	--editor-selection: #eaf3ff;
+	--editor-accent: #005cc8;
+	--editor-on-accent: #ffffff;
+	--editor-danger: #b42338;
+	--editor-warning: #944a06;
+	--editor-success: #197248;
+	--editor-canvas-dot: #c4cbd5;
+	--editor-container-ink-mix: 0%;
+}
+
+html[data-theme-preset]:not([data-theme-preset="midnight"], [data-theme-preset="daylight"]) {
+	--editor-label: var(--color-foreground);
+	--editor-secondary-label: var(--color-muted-foreground);
+	--editor-tertiary-label: var(--color-muted-foreground);
+	--editor-grouped-background: var(--color-background);
+	--editor-surface: var(--color-card);
+	--editor-raised: var(--color-popover);
+	--editor-canvas: color-mix(in srgb, var(--color-background), var(--color-foreground) 3%);
+	--editor-separator: var(--color-border);
+	--editor-outline: color-mix(in srgb, var(--color-card), var(--color-foreground) 45%);
+	--editor-fill: var(--color-muted);
+	--editor-hover: var(--color-accent);
+	--editor-pressed: var(--color-secondary);
+	--editor-selection: color-mix(in srgb, var(--color-card), var(--editor-accent) 14%);
+	--editor-canvas-dot: color-mix(in srgb, var(--color-background), var(--color-foreground) 30%);
+}
+
+@media (prefers-contrast: more) {
+	html:root {
+		--editor-separator: var(--editor-secondary-label);
+		--editor-outline: var(--editor-label);
+	}
+}
+
+.editor-workspace {
+	--color-background: var(--editor-grouped-background);
+	--color-foreground: var(--editor-label);
+	--color-card: var(--editor-surface);
+	--color-card-foreground: var(--editor-label);
+	--color-popover: var(--editor-raised);
+	--color-popover-foreground: var(--editor-label);
+	--color-primary: var(--editor-accent);
+	--color-primary-foreground: var(--editor-on-accent);
+	--color-secondary: var(--editor-fill);
+	--color-secondary-foreground: var(--editor-label);
+	--color-muted: var(--editor-fill);
+	--color-muted-foreground: var(--editor-secondary-label);
+	--color-accent: var(--editor-hover);
+	--color-accent-foreground: var(--editor-label);
+	--color-destructive: var(--editor-danger);
+	--color-destructive-foreground: var(--editor-danger);
+	--color-border: var(--editor-separator);
+	--color-input: var(--editor-outline);
+	--color-ring: var(--editor-accent);
+	--font-sans: var(--font-editor);
+	--font-mono: var(--font-editor-mono);
+}
+
+.editor-workspace :focus-visible {
+	outline: 2px solid var(--editor-accent);
+	outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+	.editor-workspace :focus-visible {
+		outline-color: Highlight;
+	}
 }
 
 /*
@@ -226,7 +366,16 @@ html.light {
 		cursor: grab;
 	}
 	.react-flow__edgeupdater:hover {
-		fill: var(--color-tf-signal);
+		fill: var(--editor-accent);
 		fill-opacity: 0.5;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.editor-workspace *,
+	.editor-workspace *::before,
+	.editor-workspace *::after {
+		animation-duration: 0.01ms;
+		transition-duration: 0.01ms;
 	}
 }

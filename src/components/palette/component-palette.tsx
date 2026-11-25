@@ -62,7 +62,7 @@ export function ComponentPalette() {
 		<div data-testid="component-palette" className="flex h-full flex-col">
 			{/* Generic section */}
 			<div className="px-4 pt-4 pb-2">
-				<h2 className="text-editor-small font-semibold text-muted-foreground">Generic</h2>
+				<h2 className="text-editor-footnote text-muted-foreground">Generic</h2>
 			</div>
 			<div className="px-3 pb-2">
 				<div className="flex flex-col gap-1">
@@ -79,7 +79,7 @@ export function ComponentPalette() {
 
 			{/* Library section */}
 			<div className="px-4 pt-4 pb-2">
-				<h2 className="text-editor-small font-semibold text-muted-foreground">Library</h2>
+				<h2 className="text-editor-footnote text-muted-foreground">Library</h2>
 			</div>
 
 			{/* Search */}
@@ -95,7 +95,7 @@ export function ComponentPalette() {
 							setSearchQuery(e.target.value);
 							if (e.target.value) setActiveCategory(ALL_CATEGORIES);
 						}}
-						className="w-full rounded-editor-control border border-editor-line bg-editor-canvas py-2 pl-9 pr-3 text-editor-small text-foreground placeholder:text-muted-foreground focus:border-tf-signal focus:outline-none"
+						className="w-full rounded-editor-control border border-editor-outline bg-editor-surface py-2 pl-9 pr-3 text-editor-body placeholder:text-editor-tertiary-label focus:border-editor-accent"
 					/>
 				</div>
 			</div>
@@ -110,7 +110,7 @@ export function ComponentPalette() {
 								categories.find(({ id }) => id === event.target.value)?.id ?? ALL_CATEGORIES,
 							)
 						}
-						className="w-full rounded-editor-control border border-editor-line bg-editor-surface px-3 py-1 text-editor-small text-foreground"
+						className="min-h-8 w-full rounded-editor-control border border-editor-outline bg-editor-surface px-3 text-editor-body"
 					>
 						<option value={ALL_CATEGORIES}>All categories</option>
 						{categories.map(({ id, label }) => (
@@ -142,7 +142,7 @@ export function ComponentPalette() {
 						<LibraryPaletteItem key={comp.id} component={comp} />
 					))}
 					{filteredComponents.length === 0 && (
-						<p className="px-2 py-4 text-center text-xs text-muted-foreground">
+						<p className="px-2 py-4 text-center text-editor-caption text-muted-foreground">
 							No matching components
 						</p>
 					)}
@@ -242,7 +242,7 @@ function GenericPaletteItem({
 	return (
 		<div
 			data-testid={`palette-item-${type.replace(/_/g, "-")}`}
-			className="flex cursor-grab items-center gap-2.5 rounded-editor-control px-2 py-2 transition-colors hover:bg-editor-hover"
+			className="flex min-h-8 cursor-grab items-center gap-2 rounded-editor-control px-2 py-1 transition-colors duration-120 ease-editor hover:bg-editor-hover"
 			draggable
 			onDoubleClick={handleDoubleClick}
 			onDragStart={(e) => {
@@ -299,7 +299,7 @@ function LibraryPaletteItem({ component }: { component: ComponentEntry }) {
 	return (
 		<div
 			data-testid={`palette-item-${component.id.replace(/_/g, "-")}`}
-			className="flex cursor-grab items-center gap-2.5 rounded-editor-control px-2 py-2 transition-colors hover:bg-editor-hover"
+			className="flex min-h-8 cursor-grab items-center gap-2 rounded-editor-control px-2 py-1 transition-colors duration-120 ease-editor hover:bg-editor-hover"
 			draggable
 			onDoubleClick={handleDoubleClick}
 			onDragStart={(e) => {

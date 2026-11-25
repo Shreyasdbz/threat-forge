@@ -513,9 +513,9 @@ export function DfdCanvas() {
 			>
 				<Background
 					variant={BackgroundVariant.Dots}
-					gap={32}
+					gap={20}
 					size={1}
-					color="var(--color-editor-line)"
+					color="var(--editor-canvas-dot)"
 				/>
 				<Controls className="!rounded-editor-control !border !border-editor-line !bg-editor-surface !shadow-none [&>button]:!bg-editor-surface [&>button]:!border-editor-line [&>button]:!text-muted-foreground [&>button:hover]:!bg-editor-hover">
 					<ControlButton
@@ -535,9 +535,9 @@ export function DfdCanvas() {
 						nodeColor={(node) =>
 							node.data.isBoundary || node.type === "architectureGroup"
 								? "transparent"
-								: "color-mix(in srgb, var(--color-editor-surface), var(--color-foreground) 24%)"
+								: "color-mix(in srgb, var(--editor-surface), var(--editor-label) 24%)"
 						}
-						nodeStrokeColor="var(--color-editor-outline)"
+						nodeStrokeColor="var(--editor-outline)"
 						nodeStrokeWidth={1}
 						maskColor="color-mix(in srgb, var(--color-background) 24%, transparent)"
 						maskStrokeColor="var(--color-muted-foreground)"

@@ -63,13 +63,13 @@ export function KeyboardShortcutsDialog() {
 		>
 			<div
 				data-testid="keyboard-shortcuts-dialog"
-				className="flex h-[620px] max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-3xl flex-col overflow-hidden rounded-editor-panel border border-editor-line bg-editor-surface shadow-editor-dialog"
+				className="flex h-[620px] max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-3xl flex-col overflow-hidden rounded-editor-dialog border border-editor-separator bg-editor-raised shadow-editor-dialog"
 				onKeyDown={handleKeyDown}
 			>
 				<div className="flex items-center justify-between border-b border-editor-line px-6 py-4">
 					<div>
-						<h2 className="text-sm font-medium text-foreground">Keyboard Shortcuts</h2>
-						<p className="mt-1 text-xs text-muted-foreground">
+						<h2 className="text-editor-footnote text-foreground">Keyboard Shortcuts</h2>
+						<p className="mt-1 text-editor-caption text-muted-foreground">
 							Search by action, key combo, or category. Press Escape to close.
 						</p>
 					</div>
@@ -92,21 +92,21 @@ export function KeyboardShortcutsDialog() {
 							value={query}
 							onChange={(event) => setQuery(event.target.value)}
 							placeholder="Search shortcuts…"
-							className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+							className="w-full bg-transparent text-editor-body text-foreground outline-none placeholder:text-muted-foreground"
 						/>
 					</div>
 				</div>
 
 				<div className="flex-1 overflow-y-auto p-6">
 					{groupedShortcuts.length === 0 ? (
-						<div className="rounded-md border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+						<div className="rounded-md border border-dashed border-border px-4 py-10 text-center text-editor-body text-muted-foreground">
 							No shortcuts match your search.
 						</div>
 					) : (
 						<div className="space-y-6">
 							{groupedShortcuts.map((group) => (
 								<section key={group.category}>
-									<h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+									<h3 className="mb-2 text-editor-footnote uppercase tracking-wide text-muted-foreground">
 										{CATEGORY_LABELS[group.category]}
 									</h3>
 									<div className="overflow-hidden rounded-md border border-border">
@@ -120,14 +120,14 @@ export function KeyboardShortcutsDialog() {
 													className="flex items-center justify-between gap-4 border-b border-border bg-card px-4 py-3 last:border-b-0"
 												>
 													<div className="min-w-0">
-														<div className="text-sm font-medium text-foreground">
+														<div className="text-editor-footnote text-foreground">
 															{shortcut.label}
 														</div>
-														<div className="mt-1 text-xs text-muted-foreground">
+														<div className="mt-1 text-editor-caption text-muted-foreground">
 															Also: {secondaryKeys}
 														</div>
 													</div>
-													<kbd className="shrink-0 rounded border border-border bg-background px-2 py-1 text-xs font-medium text-foreground">
+													<kbd className="shrink-0 rounded border border-border bg-background px-2 py-1 text-editor-footnote text-foreground">
 														{primaryKeys}
 													</kbd>
 												</div>

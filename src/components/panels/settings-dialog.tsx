@@ -73,14 +73,14 @@ export function SettingsDialog() {
 		>
 			<div
 				data-testid="settings-dialog"
-				className="flex h-[560px] max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-2xl rounded-editor-panel border border-editor-line bg-editor-surface shadow-editor-dialog"
+				className="flex h-[560px] max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-2xl rounded-editor-dialog border border-editor-separator bg-editor-raised shadow-editor-dialog"
 				onKeyDown={handleKeyDown}
 			>
 				{/* Sidebar nav */}
 				<nav className="flex w-44 shrink-0 flex-col border-r border-editor-line p-4">
 					<div className="mb-3 flex items-center gap-2 px-2 pt-1">
 						<Settings className="h-4 w-4 text-muted-foreground" />
-						<h2 className="text-sm font-medium">Settings</h2>
+						<h2 className="text-editor-footnote">Settings</h2>
 					</div>
 					{SECTIONS.map((s) => (
 						<button
@@ -88,7 +88,7 @@ export function SettingsDialog() {
 							type="button"
 							onClick={() => setSection(s.id)}
 							className={cn(
-								"flex items-center gap-2 rounded px-2 py-1.5 text-sm transition-colors",
+								"flex items-center gap-2 rounded px-2 py-1.5 text-editor-body transition-colors",
 								section === s.id
 									? "bg-accent text-foreground"
 									: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
@@ -106,7 +106,7 @@ export function SettingsDialog() {
 				{/* Content */}
 				<div className="flex flex-1 flex-col overflow-hidden">
 					<div className="flex items-center justify-between border-b border-editor-line px-6 py-4">
-						<span className="text-sm font-medium">
+						<span className="text-editor-footnote">
 							{SECTIONS.find((s) => s.id === section)?.label}
 						</span>
 						<button
@@ -136,7 +136,7 @@ function ResetButton() {
 		<button
 			type="button"
 			onClick={resetToDefaults}
-			className="flex items-center gap-1.5 rounded px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+			className="flex items-center gap-1.5 rounded px-2 py-1.5 text-editor-caption text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
 		>
 			<RotateCcw className="h-3 w-3" />
 			Reset to defaults
@@ -173,7 +173,7 @@ function GeneralSection() {
 			<SettingRow label="Language" description="Interface language (more coming soon)">
 				<select
 					disabled
-					className="rounded border border-border bg-background px-2 py-1.5 text-sm opacity-60"
+					className="rounded border border-border bg-background px-2 py-1.5 text-editor-body opacity-60"
 				>
 					<option>English</option>
 				</select>
@@ -288,8 +288,8 @@ function UpdatesSection() {
 		<div className="space-y-5">
 			<div className="flex items-center justify-between gap-4">
 				<div className="min-w-0">
-					<p className="text-sm font-medium text-foreground">Current version</p>
-					<p className="text-xs text-muted-foreground">{__APP_VERSION__ ?? "dev"}</p>
+					<p className="text-editor-footnote text-foreground">Current version</p>
+					<p className="text-editor-caption text-muted-foreground">{__APP_VERSION__ ?? "dev"}</p>
 				</div>
 			</div>
 
@@ -297,8 +297,8 @@ function UpdatesSection() {
 
 			<div className="flex items-center justify-between gap-4">
 				<div className="min-w-0">
-					<p className="text-sm font-medium text-foreground">Check for updates</p>
-					<p className="text-xs text-muted-foreground">
+					<p className="text-editor-footnote text-foreground">Check for updates</p>
+					<p className="text-editor-caption text-muted-foreground">
 						{checkError ? `Last attempt failed: ${checkError}` : `Last checked: ${lastChecked}`}
 					</p>
 				</div>
@@ -306,7 +306,7 @@ function UpdatesSection() {
 					type="button"
 					disabled={isChecking}
 					onClick={() => void checkForUpdate()}
-					className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+					className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-editor-body text-foreground transition-colors hover:bg-accent disabled:opacity-50"
 				>
 					{isChecking ? (
 						<Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -319,21 +319,23 @@ function UpdatesSection() {
 
 			{updateAvailable && (
 				<div className="rounded border border-primary/30 bg-primary/5 p-3">
-					<p className="text-sm font-medium text-foreground">
+					<p className="text-editor-footnote text-foreground">
 						Update available: v{updateAvailable.version}
 					</p>
 					{updateAvailable.body && (
-						<p className="mt-1 text-xs text-muted-foreground">{updateAvailable.body}</p>
+						<p className="mt-1 text-editor-caption text-muted-foreground">{updateAvailable.body}</p>
 					)}
 				</div>
 			)}
 
 			{!updateAvailable && lastCheckTime && !isChecking && !checkError && (
-				<p className="text-xs text-muted-foreground">You&apos;re running the latest version.</p>
+				<p className="text-editor-caption text-muted-foreground">
+					You&apos;re running the latest version.
+				</p>
 			)}
 
 			<div className="border-t border-border pt-4">
-				<p className="text-xs text-muted-foreground">
+				<p className="text-editor-caption text-muted-foreground">
 					Threat Forge looks for a new version when you open it, at most once a day. Installing one
 					needs a signed release, and releases are not signed yet, so the check has nothing valid to
 					find. New versions are a download from threatforge.dev until that changes.
@@ -392,10 +394,12 @@ function SupportSection() {
 			</div>
 
 			<div className="border-t border-border pt-4">
-				<p className="text-xs text-muted-foreground">
+				<p className="text-editor-caption text-muted-foreground">
 					Threat Forge is open-source software built by Exit Zero Labs LLC.
 				</p>
-				<p className="mt-1 text-xs text-muted-foreground/70">Version {__APP_VERSION__ ?? "dev"}</p>
+				<p className="mt-1 text-editor-caption text-muted-foreground/70">
+					Version {__APP_VERSION__ ?? "dev"}
+				</p>
 			</div>
 		</div>
 	);
@@ -420,8 +424,8 @@ function SupportLink({
 		>
 			<span className="text-muted-foreground">{icon}</span>
 			<div className="min-w-0 flex-1">
-				<p className="text-sm font-medium text-foreground">{label}</p>
-				<p className="text-xs text-muted-foreground">{description}</p>
+				<p className="text-editor-footnote text-foreground">{label}</p>
+				<p className="text-editor-caption text-muted-foreground">{description}</p>
 			</div>
 			<ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
 		</button>
@@ -442,8 +446,8 @@ function SettingRow({
 	return (
 		<div className="flex items-center justify-between gap-4">
 			<div className="min-w-0">
-				<p className="text-sm font-medium text-foreground">{label}</p>
-				<p className="text-xs text-muted-foreground">{description}</p>
+				<p className="text-editor-footnote text-foreground">{label}</p>
+				<p className="text-editor-caption text-muted-foreground">{description}</p>
 			</div>
 			{children}
 		</div>
@@ -496,7 +500,7 @@ function TextInput({
 			value={value}
 			placeholder={placeholder}
 			onChange={(e) => onChange(e.target.value)}
-			className="w-48 rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
+			className="w-48 rounded border border-border bg-background px-2 py-1.5 text-editor-body text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
 		/>
 	);
 }
@@ -524,7 +528,7 @@ function NumberInput({
 					onChange(parsed);
 				}
 			}}
-			className="w-20 rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+			className="w-20 rounded border border-border bg-background px-2 py-1.5 text-editor-body text-foreground focus:border-primary focus:outline-none"
 		/>
 	);
 }
@@ -550,7 +554,7 @@ function FontSizeSelector({
 					type="button"
 					onClick={() => onChange(opt.value)}
 					className={cn(
-						"rounded px-2.5 py-1 text-xs transition-colors",
+						"rounded px-2.5 py-1 text-editor-caption transition-colors",
 						value === opt.value
 							? "bg-accent text-accent-foreground"
 							: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",

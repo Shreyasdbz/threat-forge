@@ -39,7 +39,7 @@ export function CanvasContextMenu({ x, y, items, onClose }: CanvasContextMenuPro
 	return (
 		<div
 			ref={menuRef}
-			className="fixed z-50 min-w-[160px] rounded-md border border-border bg-card py-1 shadow-lg"
+			className="fixed z-50 min-w-40 rounded-editor-panel border border-editor-separator bg-editor-raised py-1 shadow-editor-popover"
 			style={{ left: x, top: y }}
 		>
 			{items.map((item) => (

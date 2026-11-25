@@ -381,7 +381,7 @@ export function DataFlowEdge({
 					d={edgePath}
 					fill="none"
 					strokeWidth={2}
-					className={hasCustomColor ? undefined : "stroke-tf-signal/40"}
+					className={cn("motion-reduce:hidden", !hasCustomColor && "stroke-editor-accent/40")}
 					strokeDasharray="6 4"
 					style={
 						hasCustomColor
@@ -418,10 +418,12 @@ export function DataFlowEdge({
 						}}
 					>
 						{edgeData?.flowNumber != null && (
-							<span className="shrink-0 text-editor-small tabular-nums">{edgeData.flowNumber}</span>
+							<span className="shrink-0 text-editor-caption tabular-nums">
+								{edgeData.flowNumber}
+							</span>
 						)}
 						{isAuthenticated && <Lock className="size-3 shrink-0" aria-label="Authenticated" />}
-						<span className="min-w-0 truncate text-editor-small font-semibold text-foreground">
+						<span className="min-w-0 truncate text-editor-footnote text-foreground">
 							{edgeData?.name || edgeData?.protocol || edgeData?.data?.join(", ")}
 						</span>
 					</button>
@@ -531,7 +533,7 @@ function EdgeLabelEditor({
 	return (
 		<div
 			ref={containerRef}
-			className="pointer-events-all nodrag nopan absolute flex flex-col gap-1 rounded border border-tf-signal bg-card p-2 shadow-lg"
+			className="pointer-events-all nodrag nopan absolute flex flex-col gap-1 rounded-editor-panel border border-editor-separator bg-editor-raised p-2 shadow-editor-popover"
 			style={{
 				transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
 			}}
@@ -553,7 +555,7 @@ function EdgeLabelEditor({
 				ref={protocolRef}
 				defaultValue={protocol}
 				placeholder="Protocol (e.g. HTTPS)"
-				className="w-44 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
+				className="w-44 rounded border border-border bg-background px-1.5 py-0.5 text-editor-caption2 text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
 				onKeyDown={(e) => {
 					e.stopPropagation();
 					if (e.key === "Enter") commit();
@@ -564,7 +566,7 @@ function EdgeLabelEditor({
 				ref={dataRef}
 				defaultValue={dataItems.join(", ")}
 				placeholder="Data (comma-separated)"
-				className="w-44 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
+				className="w-44 rounded border border-border bg-background px-1.5 py-0.5 text-editor-caption2 text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
 				onKeyDown={(e) => {
 					e.stopPropagation();
 					if (e.key === "Enter") commit();

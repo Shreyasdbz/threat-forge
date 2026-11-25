@@ -30,7 +30,10 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 
 	const fillColor = nodeData.boundaryFillColor as string | undefined;
 	const strokeColor = nodeData.boundaryStrokeColor as string | undefined;
-	const accent = strokeColor ?? fillColor;
+	const documentAccent = strokeColor ?? fillColor;
+	const accent = documentAccent
+		? `color-mix(in srgb, ${documentAccent}, var(--editor-label) var(--editor-container-ink-mix))`
+		: undefined;
 	const fillOpacity = nodeData.boundaryFillOpacity ?? 0.05;
 	const strokeOpacity = (nodeData.boundaryStrokeOpacity as number | undefined) ?? 0.6;
 
@@ -38,7 +41,7 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 		const style: React.CSSProperties = {};
 		if (fillColor) style.backgroundColor = hexToRgba(fillColor, fillOpacity * 0.03);
 		if (accent) {
-			style.borderColor = hexToRgba(accent, Math.min(strokeOpacity, 0.6));
+			style.borderColor = `color-mix(in srgb, ${accent} ${Math.min(strokeOpacity, 0.6) * 100}%, transparent)`;
 		}
 		return style;
 	}, [accent, fillColor, fillOpacity, strokeOpacity]);
@@ -96,7 +99,7 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 					!hasCustomColors && (selected ? "border-editor-accent" : "border-editor-outline"),
 					hasCustomColors &&
 						selected &&
-						"ring-2 ring-tf-signal ring-offset-1 ring-offset-background",
+						"ring-2 ring-editor-accent ring-offset-1 ring-offset-editor-canvas",
 					isDragOver && isDraggingElement && "border-editor-accent bg-editor-selection",
 				)}
 				style={{
@@ -163,7 +166,7 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 							ref={inputRef}
 							defaultValue={nodeData.boundaryName ?? nodeData.label}
 							autoFocus
-							className="bg-transparent text-editor-small font-semibold text-muted-foreground outline-none"
+							className="bg-transparent text-editor-footnote text-muted-foreground outline-none"
 							onBlur={(e) => commitLabel(e.target.value)}
 							onKeyDown={(e) => {
 								// Stop propagation so Backspace doesn't trigger canvas node deletion
@@ -174,7 +177,7 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 						/>
 					) : (
 						<div
-							className="text-editor-small font-semibold text-muted-foreground cursor-text"
+							className="text-editor-footnote text-muted-foreground cursor-text"
 							onDoubleClick={() => setIsEditing(true)}
 						>
 							{nodeData.boundaryName ?? nodeData.label}

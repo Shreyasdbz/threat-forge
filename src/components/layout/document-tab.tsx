@@ -124,7 +124,7 @@ function DocumentTabView({
 				title={tooltip}
 				onClick={() => onActivate(documentId)}
 				className={cn(
-					"flex h-full min-w-0 flex-1 cursor-pointer select-none items-center gap-1.5 pl-3 text-sm outline-none",
+					"flex h-full min-w-0 flex-1 cursor-pointer select-none items-center gap-1.5 pl-3 text-editor-body outline-none",
 					"focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
 					selected ? "text-foreground" : "text-muted-foreground group-hover:text-foreground",
 				)}

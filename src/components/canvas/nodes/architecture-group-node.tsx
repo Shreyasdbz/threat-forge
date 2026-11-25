@@ -6,22 +6,25 @@ import { useUiStore } from "@/stores/ui-store";
 export function ArchitectureGroupNode({ id, data }: NodeProps<DfdNode>) {
 	const locked = useUiStore((state) => state.canvasLocked);
 	const resize = useCanvasStore((state) => state.resizeArchitectureGroup);
+	const accent = data.groupAccent
+		? `color-mix(in srgb, ${data.groupAccent}, var(--editor-label) var(--editor-container-ink-mix))`
+		: undefined;
 
 	return (
 		<div
 			data-testid={`group-${data.architectureGroupId}`}
 			className="group size-full rounded-editor-panel border border-editor-outline"
 			style={{
-				borderColor: data.groupAccent
-					? `color-mix(in srgb, ${data.groupAccent} ${Math.min(data.groupStrokeOpacity ?? 0.6, 0.6) * 100}%, transparent)`
+				borderColor: accent
+					? `color-mix(in srgb, ${accent} ${Math.min(data.groupStrokeOpacity ?? 0.6, 0.6) * 100}%, transparent)`
 					: undefined,
 			}}
 		>
-			<div className="architecture-group-drag-handle pointer-events-auto absolute inset-x-0 top-0 flex cursor-grab items-center gap-2 px-4 py-3 text-editor-small font-semibold text-muted-foreground active:cursor-grabbing">
+			<div className="architecture-group-drag-handle pointer-events-auto absolute inset-x-0 top-0 flex cursor-grab items-center gap-2 px-4 py-3 text-editor-footnote text-muted-foreground active:cursor-grabbing">
 				<span
 					aria-hidden="true"
 					className="size-1.5 shrink-0 rounded-full bg-editor-outline"
-					style={{ backgroundColor: data.groupAccent }}
+					style={{ backgroundColor: accent }}
 				/>
 				<span className="truncate">{data.label}</span>
 			</div>
