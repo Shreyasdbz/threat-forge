@@ -326,6 +326,10 @@ test("legacy model selection stays reachable in a narrow zoomed panel", async ({
 		contentType: "image/png",
 	});
 	const configure = panel.getByRole("button", { name: "Configure API Key", exact: true });
+	await replace.hover();
+	await page.mouse.wheel(0, -120);
+	await expect(configure).toBeInViewport({ ratio: 1 });
+	await configure.click({ trial: true });
 	await configure.focus();
 	await expect(configure).toBeFocused();
 	await expect(configure).toBeInViewport({ ratio: 1 });
