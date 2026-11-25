@@ -62,6 +62,7 @@ follow this rule.
 Layout data (positions, sizes, colors, viewport) is stored **inline** on each entity:
 
 - `elements[].position` — `{x, y}` canvas position
+- `elements[].size` — optional `{width, height}` layout dimensions; omitted for default sizing
 - `trust_boundaries[].position` — `{x, y}` canvas position
 - `trust_boundaries[].size` — `{width, height}` boundary dimensions
 - `trust_boundaries[].fill_color`, `stroke_color`, `fill_opacity`, `stroke_opacity` — visual styling

@@ -4,7 +4,7 @@ ThreatForge includes a Model Context Protocol (MCP) server that allows external 
 
 ## Overview
 
-The MCP server exposes `.thf` threat model files via the MCP protocol over stdio. External AI assistants (Claude Code, VS Code Copilot, Cursor, etc.) can connect to it and use tools to query and modify threat models.
+The MCP server lets external assistants create, edit, analyze, and export local ThreatForge documents over stdio. It does not require the desktop app, an account, or a hosted service.
 
 ## Building
 
@@ -21,26 +21,47 @@ The binary will be at `src-tauri/target/debug/threatforge-mcp` (debug) or `src-t
 ## Usage
 
 ```bash
-threatforge-mcp <path-to-model.thf>
+threatforge-mcp --workspace /absolute/path/to/architecture
+threatforge-mcp /absolute/path/to/model.thf
 ```
 
-The server reads the specified `.thf` file and communicates via stdin/stdout using the MCP protocol.
+Workspace mode starts without an active file. The root must already exist. Tools take paths relative to the root, including existing subdirectories; absolute paths, traversal, and symlink paths are not accepted. Use a dedicated architecture folder, not an entire home directory. Single-file mode remains supported for existing configurations; workspace discovery and file exports are unavailable there, but inline SVG and PNG still work.
 
 ## Configuration
 
 ### Claude Code
 
-Add to your Claude Code MCP configuration (`.claude/mcp.json` or project settings):
+Register the server with Claude Code:
+
+```bash
+claude mcp add --transport stdio --scope local threatforge -- /absolute/path/to/threatforge-mcp --workspace /absolute/path/to/architecture
+```
+
+For shared project settings use `.mcp.json` at the project root, with paths appropriate to the project:
 
 ```json
 {
   "mcpServers": {
     "threatforge": {
       "command": "/path/to/threatforge-mcp",
-      "args": ["/path/to/your-model.thf"]
+      "args": ["--workspace", "/path/to/architecture"]
     }
   }
 }
+```
+
+### Codex
+
+```bash
+codex mcp add threatforge -- /absolute/path/to/threatforge-mcp --workspace /absolute/path/to/architecture
+```
+
+The equivalent entry in `~/.codex/config.toml` is:
+
+```toml
+[mcp_servers.threatforge]
+command = "/absolute/path/to/threatforge-mcp"
+args = ["--workspace", "/absolute/path/to/architecture"]
 ```
 
 ### VS Code (Copilot / Continue)
@@ -74,6 +95,44 @@ Add to your Cursor MCP configuration:
 ```
 
 ## Available Tools
+
+### Workspace, layout, and exports
+
+| Tool | Use |
+|---|---|
+| `create_document` | Create and activate a new `.thf` with `path`, `title`, and optional `author`. Refuses to overwrite an existing file. |
+| `list_documents`, `search_documents` | List relative document paths; search valid files by relative path or title. Results are capped at 200, report truncation, and skip hidden directories. |
+| `open_document` | Activate an existing document by relative `path`; subsequent diagram and threat tools use it. |
+| `set_position`, `move_node`, `resize_node` | Set `x,y`, offset by `dx,dy`, or set `width,height` given a node `id`. Nodes may be elements, trust boundaries, or architecture groups. An element inside a trust boundary uses positions relative to the boundary. |
+| `auto_layout` | Arrange elements in a grid, keeping boundary members together. |
+| `batch_transaction` | Apply 1–100 graph or layout operations as a single transaction. |
+| `undo`, `redo` | Replay active-document edits from this MCP session, only if the file revision still matches. |
+| `analyze_stride` | Preview STRIDE suggestions; set `apply: true` to save them as one edit. |
+| `export_svg`, `export_png`, `screenshot` | Render the same scene. SVG is returned as text, PNG and screenshot as MCP images. Optional `path` writes an artifact inside the workspace, replacing an existing artifact of the same type. Screenshot is a headless diagram capture, not a desktop window capture. |
+
+For a batch, use these arguments to preview adding a node and positioning it:
+
+```json
+{
+  "dry_run": true,
+  "operations": [
+    {"tool": "add_element", "arguments": {"element_type": "process", "name": "Public API"}},
+    {"tool": "set_position", "arguments": {"id": "public-api", "x": 60, "y": 100}}
+  ]
+}
+```
+
+Review the results, then repeat without `dry_run` and pass the preview's
+`revision` as `expected_revision`. A failed operation leaves the file unchanged.
+The undo journal is session-local, with up to 20 edits per document for the 16 most
+recently edited documents. It does not undo external edits or remove workspace files
+created with `create_document`.
+
+### MCP resources and prompts
+
+Read the active document YAML at `threatforge://active/model` and its SVG at
+`threatforge://active/diagram`. Clients that support MCP prompts can use
+`build_architecture` and `review_threat_model` to start the corresponding workflow.
 
 ### Read Operations
 
@@ -136,7 +195,7 @@ Add to your Cursor MCP configuration:
 
 The MCP server:
 
-1. Loads the `.thf` file on startup
+1. Loads the selected `.thf` on single-file startup, or waits for a create/open request in workspace mode
 2. Reloads from disk before each operation (picks up external changes)
 3. Validates and commits each mutation using the same atomic, revision-checked writer as desktop
 4. Communicates via JSON-RPC over stdin/stdout
@@ -155,7 +214,6 @@ Deleting a data flow directly also removes threats targeting it.
 ## Limitations
 
 - No real-time sync with the running desktop app (file-based sync only)
-- No undo/redo from MCP mutations (use the desktop app for undo)
-- Layout positions are preserved but not managed by MCP tools
+- PNG uses system fonts when available; appearance can differ across hosts.
 - Unknown YAML fields on surviving entities are preserved, but comments and original formatting
   are not. See the [file-format contract](file-format.md#unknown-fields-and-downgrade-compatibility).
