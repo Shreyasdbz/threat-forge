@@ -28,6 +28,8 @@ export interface CreateDocumentInput {
 	model: ThreatModel;
 	/** The file path the model was loaded from, or null for unsaved documents. */
 	filePath: string | null;
+	fileRevision?: string;
+	sourceYaml?: string;
 	/**
 	 * Layout to apply on the new document's first canvas sync. Passed here — rather than set
 	 * on the canvas store by the caller — because the caller's `useCanvasStore` still resolves
@@ -170,13 +172,13 @@ export const useDocumentRegistry = create<DocumentRegistryState>((set, get) => (
 	openDocumentIds: [],
 	activeDocumentId: null,
 
-	createDocument: ({ model, filePath, pendingLayout }) => {
+	createDocument: ({ model, filePath, fileRevision, sourceYaml, pendingLayout }) => {
 		const id = createDocumentId();
 		const stores = createDocumentStores();
 
 		// Seed the new bundle in isolation before it becomes active. `setModel` resets the
 		// document's selection and dirty flag; the pending layout is consumed on first sync.
-		stores.model.getState().setModel(model, filePath);
+		stores.model.getState().setModel(model, filePath, fileRevision, sourceYaml);
 		stores.canvas.setState({ pendingLayout });
 		trackChatPath(id, stores);
 
@@ -198,7 +200,17 @@ export const useDocumentRegistry = create<DocumentRegistryState>((set, get) => (
 		return id;
 	},
 
-	hydrateDocument: ({ id, model, filePath, pendingLayout, createdAt, activate, insertIndex }) => {
+	hydrateDocument: ({
+		id,
+		model,
+		filePath,
+		fileRevision,
+		sourceYaml,
+		pendingLayout,
+		createdAt,
+		activate,
+		insertIndex,
+	}) => {
 		if (get().documents[id]) {
 			// Already hydrated. The live bundle wins over stored text, so nothing is re-seeded;
 			// the caller's activation request is still honored because activating an existing
@@ -211,7 +223,7 @@ export const useDocumentRegistry = create<DocumentRegistryState>((set, get) => (
 
 		// Seeded identically to `createDocument`, so a restored document is indistinguishable
 		// from a freshly opened one apart from keeping its persisted identity and creation time.
-		stores.model.getState().setModel(model, filePath);
+		stores.model.getState().setModel(model, filePath, fileRevision, sourceYaml);
 		stores.canvas.setState({ pendingLayout });
 		trackChatPath(id, stores);
 

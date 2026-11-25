@@ -359,11 +359,11 @@ npm run ci:docker:build  # Docker lint + test + Tauri build
 |-------|---------|
 | API Key Storage | Desktop: AES-256-GCM encrypted file in app data directory. Browser: AES-GCM ciphertext in a dedicated IndexedDB database, wrapped by a non-extractable `CryptoKey`. Two residuals are specific to the browser and do not apply to desktop: script on the origin can use the key exactly as the app does (stated in the UI, mitigated by the CSP), and `extractable: false` is an API-level restriction rather than encryption at rest, so read access to the browser profile recovers the wrapping material and the ciphertext together. Only the desktop build keeps the key outside the browser profile. |
 | AI API Calls | Direct from user's machine with user's key; HTTPS only. Provider decoding, request validation, and error redaction are shared and typed — see [`ai-protocol.md`](ai-protocol.md) |
-| File Integrity | Explicit version checks and typed deserialization; unknown fields remain tolerated for forward compatibility |
+| File Integrity | Desktop and MCP share validation and an atomic writer that preserves unknown fields and refuses stale revisions under a cross-process advisory lock |
 | Auto-Update | Tauri updater can verify signed update metadata once signing is provisioned; rollout and end-to-end verification remain roadmap gates |
 | Supply Chain | Dependabot plus lockfile, dependency-review, and GitHub CodeQL default-setup checks |
 | CSP | Strict Content Security Policy; no inline scripts, no remote code |
-| Native File I/O | Rust commands handle reads and writes; export writes restrict extensions, while path confinement remains an active security review surface |
+| Native File I/O | Rust-owned file dialogs authorize specific document paths; import and export use paths returned by their dialogs; legacy sidecars are confined to the document directory |
 | Input Validation | React escapes rendered content by default; LLM output remains untrusted |
 | AI Tool Authorization | Every model-requested mutation is validated, reviewed, and executed only under a single-use grant bound to one call id, tool, canonical input digest, and iteration; the bounded loop is cancellable and undoable. No self-authorization from model output, tool results, or document content — see [`ai-tool-loop.md`](ai-tool-loop.md) |
 

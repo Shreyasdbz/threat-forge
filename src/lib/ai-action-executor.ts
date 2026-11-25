@@ -3,6 +3,7 @@
  */
 
 import type { AiAction } from "@/lib/ai-actions";
+import { removeGraphItems } from "@/lib/remove-graph-items";
 import { generateBoundaryId, generateElementId, generateFlowId } from "@/stores/canvas-store";
 import { useHistoryStore } from "@/stores/history-store";
 import { useModelStore } from "@/stores/model-store";
@@ -82,15 +83,7 @@ export function applyAction(model: ThreatModel, action: AiAction): ThreatModel |
 		case "delete_element": {
 			const exists = model.elements.some((e) => e.id === action.id);
 			if (!exists) return null;
-			return {
-				...model,
-				elements: model.elements.filter((e) => e.id !== action.id),
-				data_flows: model.data_flows.filter((f) => f.from !== action.id && f.to !== action.id),
-				trust_boundaries: model.trust_boundaries.map((b) => ({
-					...b,
-					contains: b.contains.filter((c) => c !== action.id),
-				})),
-			};
+			return removeGraphItems(model, new Set([action.id]), new Set());
 		}
 
 		case "add_data_flow": {
@@ -132,10 +125,7 @@ export function applyAction(model: ThreatModel, action: AiAction): ThreatModel |
 		case "delete_data_flow": {
 			const exists = model.data_flows.some((f) => f.id === action.id);
 			if (!exists) return null;
-			return {
-				...model,
-				data_flows: model.data_flows.filter((f) => f.id !== action.id),
-			};
+			return removeGraphItems(model, new Set(), new Set([action.id]));
 		}
 
 		case "add_trust_boundary": {

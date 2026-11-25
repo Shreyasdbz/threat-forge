@@ -8,6 +8,7 @@ import {
 	nodeToRect,
 } from "@/lib/canvas-utils";
 import { getComponent } from "@/lib/registry/registry";
+import { removeGraphItems } from "@/lib/remove-graph-items";
 import type {
 	DataFlow,
 	DiagramLayout,
@@ -579,20 +580,12 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			const model = deps.model.getState().model;
 			if (model) {
 				deps.history.getState().pushSnapshot(model);
-				deps.model.getState().setModel(
-					{
-						...model,
-						elements: model.elements.filter((e) => !selectedNodeIds.has(e.id)),
-						data_flows: model.data_flows.filter((f) => !allRemovedEdgeIds.has(f.id)),
-						trust_boundaries: model.trust_boundaries
-							.filter((b) => !selectedNodeIds.has(b.id))
-							.map((b) => ({
-								...b,
-								contains: b.contains.filter((c) => !selectedNodeIds.has(c)),
-							})),
-					},
-					deps.model.getState().filePath,
-				);
+				deps.model
+					.getState()
+					.setModel(
+						removeGraphItems(model, selectedNodeIds, allRemovedEdgeIds),
+						deps.model.getState().filePath,
+					);
 				deps.model.getState().markDirty();
 				deps.model.getState().setSelectedElement(null);
 			}

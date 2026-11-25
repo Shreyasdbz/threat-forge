@@ -8,7 +8,7 @@
     "core:window:allow-set-title",
     "core:window:allow-destroy",
     "opener:default",
-    "dialog:default",
+    "dialog:allow-message",
     "clipboard-manager:allow-write-text",
     "updater:default"
   ]

@@ -291,23 +291,22 @@ widened.
   convert a clear refusal into silent data loss the first time a build met an unknown `1.x`
   document. Exact-match is the fail-closed behavior and stays.
 
-### Residual risk: downgrade data loss on the desktop writer
+### Unknown fields and downgrade compatibility
 
-The accepted cost is stated here rather than hidden. If an **older desktop build** opens a document
-containing sections it does not know and saves it, those sections are gone. The desktop writer
-deserializes into Rust structs, which have nowhere to keep unknown data, so `serde_yaml::to_string`
-emits only the fields that build understands. This is not generic preservation and must not be
-described as such.
+The native transaction keeps unknown YAML fields on disk alongside the typed Rust model,
+including fields on surviving entities matched by ID. Browser saves dump the plain object
+they loaded. Older native builds that predate the transaction still drop unknown fields
+when saving. Native serialization preserves field values, not comments or YAML formatting.
 
-The browser writer behaves differently. `BrowserFileAdapter` dumps the plain object it loaded, so
-unknown sections and keys survive a browser load/save cycle. The asymmetry is real, not a
-guarantee, and it is pinned by tests in both languages:
-
-- `unknown_fields_fixture_parses_and_drops_the_unknown_data` (`src-tauri/src/file_io/fixtures_test.rs`)
-- `carries unknown sections and keys through a load/dump/load cycle` (`src/types/thf-fixtures.test.ts`)
-
-Comments are lost the same way and for the same reason: serde has nowhere to keep them, so any
-comment other than the header ThreatForge itself writes disappears on the first desktop save.
+Native saves compare a SHA-256 revision of the exact file bytes under a sibling
+`.thf.lock` advisory lock, then replace the file atomically. The lock file remains in
+place so competing processes always lock the same file. Do not commit it or delete it
+while a writer is active. A stale editor must reopen the file or save to a different
+file; live merge is not part of the file format contract.
+Save As to a different path carries unknown fields from the editor's source
+snapshot, even if the original file has since changed. If the chosen destination
+already exists, its revision is checked separately and none of its fields are
+included in the copy.
 
 ### Cross-platform read validation parity
 

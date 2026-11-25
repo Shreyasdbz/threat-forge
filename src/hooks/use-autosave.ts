@@ -36,7 +36,11 @@ export function useAutosave(): AutosaveStatus {
 		clearTimer();
 		timerRef.current = setTimeout(() => {
 			statusRef.current = "saving";
-			void saveModel().then(() => {
+			void saveModel().then((saved) => {
+				if (!saved) {
+					statusRef.current = "idle";
+					return;
+				}
 				statusRef.current = "saved";
 				const now = new Date();
 				lastSavedRef.current = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;

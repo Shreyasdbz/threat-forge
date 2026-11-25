@@ -138,22 +138,24 @@ The MCP server:
 
 1. Loads the `.thf` file on startup
 2. Reloads from disk before each operation (picks up external changes)
-3. Writes changes back to disk after each mutation
+3. Validates and commits each mutation using the same atomic, revision-checked writer as desktop
 4. Communicates via JSON-RPC over stdin/stdout
 
-This file-based approach means the MCP server and the ThreatForge desktop app can work with the same file. The desktop app must reopen the file to load MCP changes; there is no real-time synchronization.
+This file-based approach means the MCP server and the ThreatForge desktop app can work with the same file. The desktop app must reopen the file to load MCP changes; there is no real-time synchronization. If another writer commits before a mutation can save, it fails with a conflict instead of overwriting the other edit.
 
 ## Cascading Deletes
 
 When an element is deleted:
 - All data flows connected to that element are removed
 - The element is removed from any trust boundary `contains` lists
+- Relationships connected to that element and threats targeting the element or any removed flow are removed
+
+Deleting a data flow directly also removes threats targeting it.
 
 ## Limitations
 
 - No real-time sync with the running desktop app (file-based sync only)
 - No undo/redo from MCP mutations (use the desktop app for undo)
 - Layout positions are preserved but not managed by MCP tools
-- MCP mutations re-serialize modeled Rust fields. Unknown or forward-compatible sections and
-  file comments are dropped on save, matching the desktop-writer limitation described in the
-  [file-format contract](file-format.md#residual-risk-downgrade-data-loss-on-the-desktop-writer).
+- Unknown YAML fields on surviving entities are preserved, but comments and original formatting
+  are not. See the [file-format contract](file-format.md#unknown-fields-and-downgrade-compatibility).

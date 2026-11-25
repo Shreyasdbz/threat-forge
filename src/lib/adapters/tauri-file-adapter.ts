@@ -1,90 +1,40 @@
 import { invoke } from "@tauri-apps/api/core";
-import { confirm, open, save } from "@tauri-apps/plugin-dialog";
-import type { DiagramLayout, ThreatModel } from "@/types/threat-model";
-import type { FileAdapter } from "./file-adapter";
-
-const YAML_FILTER = {
-	name: "Threat Forge Model",
-	extensions: ["thf"],
-};
-
-const IMPORT_FILTER = {
-	name: "Microsoft Threat Model",
-	extensions: ["tm7"],
-};
+import { confirm } from "@tauri-apps/plugin-dialog";
+import type { ThreatModel } from "@/types/threat-model";
+import type { FileAdapter, OpenedDocument, SavedDocument } from "./file-adapter";
 
 export class TauriFileAdapter implements FileAdapter {
 	async createNewModel(title: string, author: string): Promise<ThreatModel> {
 		return invoke<ThreatModel>("create_new_model", { title, author });
 	}
 
-	async openThreatModel(): Promise<{ model: ThreatModel; path: string | null } | null> {
-		const selected = await open({
-			multiple: false,
-			filters: [YAML_FILTER],
-		});
-		if (!selected) return null;
-
-		const model = await invoke<ThreatModel>("open_threat_model", { path: selected });
-		return { model, path: selected };
+	async openThreatModel(path?: string): Promise<OpenedDocument | null> {
+		return invoke<OpenedDocument | null>("open_threat_model", { path });
 	}
 
 	async importThreatModel(): Promise<{ model: ThreatModel } | null> {
-		const selected = await open({
-			multiple: false,
-			filters: [IMPORT_FILTER],
+		const model = await invoke<ThreatModel | null>("import_threat_model");
+		return model ? { model } : null;
+	}
+
+	async saveThreatModel(
+		model: ThreatModel,
+		path: string | null,
+		expectedRevision?: string,
+		saveAs = false,
+		sourceYaml?: string,
+	): Promise<SavedDocument | null> {
+		return invoke<SavedDocument | null>("save_threat_model", {
+			path,
+			model,
+			expectedRevision,
+			saveAs,
+			sourceYaml,
 		});
-		if (!selected) return null;
-
-		const ext = selected.split(".").pop()?.toLowerCase() ?? "";
-		const format = ext === "tm7" ? "tm7" : ext;
-
-		const model = await invoke<ThreatModel>("import_threat_model", { path: selected, format });
-		return { model };
-	}
-
-	async saveThreatModel(model: ThreatModel, path: string | null): Promise<string | null> {
-		let targetPath = path;
-		if (!targetPath) {
-			const selected = await save({
-				filters: [YAML_FILTER],
-				defaultPath: "model.thf",
-			});
-			if (!selected) return null;
-			targetPath = selected;
-		}
-
-		await invoke("save_threat_model", { path: targetPath, model });
-		return targetPath;
-	}
-
-	async openLayout(modelPath: string, layoutFile: string): Promise<DiagramLayout | null> {
-		const layoutPath = resolveLayoutPath(modelPath, layoutFile);
-		try {
-			return await invoke<DiagramLayout>("open_layout", { path: layoutPath });
-		} catch {
-			return null;
-		}
-	}
-
-	async saveLayout(modelPath: string, layoutFile: string, layout: DiagramLayout): Promise<void> {
-		const layoutPath = resolveLayoutPath(modelPath, layoutFile);
-		try {
-			await invoke("save_layout", { path: layoutPath, layout });
-		} catch {
-			// Layout save failure is non-fatal
-		}
 	}
 
 	async exportAsHtml(htmlContent: string, defaultName: string): Promise<string | null> {
-		const selected = await save({
-			filters: [{ name: "HTML Report", extensions: ["html"] }],
-			defaultPath: `${defaultName}.html`,
-		});
-		if (!selected) return null;
-
-		await invoke("write_text_file", { path: selected, content: htmlContent });
-		return selected;
+		return invoke<string | null>("export_html", { defaultName, content: htmlContent });
 	}
 
 	async confirmDiscard(documentTitle?: string): Promise<boolean> {
@@ -98,10 +48,4 @@ export class TauriFileAdapter implements FileAdapter {
 			cancelLabel: "Cancel",
 		});
 	}
-}
-
-function resolveLayoutPath(modelPath: string, layoutFile: string): string {
-	const lastSep = Math.max(modelPath.lastIndexOf("/"), modelPath.lastIndexOf("\\"));
-	const dir = lastSep >= 0 ? modelPath.substring(0, lastSep) : ".";
-	return `${dir}/${layoutFile}`;
 }

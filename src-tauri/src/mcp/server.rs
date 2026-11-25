@@ -2,9 +2,9 @@
 //! to external AI assistants (Claude Code, VS Code Copilot, Cursor, etc.)
 //! via the Model Context Protocol over stdio.
 
+use crate::file_io::{commit_document, read_document, resolve_target, DocumentSnapshot};
 use std::borrow::Cow;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 
 use rmcp::handler::server::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
@@ -36,55 +36,34 @@ fn text_result(s: impl Into<String>) -> CallToolResult {
 #[derive(Clone)]
 pub struct ThreatForgeServer {
     file_path: PathBuf,
-    model: Arc<Mutex<ThreatModel>>,
     tool_router: ToolRouter<Self>,
 }
 
 impl ThreatForgeServer {
     /// Create a new server instance for the given `.thf` file.
     pub fn new(file_path: PathBuf) -> Result<Self, String> {
-        let content = std::fs::read_to_string(&file_path)
-            .map_err(|e| format!("Failed to read {}: {e}", file_path.display()))?;
-        let model: ThreatModel = serde_yaml::from_str(&content)
-            .map_err(|e| format!("Failed to parse {}: {e}", file_path.display()))?;
+        let file_path = file_path
+            .canonicalize()
+            .map_err(|_| "Could not resolve the selected model.")?;
+        let file_path = resolve_target(&file_path).map_err(|e| e.user_message())?;
+        read_document(&file_path).map_err(|e| e.user_message())?;
         Ok(Self {
             file_path,
-            model: Arc::new(Mutex::new(model)),
             tool_router: Self::tool_router(),
         })
     }
 
-    /// Acquire the model lock, recovering from mutex poisoning.
-    fn lock_model(&self) -> Result<std::sync::MutexGuard<'_, ThreatModel>, ErrorData> {
-        match self.model.lock() {
-            Ok(guard) => Ok(guard),
-            Err(poisoned) => {
-                // Recover the inner data; the panic that caused poisoning is gone.
-                Ok(poisoned.into_inner())
-            }
+    fn read(&self) -> Result<DocumentSnapshot, ErrorData> {
+        if resolve_target(&self.file_path).ok().as_ref() != Some(&self.file_path) {
+            return Err(mcp_err("The selected model has moved."));
         }
+        read_document(&self.file_path).map_err(|error| mcp_err(error.user_message()))
     }
 
-    /// Persist the current model state to disk.
-    fn save_locked(&self, model: &std::sync::MutexGuard<'_, ThreatModel>) -> Result<(), ErrorData> {
-        let yaml =
-            serde_yaml::to_string(&**model).map_err(|e| mcp_err(format!("Serialize: {e}")))?;
-        std::fs::write(&self.file_path, yaml)
-            .map_err(|_| mcp_err("Failed to write threat model file"))?;
-        Ok(())
-    }
-
-    /// Reload the model from disk into the given locked guard.
-    fn reload_locked(
-        &self,
-        model: &mut std::sync::MutexGuard<'_, ThreatModel>,
-    ) -> Result<(), ErrorData> {
-        let content = std::fs::read_to_string(&self.file_path)
-            .map_err(|_| mcp_err("Failed to read threat model file"))?;
-        let fresh: ThreatModel =
-            serde_yaml::from_str(&content).map_err(|e| mcp_err(format!("Parse error: {e}")))?;
-        **model = fresh;
-        Ok(())
+    fn save(&self, revision: &str, model: ThreatModel) -> Result<(), ErrorData> {
+        commit_document(&self.file_path, Some(revision), model)
+            .map(|_| ())
+            .map_err(|error| mcp_err(error.user_message()))
     }
 
     fn next_flow_number(model: &ThreatModel) -> u32 {
@@ -225,10 +204,12 @@ impl ThreatForgeServer {
         &self,
         Parameters(_req): Parameters<GetModelRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mut model = self.lock_model()?;
-        self.reload_locked(&mut model)?;
-        let json =
-            serde_json::to_string_pretty(&*model).map_err(|e| mcp_err(format!("JSON: {e}")))?;
+        let model = self
+            .read()?
+            .preserved_model()
+            .map_err(|e| mcp_err(e.user_message()))?;
+        let json = serde_json::to_string_pretty(&model)
+            .map_err(|_| mcp_err("Could not serialize the document as JSON."))?;
         Ok(text_result(json))
     }
 
@@ -237,8 +218,7 @@ impl ThreatForgeServer {
         &self,
         Parameters(_req): Parameters<GetModelRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mut model = self.lock_model()?;
-        self.reload_locked(&mut model)?;
+        let model = self.read()?.model;
         let summary: Vec<serde_json::Value> = model
             .elements
             .iter()
@@ -261,8 +241,7 @@ impl ThreatForgeServer {
         &self,
         Parameters(_req): Parameters<GetModelRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mut model = self.lock_model()?;
-        self.reload_locked(&mut model)?;
+        let model = self.read()?.model;
         let summary: Vec<serde_json::Value> = model
             .threats
             .iter()
@@ -297,8 +276,11 @@ impl ThreatForgeServer {
                 Self::VALID_ELEMENT_TYPES.join(", ")
             )));
         }
-        let mut model = self.lock_model()?;
-        self.reload_locked(&mut model)?;
+        let DocumentSnapshot {
+            mut model,
+            revision,
+            ..
+        } = self.read()?;
         let id = Self::unique_element_id(&model, &req.name);
         let element = Element {
             id: id.clone(),
@@ -323,7 +305,7 @@ impl ThreatForgeServer {
             font_weight: None,
         };
         model.elements.push(element);
-        self.save_locked(&model)?;
+        self.save(&revision, model)?;
         Ok(text_result(format!("Added element: {id}")))
     }
 
@@ -341,8 +323,11 @@ impl ThreatForgeServer {
                 )));
             }
         }
-        let mut model = self.lock_model()?;
-        self.reload_locked(&mut model)?;
+        let DocumentSnapshot {
+            mut model,
+            revision,
+            ..
+        } = self.read()?;
         let el = model
             .elements
             .iter_mut()
@@ -360,7 +345,7 @@ impl ThreatForgeServer {
         if let Some(desc) = req.description {
             el.description = desc;
         }
-        self.save_locked(&model)?;
+        self.save(&revision, model)?;
         Ok(text_result(format!("Updated element: {}", req.id)))
     }
 
@@ -369,21 +354,16 @@ impl ThreatForgeServer {
         &self,
         Parameters(req): Parameters<DeleteByIdRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mut model = self.lock_model()?;
-        self.reload_locked(&mut model)?;
+        let DocumentSnapshot {
+            mut model,
+            revision,
+            ..
+        } = self.read()?;
         if !model.elements.iter().any(|e| e.id == req.id) {
             return Err(mcp_err(format!("Element not found: {}", req.id)));
         }
         model.elements.retain(|e| e.id != req.id);
-        // Cascade: remove connected flows
-        model
-            .data_flows
-            .retain(|f| f.from != req.id && f.to != req.id);
-        // Cascade: remove from trust boundary contains lists
-        for b in &mut model.trust_boundaries {
-            b.contains.retain(|c| c != &req.id);
-        }
-        self.save_locked(&model)?;
+        self.save(&revision, model)?;
         Ok(text_result(format!("Deleted element: {}", req.id)))
     }
 
@@ -392,8 +372,11 @@ impl ThreatForgeServer {
         &self,
         Parameters(req): Parameters<AddDataFlowRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mut model = self.lock_model()?;
-        self.reload_locked(&mut model)?;
+        let DocumentSnapshot {
+            mut model,
+            revision,
+            ..
+        } = self.read()?;
         // Validate element references exist
         if !model.elements.iter().any(|e| e.id == req.from) {
             return Err(mcp_err(format!("Source element not found: {}", req.from)));
@@ -419,7 +402,7 @@ impl ThreatForgeServer {
             stroke_opacity: None,
         };
         model.data_flows.push(flow);
-        self.save_locked(&model)?;
+        self.save(&revision, model)?;
         Ok(text_result(format!("Added data flow: {id}")))
     }
 
@@ -428,13 +411,16 @@ impl ThreatForgeServer {
         &self,
         Parameters(req): Parameters<DeleteByIdRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mut model = self.lock_model()?;
-        self.reload_locked(&mut model)?;
+        let DocumentSnapshot {
+            mut model,
+            revision,
+            ..
+        } = self.read()?;
         if !model.data_flows.iter().any(|f| f.id == req.id) {
             return Err(mcp_err(format!("Data flow not found: {}", req.id)));
         }
         model.data_flows.retain(|f| f.id != req.id);
-        self.save_locked(&model)?;
+        self.save(&revision, model)?;
         Ok(text_result(format!("Deleted data flow: {}", req.id)))
     }
 
@@ -443,8 +429,11 @@ impl ThreatForgeServer {
         &self,
         Parameters(req): Parameters<AddTrustBoundaryRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mut model = self.lock_model()?;
-        self.reload_locked(&mut model)?;
+        let DocumentSnapshot {
+            mut model,
+            revision,
+            ..
+        } = self.read()?;
         // Validate contained element references
         if let Some(ref contains) = req.contains {
             for eid in contains {
@@ -468,7 +457,7 @@ impl ThreatForgeServer {
             stroke_opacity: None,
         };
         model.trust_boundaries.push(boundary);
-        self.save_locked(&model)?;
+        self.save(&revision, model)?;
         Ok(text_result(format!("Added trust boundary: {id}")))
     }
 
@@ -477,13 +466,16 @@ impl ThreatForgeServer {
         &self,
         Parameters(req): Parameters<DeleteByIdRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mut model = self.lock_model()?;
-        self.reload_locked(&mut model)?;
+        let DocumentSnapshot {
+            mut model,
+            revision,
+            ..
+        } = self.read()?;
         if !model.trust_boundaries.iter().any(|b| b.id == req.id) {
             return Err(mcp_err(format!("Trust boundary not found: {}", req.id)));
         }
         model.trust_boundaries.retain(|b| b.id != req.id);
-        self.save_locked(&model)?;
+        self.save(&revision, model)?;
         Ok(text_result(format!("Deleted trust boundary: {}", req.id)))
     }
 
@@ -511,8 +503,11 @@ impl ThreatForgeServer {
                 req.severity
             ))
         })?;
-        let mut model = self.lock_model()?;
-        self.reload_locked(&mut model)?;
+        let DocumentSnapshot {
+            mut model,
+            revision,
+            ..
+        } = self.read()?;
         // Validate optional element/flow references
         if let Some(ref eid) = req.element {
             if !model.elements.iter().any(|e| e.id == *eid) {
@@ -536,7 +531,7 @@ impl ThreatForgeServer {
             mitigation: None,
         };
         model.threats.push(threat);
-        self.save_locked(&model)?;
+        self.save(&revision, model)?;
         Ok(text_result(format!("Added threat: {id}")))
     }
 
@@ -545,13 +540,16 @@ impl ThreatForgeServer {
         &self,
         Parameters(req): Parameters<DeleteByIdRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mut model = self.lock_model()?;
-        self.reload_locked(&mut model)?;
+        let DocumentSnapshot {
+            mut model,
+            revision,
+            ..
+        } = self.read()?;
         if !model.threats.iter().any(|t| t.id == req.id) {
             return Err(mcp_err(format!("Threat not found: {}", req.id)));
         }
         model.threats.retain(|t| t.id != req.id);
-        self.save_locked(&model)?;
+        self.save(&revision, model)?;
         Ok(text_result(format!("Deleted threat: {}", req.id)))
     }
 }

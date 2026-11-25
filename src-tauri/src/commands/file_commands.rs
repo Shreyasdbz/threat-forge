@@ -1,7 +1,60 @@
 use crate::file_io;
-use crate::models::{DiagramLayout, ThreatModel};
-use std::fs;
-use std::path::PathBuf;
+use crate::models::ThreatModel;
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use tauri::{AppHandle, State};
+use tauri_plugin_dialog::DialogExt;
+
+const UNAPPROVED: &str = "Choose the file in a native file dialog first.";
+
+#[derive(Default)]
+pub struct ApprovedDocuments(Mutex<HashSet<PathBuf>>);
+
+impl ApprovedDocuments {
+    pub fn approve(&self, path: &Path) -> Result<PathBuf, String> {
+        let path = selected_path(path, "thf")?;
+        self.0.lock().map_err(|_| UNAPPROVED)?.insert(path.clone());
+        Ok(path)
+    }
+
+    fn require(&self, path: &Path) -> Result<PathBuf, String> {
+        let path = selected_path(path, "thf")?;
+        if !self.0.lock().map_err(|_| UNAPPROVED)?.contains(&path) {
+            return Err(UNAPPROVED.into());
+        }
+        Ok(path)
+    }
+}
+
+pub(super) fn selected_path(path: &Path, extension: &str) -> Result<PathBuf, String> {
+    if !path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case(extension))
+    {
+        return Err(format!("Choose a .{extension} file."));
+    }
+    file_io::resolve_target(path).map_err(|error| error.user_message())
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenedDocument {
+    model: ThreatModel,
+    path: PathBuf,
+    revision: String,
+    source_yaml: String,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedDocument {
+    path: PathBuf,
+    revision: String,
+    source_yaml: String,
+}
 
 #[tauri::command]
 pub fn create_new_model(title: String, author: String) -> Result<ThreatModel, String> {
@@ -9,41 +62,129 @@ pub fn create_new_model(title: String, author: String) -> Result<ThreatModel, St
 }
 
 #[tauri::command]
-pub fn open_threat_model(path: String) -> Result<ThreatModel, String> {
-    let path = PathBuf::from(path);
-    let mut model = file_io::read_threat_model(&path).map_err(|e| e.to_string())?;
-    file_io::merge_layout_into_model(&mut model, &path);
-    Ok(model)
+pub async fn open_threat_model(
+    app: AppHandle,
+    approved: State<'_, ApprovedDocuments>,
+    path: Option<PathBuf>,
+) -> Result<Option<OpenedDocument>, String> {
+    let path = match path {
+        Some(path) => approved.require(&path)?,
+        None => {
+            let Some(picked) = app
+                .dialog()
+                .file()
+                .add_filter("ThreatForge model", &["thf"])
+                .blocking_pick_file()
+            else {
+                return Ok(None);
+            };
+            approved.approve(&picked.into_path().map_err(|_| UNAPPROVED)?)?
+        }
+    };
+    let mut snapshot = file_io::read_document(&path).map_err(|error| error.user_message())?;
+    file_io::merge_layout_into_model(&mut snapshot.model, &path);
+    let source_yaml = snapshot
+        .source_yaml()
+        .map_err(|error| error.user_message())?;
+    Ok(Some(OpenedDocument {
+        model: snapshot.model,
+        path,
+        revision: snapshot.revision,
+        source_yaml,
+    }))
 }
 
 #[tauri::command]
-pub fn save_threat_model(path: String, model: ThreatModel) -> Result<(), String> {
-    let path = PathBuf::from(path);
-    file_io::write_threat_model(&path, &model).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn open_layout(path: String) -> Result<DiagramLayout, String> {
-    let path = PathBuf::from(path);
-    file_io::read_layout(&path).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn save_layout(path: String, layout: DiagramLayout) -> Result<(), String> {
-    let path = PathBuf::from(path);
-    file_io::write_layout(&path, &layout).map_err(|e| e.to_string())
-}
-
-/// Write text content to a file. Only allows `.html` and `.thf` extensions
-/// to prevent misuse as an arbitrary file write primitive.
-#[tauri::command]
-pub fn write_text_file(path: String, content: String) -> Result<(), String> {
-    let path = PathBuf::from(&path);
-    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-    if !matches!(ext, "html" | "thf") {
-        return Err(format!(
-            "write_text_file only supports .html and .thf files, got: .{ext}"
-        ));
+pub async fn save_threat_model(
+    app: AppHandle,
+    approved: State<'_, ApprovedDocuments>,
+    path: Option<PathBuf>,
+    expected_revision: Option<String>,
+    save_as: bool,
+    model: ThreatModel,
+    source_yaml: Option<String>,
+) -> Result<Option<SavedDocument>, String> {
+    let (path, is_copy) = match (path, save_as) {
+        (Some(path), false) => (approved.require(&path)?, false),
+        (current, _) => {
+            let Some(picked) = app
+                .dialog()
+                .file()
+                .add_filter("ThreatForge model", &["thf"])
+                .set_file_name("model.thf")
+                .blocking_save_file()
+            else {
+                return Ok(None);
+            };
+            let path = approved.approve(&picked.into_path().map_err(|_| UNAPPROVED)?)?;
+            let is_copy = current.as_deref() != Some(&path);
+            (path, is_copy)
+        }
+    };
+    let written = if is_copy {
+        let destination_revision =
+            file_io::destination_revision(&path).map_err(|error| error.user_message())?;
+        file_io::copy_document(
+            &path,
+            destination_revision.as_deref(),
+            model,
+            source_yaml.as_deref(),
+        )
+    } else {
+        let expected_revision =
+            expected_revision.ok_or("Reopen the file before saving, or save to a new file.")?;
+        file_io::write_document(&path, Some(&expected_revision), model)
     }
-    fs::write(&path, content).map_err(|e| e.to_string())
+    .map_err(|error| error.user_message())?;
+    Ok(Some(SavedDocument {
+        path,
+        revision: written.revision,
+        source_yaml: written.yaml,
+    }))
+}
+
+#[tauri::command]
+pub async fn export_html(
+    app: AppHandle,
+    default_name: String,
+    content: String,
+) -> Result<Option<PathBuf>, String> {
+    let name = default_name.rsplit(['/', '\\']).next().unwrap_or("report");
+    let Some(picked) = app
+        .dialog()
+        .file()
+        .add_filter("HTML report", &["html"])
+        .set_file_name(format!("{name}.html"))
+        .blocking_save_file()
+    else {
+        return Ok(None);
+    };
+    let path = selected_path(&picked.into_path().map_err(|_| UNAPPROVED)?, "html")?;
+    file_io::atomic_write(&path, content.as_bytes()).map_err(|error| error.user_message())?;
+    Ok(Some(path))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn approving_a_document_does_not_approve_siblings_or_traversal() {
+        let dir = tempfile::tempdir().unwrap();
+        let document = dir.path().join("approved.thf");
+        let grants = ApprovedDocuments::default();
+        assert!(grants.require(&document).is_err());
+        let approved = grants.approve(&document).unwrap();
+        assert_eq!(grants.require(&document).unwrap(), approved);
+        assert!(grants.require(&dir.path().join("other.thf")).is_err());
+        assert!(grants
+            .require(&dir.path().join("other/../approved.thf"))
+            .is_err());
+        assert!(grants.approve(&dir.path().join("approval.html")).is_err());
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(dir.path().join("private.thf"), &document).unwrap();
+            assert!(grants.require(&document).is_err());
+        }
+    }
 }

@@ -3,6 +3,12 @@ use thiserror::Error;
 /// Application-level errors for ThreatForge
 #[derive(Debug, Error)]
 pub enum ThreatForgeError {
+    #[error("The document changed on disk. Reopen it before saving, or save to a new file.")]
+    DocumentConflict,
+
+    #[error("The selected file is outside the approved location.")]
+    UnapprovedPath,
+
     #[error("Failed to read file '{path}': {source}")]
     FileRead {
         path: String,
@@ -29,9 +35,6 @@ pub enum ThreatForgeError {
         path: String,
         source: serde_json::Error,
     },
-
-    #[error("Failed to serialize JSON: {source}")]
-    JsonSerialize { source: serde_json::Error },
 
     #[error("Unsupported schema version '{version}'. Supported versions: {supported:?}")]
     UnsupportedVersion {
@@ -63,4 +66,19 @@ pub enum ThreatForgeError {
     /// sentence.
     #[error("No API key stored for provider '{provider}'")]
     NoApiKey { provider: String },
+}
+
+impl ThreatForgeError {
+    pub fn user_message(&self) -> String {
+        match self {
+            Self::FileRead { .. } => "Could not read the selected file.".into(),
+            Self::FileWrite { .. } => "Could not save the selected file.".into(),
+            Self::YamlParse { .. } => {
+                "The selected file is not a valid ThreatForge document.".into()
+            }
+            Self::JsonParse { .. } => "The layout file is invalid.".into(),
+            Self::YamlSerialize { .. } => "Could not serialize the document.".into(),
+            _ => self.to_string(),
+        }
+    }
 }

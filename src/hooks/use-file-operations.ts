@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import type { OpenedDocument } from "@/lib/adapters/file-adapter";
 import { getFileAdapter } from "@/lib/adapters/get-file-adapter";
 import { documentDisplayTitle } from "@/lib/document-display-title";
 import { generateHtmlReport } from "@/lib/export/export-html";
@@ -11,7 +12,7 @@ import { useModelStore } from "@/stores/model-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useWorkspaceStore } from "@/stores/workspace-store";
 import type { DocumentId } from "@/types/document";
-import type { DiagramLayout, ThreatModel } from "@/types/threat-model";
+import type { ThreatModel } from "@/types/threat-model";
 import { hydrateDocumentById } from "./use-workspace-restore";
 
 function todayString(): string {
@@ -32,18 +33,6 @@ function getAuthorIdentity(): string {
 	if (authorName) return authorName;
 	if (authorEmail) return authorEmail;
 	return "";
-}
-
-/**
- * Keep the active document's file-scoped settings in sync with a just-saved model. The
- * document session owns `fileSettings`; `setModel` refreshes the model but not the cached
- * settings, so a save that rewrites metadata refreshes the session's copy here.
- */
-function syncActiveFileSettings(model: ThreatModel): void {
-	const registry = useDocumentRegistry.getState();
-	const activeId = registry.activeDocumentId;
-	if (!activeId) return;
-	registry.setDocumentFileSettings(activeId, model.metadata.settings ?? null);
 }
 
 /** Capture the active document's live canvas geometry into a model about to be written. */
@@ -70,7 +59,6 @@ function mergedCloseNeighbor(id: DocumentId): DocumentId | null {
 export function useFileOperations() {
 	const model = useModelStore((s) => s.model);
 	const filePath = useModelStore((s) => s.filePath);
-	const setModel = useModelStore((s) => s.setModel);
 
 	const newModel = useCallback(async () => {
 		const adapter = await getFileAdapter();
@@ -91,11 +79,11 @@ export function useFileOperations() {
 		// syncFromModel runs from the DfdCanvas effect once the new bundle is active.
 	}, []);
 
-	const openModel = useCallback(async () => {
+	const openModel = useCallback(async (filePath?: string) => {
 		const adapter = await getFileAdapter();
-		let result: { model: ThreatModel; path: string | null } | null;
+		let result: OpenedDocument | null;
 		try {
-			result = await adapter.openThreatModel();
+			result = await adapter.openThreatModel(filePath);
 		} catch (err) {
 			// Both adapters reject documents they cannot read: the desktop reader on schema
 			// version and reference errors, the browser parser on malformed dates and shapes.
@@ -105,69 +93,72 @@ export function useFileOperations() {
 		}
 		if (!result) return;
 
-		const { model: loaded, path } = result;
-
-		// Build layout from inline positions (new format) or try sidecar (old format).
-		let pendingLayout: DiagramLayout | null;
-		const inlineLayout = buildLayoutFromModel(loaded);
-		if (inlineLayout) {
-			pendingLayout = inlineLayout;
-		} else if (loaded.diagrams.length > 0 && loaded.diagrams[0].layout_file && path) {
-			// Fallback: try loading old sidecar layout file
-			pendingLayout = await adapter.openLayout(path, loaded.diagrams[0].layout_file);
-		} else {
-			pendingLayout = null;
-		}
+		const { model: loaded, path, revision, sourceYaml } = result;
+		const pendingLayout = buildLayoutFromModel(loaded);
 
 		// Open in a new tab, leaving any open documents untouched (`#54` step 6). createDocument
 		// seeds the new document's fileSettings from loaded.metadata.settings.
-		useDocumentRegistry.getState().createDocument({ model: loaded, filePath: path, pendingLayout });
+		useDocumentRegistry.getState().createDocument({
+			model: loaded,
+			filePath: path,
+			fileRevision: revision,
+			sourceYaml,
+			pendingLayout,
+		});
 		// syncFromModel runs from the DfdCanvas effect once the new bundle is active.
 	}, []);
 
-	const saveModel = useCallback(async () => {
-		if (!model) return;
+	const saveDocument = useCallback(
+		async (saveAs: boolean) => {
+			if (!model) return false;
+			const registry = useDocumentRegistry.getState();
+			const id = registry.activeDocumentId;
+			const target = (id && registry.getDocumentStores(id)?.model) || useModelStore;
+			if (target.getState().model !== model) return false;
+			const { fileRevision: expectedRevision, sourceYaml } = target.getState();
 
-		const identity = getAuthorIdentity();
-		const captured = captureActiveCanvas({
-			...model,
-			metadata: {
-				...model.metadata,
-				modified: todayString(),
-				modified_by: identity || model.metadata.modified_by,
-				last_edit_timestamp: Math.floor(Date.now() / 1000),
-			},
-		});
+			const identity = getAuthorIdentity();
+			const captured = captureActiveCanvas({
+				...model,
+				metadata: {
+					...model.metadata,
+					modified: todayString(),
+					modified_by: identity || model.metadata.modified_by,
+					last_edit_timestamp: Math.floor(Date.now() / 1000),
+				},
+			});
 
-		const adapter = await getFileAdapter();
-		const savedPath = await adapter.saveThreatModel(captured, filePath);
-		if (!savedPath) return;
-
-		setModel(captured, savedPath);
-		syncActiveFileSettings(captured);
-	}, [model, filePath, setModel]);
-
-	const saveModelAs = useCallback(async () => {
-		if (!model) return;
-
-		const identity = getAuthorIdentity();
-		const captured = captureActiveCanvas({
-			...model,
-			metadata: {
-				...model.metadata,
-				modified: todayString(),
-				modified_by: identity || model.metadata.modified_by,
-				last_edit_timestamp: Math.floor(Date.now() / 1000),
-			},
-		});
-
-		const adapter = await getFileAdapter();
-		const savedPath = await adapter.saveThreatModel(captured, null);
-		if (!savedPath) return;
-
-		setModel(captured, savedPath);
-		syncActiveFileSettings(captured);
-	}, [model, setModel]);
+			try {
+				const adapter = await getFileAdapter();
+				const saved = saveAs
+					? await adapter.saveThreatModel(captured, filePath, expectedRevision, true, sourceYaml)
+					: await adapter.saveThreatModel(captured, filePath, expectedRevision);
+				if (!saved) return false;
+				const path = typeof saved === "string" ? saved : saved.path;
+				const revision = typeof saved === "string" ? undefined : saved.revision;
+				const savedYaml = typeof saved === "string" ? undefined : saved.sourceYaml;
+				const current = target.getState();
+				if (current.model === model) {
+					current.setModel(captured, path, revision, savedYaml);
+					if (id) registry.setDocumentFileSettings(id, captured.metadata.settings ?? null);
+				} else if (
+					id &&
+					current.filePath === filePath &&
+					current.fileRevision === expectedRevision
+				) {
+					target.setState({ filePath: path, fileRevision: revision, sourceYaml: savedYaml });
+				}
+				return true;
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				window.alert(`Save failed: ${message}`);
+				return false;
+			}
+		},
+		[model, filePath],
+	);
+	const saveModel = useCallback(() => saveDocument(false), [saveDocument]);
+	const saveModelAs = useCallback(() => saveDocument(true), [saveDocument]);
 
 	/**
 	 * Close one document by id, guarding its *own* unsaved changes and naming it in the prompt

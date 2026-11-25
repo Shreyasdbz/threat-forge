@@ -1,6 +1,6 @@
 import { readThreatModelText } from "@/lib/thf-validation";
 import { serializeThreatModelYaml } from "@/lib/thf-yaml";
-import type { DiagramLayout, ThreatModel } from "@/types/threat-model";
+import type { ThreatModel } from "@/types/threat-model";
 import type { FileAdapter } from "./file-adapter";
 
 function todayString(): string {
@@ -60,15 +60,6 @@ export class BrowserFileAdapter implements FileAdapter {
 		const filename = sanitizeFilename(model.metadata.title) || "model";
 		downloadBlob(blob, `${filename}.thf`);
 		return filename;
-	}
-
-	async openLayout(_modelPath: string, _layoutFile: string): Promise<DiagramLayout | null> {
-		// Browser version doesn't persist layout
-		return null;
-	}
-
-	async saveLayout(_modelPath: string, _layoutFile: string, _layout: DiagramLayout): Promise<void> {
-		// Browser version doesn't persist layout
 	}
 
 	async exportAsHtml(htmlContent: string, defaultName: string): Promise<string | null> {

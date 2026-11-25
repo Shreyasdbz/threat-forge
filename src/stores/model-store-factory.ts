@@ -15,6 +15,8 @@ export interface ModelState {
 	model: ThreatModel | null;
 	/** The file path of the currently open model */
 	filePath: string | null;
+	fileRevision?: string;
+	sourceYaml?: string;
 	/** Whether the model has unsaved changes */
 	isDirty: boolean;
 	/** Currently selected element ID */
@@ -29,7 +31,12 @@ export interface ModelState {
 	isAnalyzing: boolean;
 
 	// Actions
-	setModel: (model: ThreatModel, filePath: string | null) => void;
+	setModel: (
+		model: ThreatModel,
+		filePath: string | null,
+		fileRevision?: string,
+		sourceYaml?: string,
+	) => void;
 	clearModel: () => void;
 	markDirty: () => void;
 	markClean: () => void;
@@ -117,21 +124,26 @@ export function createModelStore(deps: ModelStoreDeps): StoreApi<ModelState> {
 		selectedThreatId: null,
 		isAnalyzing: false,
 
-		setModel: (model, filePath) =>
-			set({
+		setModel: (model, filePath, fileRevision, sourceYaml) =>
+			set((state) => ({
 				model,
 				filePath,
+				fileRevision:
+					fileRevision ?? (state.filePath === filePath ? state.fileRevision : undefined),
+				sourceYaml: sourceYaml ?? (state.filePath === filePath ? state.sourceYaml : undefined),
 				isDirty: false,
 				selectedElementId: null,
 				selectedEdgeId: null,
 				selectedBoundaryId: null,
 				selectedThreatId: null,
-			}),
+			})),
 
 		clearModel: () =>
 			set({
 				model: null,
 				filePath: null,
+				fileRevision: undefined,
+				sourceYaml: undefined,
 				isDirty: false,
 				selectedElementId: null,
 				selectedEdgeId: null,

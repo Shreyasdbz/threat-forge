@@ -4,28 +4,10 @@ import { isTauri } from "@/lib/platform";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useClipboardStore } from "@/stores/clipboard-store";
-import { useDocumentRegistry } from "@/stores/document-registry";
 import { useHistoryStore } from "@/stores/history-store";
 import { useModelStore } from "@/stores/model-store";
 import { useUiStore } from "@/stores/ui-store";
 import { useFileOperations } from "./use-file-operations";
-
-/**
- * Open a .thf file by path (used for file association / open-with).
- * Calls the Rust open_threat_model command directly with the given path.
- */
-async function openFileByPath(filePath: string) {
-	const { invoke } = await import("@tauri-apps/api/core");
-	const model = await invoke<import("@/types/threat-model").ThreatModel>("open_threat_model", {
-		path: filePath,
-	});
-
-	const pendingLayout = buildLayoutFromModel(model);
-	// Open in a new tab, matching the in-app Open (`#54` step 6): a file-association open adds a
-	// document rather than replacing the current one. createDocument seeds fileSettings from
-	// model.metadata.settings.
-	useDocumentRegistry.getState().createDocument({ model, filePath, pendingLayout });
-}
 
 /**
  * Listens to native Tauri menu events and dispatches them to the appropriate store actions.
@@ -47,7 +29,7 @@ export function useNativeMenu() {
 
 			// Listen for file-association open events (double-click .thf in Finder/Explorer)
 			unlistenFile = await listen<string>("open-file", (event) => {
-				void openFileByPath(event.payload);
+				void openModel(event.payload);
 			});
 
 			unlistenMenu = await listen<string>("menu-action", (event) => {

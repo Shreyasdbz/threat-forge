@@ -4,22 +4,14 @@ use std::collections::HashMap;
 use std::path::Path;
 
 /// Read and parse a `.thf` file
+#[cfg(test)]
 pub fn read_threat_model(path: &Path) -> Result<ThreatModel, ThreatForgeError> {
-    let contents = std::fs::read_to_string(path).map_err(|e| ThreatForgeError::FileRead {
-        path: path.display().to_string(),
-        source: e,
-    })?;
+    super::read_document(path).map(|snapshot| snapshot.model)
+}
 
-    let model: ThreatModel =
-        serde_yaml::from_str(&contents).map_err(|e| ThreatForgeError::YamlParse {
-            path: path.display().to_string(),
-            source: e,
-        })?;
-
+pub(super) fn validate_model(model: &ThreatModel) -> Result<(), ThreatForgeError> {
     validate_version(&model.version)?;
-    validate_references(&model)?;
-
-    Ok(model)
+    validate_references(model)
 }
 
 /// Read a diagram layout JSON file
@@ -56,7 +48,9 @@ pub fn merge_layout_into_model(model: &mut ThreatModel, model_path: &Path) {
             _ => continue,
         };
 
-        let layout_path = model_dir.join(&layout_file);
+        let Ok(layout_path) = super::resolve_sidecar(model_dir, Path::new(&layout_file)) else {
+            continue;
+        };
         let layout = match read_layout(&layout_path) {
             Ok(l) => l,
             Err(_) => continue, // Non-fatal: layout file may not exist
