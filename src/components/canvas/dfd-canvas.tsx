@@ -457,7 +457,7 @@ export function DfdCanvas() {
 	const minimapVisible = useSettingsStore((s) => s.settings.minimapVisible);
 
 	return (
-		<div className="relative h-full w-full">
+		<div className="@container/diagram relative h-full w-full">
 			{(groups.length > 0 || layerCount > 0) && (
 				<button
 					type="button"
@@ -534,7 +534,7 @@ export function DfdCanvas() {
 				</Controls>
 				{minimapVisible && (
 					<MiniMap
-						className="!bg-editor-surface !border !border-editor-line !rounded-editor-control !shadow-none"
+						className="mb-14! rounded-editor-control! border! border-editor-line! bg-editor-surface! shadow-none! @min-[20rem]/diagram:mb-4!"
 						nodeColor={(node) =>
 							node.data.isBoundary || node.type === "architectureGroup"
 								? "transparent"

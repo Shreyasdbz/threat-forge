@@ -104,6 +104,21 @@ test("insets the compact horizontal canvas controls", async ({ page }) => {
 	expect(canvasBox.y + canvasBox.height - controlsBox.y - controlsBox.height).toBeCloseTo(16);
 });
 
+test("keeps the minimap clear of its toggle on narrow canvases", async ({ page }) => {
+	await page.setViewportSize({ width: 768, height: 720 });
+	const toggle = page.getByRole("button", { name: "Show minimap" });
+	const minimap = page.locator(".react-flow__minimap");
+	const controls = page.locator(".react-flow__controls");
+	await toggle.click();
+	await expect(minimap).toBeVisible();
+	const mapBounds = await minimap.boundingBox();
+	const controlBounds = await controls.boundingBox();
+	if (!mapBounds || !controlBounds) throw new Error("Minimap or canvas controls are hidden");
+	expect(mapBounds.y + mapBounds.height).toBeLessThanOrEqual(controlBounds.y);
+	await toggle.click();
+	await expect(minimap).toHaveCount(0);
+});
+
 test("uses the bundled Inter face and equal toolbar icon targets", async ({ page }) => {
 	const session = await page.context().newCDPSession(page);
 	try {
@@ -136,21 +151,6 @@ test("uses the bundled Inter face and equal toolbar icon targets", async ({ page
 	expect(metrics).toEqual(Array.from({ length: 10 }, () => [32, 32, 16, 16, 2.25]));
 });
 
-test("moves and resizes a group outline independently of its members, with undo", async ({
-	page,
-}) => {
-	const group = page.getByTestId("group-frontend-cluster");
-	const member = page.getByTestId("node-web-app");
-	await expect(group).toBeVisible();
-	const initial = await group.boundingBox();
-	const memberInitial = await member.boundingBox();
-	if (!initial || !memberInitial) throw new Error("Expected visible group and member");
-
-	const drag = async (x: number, y: number, dx: number, dy: number) => {
-		await page.mouse.move(x, y);
-		await page.mouse.down();
-		await page.mouse.move(x + dx, y + dy, { steps: 8 });
-		await page.mouse.up();
 test("records a focused node's arrow-key movement as a document edit", async ({ page }) => {
 	await page.getByTestId("node-web-app").click();
 	const node = page.locator(".react-flow__node.selected");
@@ -169,6 +169,21 @@ test("records a focused node's arrow-key movement as a document edit", async ({ 
 	);
 });
 
+test("moves and resizes a group outline independently of its members, with undo", async ({
+	page,
+}) => {
+	const group = page.getByTestId("group-frontend-cluster");
+	const member = page.getByTestId("node-web-app");
+	await expect(group).toBeVisible();
+	const initial = await group.boundingBox();
+	const memberInitial = await member.boundingBox();
+	if (!initial || !memberInitial) throw new Error("Expected visible group and member");
+
+	const drag = async (x: number, y: number, dx: number, dy: number) => {
+		await page.mouse.move(x, y);
+		await page.mouse.down();
+		await page.mouse.move(x + dx, y + dy, { steps: 8 });
+		await page.mouse.up();
 	};
 	const title = await group.getByText("Frontend Cluster", { exact: true }).boundingBox();
 	if (!title) throw new Error("Expected group title");
