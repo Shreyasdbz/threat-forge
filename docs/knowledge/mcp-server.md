@@ -150,8 +150,9 @@ the model in the desktop app with its original sidecar present to migrate its
 positions, sizes and viewport inline before exporting it in the browser.
 
 After changing the Rust scene or its model, regenerate the browser asset with
-`bash scripts/build-scene-wasm.sh` (Rust target `wasm32-unknown-unknown` and
-`wasm-bindgen-cli 0.2.114`). Keep the generated assets with the renderer changes.
+`bash scripts/build-scene-wasm.sh` (Rust 1.99.1 with target
+`wasm32-unknown-unknown`, and `wasm-bindgen-cli 0.2.114`). Keep the generated
+assets with the renderer changes; CI rebuilds and byte-compares both assets.
 
 ### MCP resources and prompts
 

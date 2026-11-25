@@ -156,6 +156,19 @@ jobs:
           npx playwright install --with-deps chromium
           npx playwright test e2e/export-parity.spec.ts
 
+      - name: Verify committed scene WASM and glue
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal --target wasm32-unknown-unknown
+          archive="$RUNNER_TEMP/wasm-bindgen.tar.gz"
+          curl --fail --silent --show-error --location \
+            https://github.com/wasm-bindgen/wasm-bindgen/releases/download/0.2.114/wasm-bindgen-0.2.114-x86_64-unknown-linux-musl.tar.gz \
+            --output "$archive"
+          echo "ce21be002bdbc22ede2a5cf250cb801d2106956fc3c529c75d9452729db3490c  $archive" | sha256sum --check
+          tar --extract --gzip --file "$archive" --directory "$RUNNER_TEMP"
+          export PATH="$RUNNER_TEMP/wasm-bindgen-0.2.114-x86_64-unknown-linux-musl:$PATH"
+          bash scripts/build-scene-wasm.sh
+          git diff --exit-code -- public/scene/renderer.js public/scene/renderer_bg.wasm
+
   e2e:
     name: E2E Tests
     needs: [test]
