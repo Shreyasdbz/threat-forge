@@ -19,8 +19,8 @@ struct DocumentHistory {
 }
 
 struct Edit {
-    before: String,
-    after: String,
+    before: Vec<u8>,
+    after: Vec<u8>,
 }
 
 impl Journal {
@@ -36,7 +36,6 @@ impl Journal {
         if before.revision != revision {
             return Err(crate::errors::ThreatForgeError::DocumentConflict.user_message());
         }
-        let before = before.source_yaml().map_err(|error| error.user_message())?;
         let written = target
             .write_document(Some(revision), model)
             .map_err(|error| error.user_message())?;
@@ -51,8 +50,8 @@ impl Journal {
                 history.undo.pop_front();
             }
             history.undo.push_back(Edit {
-                before,
-                after: written.yaml,
+                before: before.bytes,
+                after: written.yaml.into_bytes(),
             });
         }
         Ok(written.revision)
@@ -71,17 +70,16 @@ impl Journal {
             "No edit to undo."
         })?;
         let yaml = if redo { &edit.after } else { &edit.before };
-        let model = serde_yaml::from_str(yaml).map_err(|_| "The journal entry is invalid.")?;
-        let written = target
-            .copy_document(Some(&history.revision), model, Some(yaml))
+        let revision = target
+            .restore_document(&history.revision, yaml)
             .map_err(|error| error.user_message())?;
-        history.revision.clone_from(&written.revision);
+        history.revision.clone_from(&revision);
         if redo {
             history.undo.extend(history.redo.pop());
         } else {
             history.redo.extend(history.undo.pop_back());
         }
-        Ok(written.revision)
+        Ok(revision)
     }
 
     fn history(&mut self, path: &Path) -> &mut DocumentHistory {

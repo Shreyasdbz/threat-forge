@@ -127,7 +127,8 @@ Review the results, then repeat without `dry_run` and pass the preview's
 canonical document path and file contents. Dry-run revisions also cover the legacy
 sidecar layout used by relative moves. A failed operation leaves the file unchanged.
 The undo journal is session-local, with up to 20 edits per document for the 16 most
-recently edited documents. It does not undo external edits or remove workspace files
+recently edited documents. It restores the exact file bytes, including comments and
+formatting. It does not undo external edits or remove workspace files
 created with `create_document`.
 
 ### Editor presentation and export

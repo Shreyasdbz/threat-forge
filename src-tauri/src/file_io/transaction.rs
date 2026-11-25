@@ -18,6 +18,7 @@ pub struct DocumentSnapshot {
     pub model: ThreatModel,
     pub revision: String,
     raw: Value,
+    pub(crate) bytes: Vec<u8>,
 }
 
 pub struct WrittenDocument {
@@ -68,6 +69,7 @@ fn parse_document_with_revision(
         model,
         revision,
         raw,
+        bytes: bytes.to_vec(),
     })
 }
 
@@ -238,6 +240,56 @@ impl WriteTarget {
         write_with_base(self, expected, proposed, Base::Source(source_yaml))
     }
 
+    pub(crate) fn restore_document(
+        &self,
+        expected: &str,
+        bytes: &[u8],
+    ) -> Result<String, ThreatForgeError> {
+        let _lock = self.lock_document()?;
+        self.checked_destination(Some(expected))?;
+        let snapshot = parse_document(self.path(), bytes)?;
+        self.atomic_write(bytes)?;
+        Ok(snapshot.revision)
+    }
+
+    fn lock_document(&self) -> Result<fs::File, ThreatForgeError> {
+        let mut lock_name = self.name().to_os_string();
+        lock_name.push(".lock");
+        self.metadata(&lock_name)?;
+        let lock = self
+            .dir
+            .open_with(
+                &lock_name,
+                OpenOptions::new()
+                    .create(true)
+                    .truncate(false)
+                    .read(true)
+                    .write(true)
+                    .follow(FollowSymlinks::No),
+            )
+            .map_err(|source| write_error(self.path(), source))?
+            .into_std();
+        lock.lock()
+            .map_err(|source| write_error(self.path(), source))?;
+        Ok(lock)
+    }
+
+    fn checked_destination(
+        &self,
+        expected: Option<&str>,
+    ) -> Result<Option<Vec<u8>>, ThreatForgeError> {
+        self.metadata(self.name())?;
+        match self.read_bytes() {
+            Ok(bytes) if expected == Some(revision(&bytes).as_str()) => Ok(Some(bytes)),
+            Err(e) if e.kind() == io::ErrorKind::NotFound && expected.is_none() => Ok(None),
+            Ok(_) => Err(ThreatForgeError::DocumentConflict),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                Err(ThreatForgeError::DocumentConflict)
+            }
+            Err(source) => Err(write_error(self.path(), source)),
+        }
+    }
+
     pub fn atomic_write(&self, bytes: &[u8]) -> Result<(), ThreatForgeError> {
         let existing = self.metadata(self.name())?;
         let temporary_name = format!(".threatforge-{}.tmp", uuid::Uuid::new_v4());
@@ -273,34 +325,8 @@ fn write_with_base(
     base: Base<'_>,
 ) -> Result<WrittenDocument, ThreatForgeError> {
     let path = target.path();
-    let mut lock_name = target.name().to_os_string();
-    lock_name.push(".lock");
-    target.metadata(&lock_name)?;
-    let lock = target
-        .dir
-        .open_with(
-            &lock_name,
-            OpenOptions::new()
-                .create(true)
-                .truncate(false)
-                .read(true)
-                .write(true)
-                .follow(FollowSymlinks::No),
-        )
-        .map_err(|source| write_error(path, source))?
-        .into_std();
-    lock.lock().map_err(|source| write_error(path, source))?;
-
-    target.metadata(target.name())?;
-    let destination = match target.read_bytes() {
-        Ok(bytes) if expected == Some(revision(&bytes).as_str()) => Some(bytes),
-        Err(e) if e.kind() == io::ErrorKind::NotFound && expected.is_none() => None,
-        Ok(_) => return Err(ThreatForgeError::DocumentConflict),
-        Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            return Err(ThreatForgeError::DocumentConflict)
-        }
-        Err(source) => return Err(write_error(path, source)),
-    };
+    let _lock = target.lock_document()?;
+    let destination = target.checked_destination(expected)?;
     let prior = match base {
         Base::Destination => destination.as_deref(),
         Base::Source(source) => source.map(str::as_bytes),

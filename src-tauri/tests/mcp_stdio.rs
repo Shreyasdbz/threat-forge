@@ -731,3 +731,26 @@ fn delete_results_report_cascades_in_preview_and_commit() {
         })
     );
 }
+
+#[test]
+fn undo_restores_hand_authored_bytes_and_unknown_fields() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("model.thf");
+    let original =
+        format!("# Hand-written comment\n{MODEL_THF}\nfuture_section: {{ label: 'keep me' }}\n");
+    std::fs::write(&path, &original).unwrap();
+    let mut server = McpServer::spawn(&path);
+    server.start_workspace();
+    server.tool(
+        2,
+        "add_element",
+        json!({"element_type":"process","name":"API"}),
+    );
+    let edited = std::fs::read_to_string(&path).unwrap();
+    assert_ne!(edited, original);
+    assert!(edited.contains("future_section:"));
+    server.tool(3, "undo", json!({}));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    server.tool(4, "redo", json!({}));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), edited);
+}
