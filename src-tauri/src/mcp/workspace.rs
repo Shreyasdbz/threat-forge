@@ -1,4 +1,4 @@
-use crate::file_io::{resolve_target, WriteRoot, WriteTarget};
+use crate::file_io::{WriteRoot, WriteTarget};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
@@ -23,9 +23,17 @@ impl Workspace {
     }
 
     pub fn write_target(&self, path: &Path) -> Result<WriteTarget, String> {
+        self.ensure_current()?;
         self.writes
             .target(path)
             .map_err(|error| error.user_message())
+    }
+
+    pub fn ensure_current(&self) -> Result<(), String> {
+        match self.writes.is_current() {
+            Ok(true) => Ok(()),
+            _ => Err("The workspace root has moved. Restart the MCP server to reopen it.".into()),
+        }
     }
 
     pub fn resolve(&self, relative: &Path, extension: &str) -> Result<PathBuf, String> {
@@ -37,11 +45,8 @@ impl Workspace {
             return Err(format!("Provide a workspace-relative .{extension} path."));
         }
         let requested = self.root.join(relative);
-        let path = resolve_target(&requested).map_err(|error| error.user_message())?;
-        if path != requested {
-            return Err("Symbolic links are not supported in workspace paths.".into());
-        }
-        Ok(path)
+        self.write_target(&requested)?;
+        Ok(requested)
     }
 
     pub fn relative(&self, path: &Path) -> Result<String, String> {
@@ -56,6 +61,7 @@ impl Workspace {
     }
 
     pub fn documents(&self) -> Result<Vec<PathBuf>, String> {
+        self.ensure_current()?;
         let mut paths = Vec::new();
         let mut folders = vec![self.root.clone()];
         let mut visited = 0;
@@ -88,6 +94,7 @@ impl Workspace {
                 }
             }
         }
+        self.ensure_current()?;
         paths.sort_unstable();
         Ok(paths)
     }

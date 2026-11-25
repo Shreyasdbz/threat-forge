@@ -529,3 +529,33 @@ fn workspace_batch_preview_is_scoped_to_the_selected_document() {
         "service"
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn workspace_rejects_a_replaced_root() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("workspace");
+    let original = dir.path().join("original");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::write(root.join("work.thf"), MODEL_THF).unwrap();
+    let mut server = McpServer::spawn_workspace(&root);
+    server.start_workspace();
+    server.tool(2, "open_document", json!({ "path": "work.thf" }));
+
+    std::fs::rename(&root, &original).unwrap();
+    std::fs::create_dir(&root).unwrap();
+    std::fs::write(root.join("work.thf"), MODEL_THF).unwrap();
+    let response = server.request_raw(
+        3,
+        "tools/call",
+        json!({
+            "name": "create_document", "arguments": { "path": "new.thf", "title": "New" }
+        }),
+    );
+    assert!(
+        response.to_string().contains("workspace root has moved"),
+        "{response}"
+    );
+    assert!(!original.join("new.thf").exists());
+    assert!(!root.join("new.thf").exists());
+}

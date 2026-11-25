@@ -136,15 +136,10 @@ impl ThreatForgeServer {
     }
 
     fn active_path(&self) -> Result<PathBuf, ErrorData> {
-        let path = self
-            .session()?
+        self.session()?
             .active
             .clone()
-            .ok_or_else(|| mcp_err("Create or open a workspace document first."))?;
-        if resolve_target(&path).ok().as_ref() != Some(&path) {
-            return Err(mcp_err("The selected model has moved."));
-        }
-        Ok(path)
+            .ok_or_else(|| mcp_err("Create or open a workspace document first."))
     }
 
     fn read(&self) -> Result<(PathBuf, DocumentSnapshot), ErrorData> {
@@ -850,6 +845,7 @@ impl ThreatForgeServer {
                 Ok::<_, ErrorData>((target, relative))
             })
             .transpose()?;
+        let workspace = Arc::clone(&self.write_workspace);
         tokio::task::spawn_blocking(move || {
             let mut model = snapshot.model;
             merge_layout_into_model(&mut model, &model_path);
@@ -867,6 +863,7 @@ impl ThreatForgeServer {
             };
             let mut content = Vec::new();
             if let Some((target, relative)) = output {
+                workspace.ensure_current().map_err(mcp_err)?;
                 target
                     .atomic_write(bytes)
                     .map_err(|error| mcp_err(error.user_message()))?;

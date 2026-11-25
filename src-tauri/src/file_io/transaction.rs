@@ -1,7 +1,7 @@
 use super::reader::validate_model;
 use crate::errors::ThreatForgeError;
 use crate::models::ThreatModel;
-use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
+use cap_fs_ext::{DirExt, FollowSymlinks, MetadataExt, OpenOptionsFollowExt};
 use cap_std::{
     ambient_authority,
     fs::{Dir, OpenOptions},
@@ -130,6 +130,15 @@ impl WriteRoot {
                 dir,
             })
             .map_err(|source| write_error(path, source))
+    }
+
+    pub fn is_current(&self) -> io::Result<bool> {
+        if self.path.canonicalize()? != self.path {
+            return Ok(false);
+        }
+        let held = self.dir.dir_metadata()?;
+        let current = Dir::open_ambient_dir(&self.path, ambient_authority())?.dir_metadata()?;
+        Ok((held.dev(), held.ino()) == (current.dev(), current.ino()))
     }
 
     pub fn target(&self, path: &Path) -> Result<WriteTarget, ThreatForgeError> {
