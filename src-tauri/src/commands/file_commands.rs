@@ -189,7 +189,7 @@ pub async fn save_threat_model(
     let written = if is_copy {
         if let Some(source) = &path {
             file_io::verify_desktop_copy_source(
-                &approved.require(source)?,
+                source,
                 expected_revision.as_deref(),
                 source_yaml.as_deref(),
             )
@@ -386,5 +386,31 @@ mod tests {
             Err(crate::errors::ThreatForgeError::LegacyLayoutUnavailable)
         ));
         assert_eq!(std::fs::read_to_string(&path).unwrap(), yaml);
+    }
+
+    #[test]
+    fn desktop_save_as_preserves_captured_legacy_layout_after_source_edit() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("model.thf");
+        let destination = dir.path().join("copy.thf");
+        let yaml = include_str!("../../../tests/fixtures/thf/legacy-sidecar/model.thf");
+        let layout = include_str!(
+            "../../../tests/fixtures/thf/legacy-sidecar/.threatforge/layouts/main-dfd.json"
+        );
+        let sidecar = dir.path().join(".threatforge/layouts/main-dfd.json");
+        std::fs::create_dir_all(sidecar.parent().unwrap()).unwrap();
+        std::fs::write(&source, yaml).unwrap();
+        std::fs::write(&sidecar, layout).unwrap();
+        let opened = file_io::read_desktop_document(&source).unwrap();
+        let externally_edited = format!("{yaml}\n# External edit\n");
+        std::fs::write(&source, &externally_edited).unwrap();
+        file_io::verify_desktop_copy_source(&source, Some(&opened.revision), Some(yaml)).unwrap();
+        let mut captured = opened.model;
+        captured.diagrams[0].layout_file = None;
+        file_io::copy_document(&destination, None, captured, Some(yaml)).unwrap();
+        let copy = file_io::read_desktop_document(&destination).unwrap();
+        assert!(copy.model.diagrams[0].layout_file.is_none());
+        assert_eq!(copy.model.elements[0].position.as_ref().unwrap().x, 120.0);
+        assert_eq!(std::fs::read_to_string(&source).unwrap(), externally_edited);
     }
 }

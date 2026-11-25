@@ -68,7 +68,12 @@ fn desktop_revision(content: &str, layouts: &LegacyLayouts) -> Result<String, Th
         path: "diagram layout".into(),
         source,
     })?;
-    Ok(format!("{content}:{}", revision(&bytes)))
+    let state = if layouts.has_unavailable() {
+        "unavailable"
+    } else {
+        "loaded"
+    };
+    Ok(format!("{content}:{state}:{}", revision(&bytes)))
 }
 
 #[cfg(test)]
@@ -183,7 +188,12 @@ pub(crate) fn verify_desktop_copy_source(
             .iter()
             .any(|diagram| diagram.layout_file.is_some() && diagram.viewport.is_none())
         {
-            WriteTarget::from_path(path)?.checked_destination(expected, true)?;
+            let captured_layout = expected
+                .and_then(|revision| revision.split_once(':'))
+                .is_some_and(|(_, layout)| layout.starts_with("loaded:"));
+            if !captured_layout {
+                return Err(ThreatForgeError::LegacyLayoutUnavailable);
+            }
         }
     }
     Ok(())
