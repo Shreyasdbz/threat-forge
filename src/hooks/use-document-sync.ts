@@ -45,7 +45,7 @@ async function refreshDocument(id: DocumentId, cancelled: () => boolean, discard
 		return;
 	}
 	if (
-		stores.inspectorDrafts.size > 0 ||
+		stores.pendingDrafts.size > 0 ||
 		(state.isDirty &&
 			(!discard ||
 				state.model !== discard.model ||

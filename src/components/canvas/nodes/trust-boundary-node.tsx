@@ -1,5 +1,6 @@
 import { type NodeProps, NodeResizeControl } from "@xyflow/react";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { useCanvasDraft } from "@/hooks/use-canvas-draft";
 import { cn } from "@/lib/utils";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import type { DfdNodeData } from "@/stores/canvas-store";
@@ -20,6 +21,7 @@ function hexToRgba(hex: string, opacity: number): string {
 export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 	const nodeData = data as DfdNodeData;
 	const [isEditing, setIsEditing] = useState(false);
+	useCanvasDraft(isEditing);
 	const [isDragOver, setIsDragOver] = useState(false);
 	const inputRef = useRef<HTMLInputElement>(null);
 
@@ -52,19 +54,7 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 		(value: string) => {
 			const trimmed = value.trim();
 			if (trimmed && trimmed !== (nodeData.boundaryName ?? nodeData.label)) {
-				const model = useModelStore.getState().model;
-				if (model) {
-					const updatedBoundaries = model.trust_boundaries.map((b) =>
-						b.id === id ? { ...b, name: trimmed } : b,
-					);
-					useModelStore
-						.getState()
-						.setModel(
-							{ ...model, trust_boundaries: updatedBoundaries },
-							useModelStore.getState().filePath,
-						);
-					useModelStore.getState().markDirty();
-				}
+				useModelStore.getState().updateTrustBoundary(id, { name: trimmed });
 				syncBoundaryLabel(id, trimmed);
 			}
 			setIsEditing(false);

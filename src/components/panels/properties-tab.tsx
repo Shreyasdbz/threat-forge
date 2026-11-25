@@ -813,14 +813,14 @@ function CommaSeparatedField({
 }) {
 	const [rawText, setRawText] = useState(items.join(", "));
 	const [isFocused, setIsFocused] = useState(false);
-	const { inspectorDrafts } = useActiveStores();
+	const { pendingDrafts } = useActiveStores();
 	const draftId = useId();
 
 	useLayoutEffect(
 		() => () => {
-			inspectorDrafts.delete(draftId);
+			pendingDrafts.delete(draftId);
 		},
-		[draftId, inspectorDrafts],
+		[draftId, pendingDrafts],
 	);
 
 	// Sync from external changes only when not focused
@@ -831,13 +831,13 @@ function CommaSeparatedField({
 	}, [items, isFocused]);
 
 	const commitValue = useCallback(() => {
-		if (!inspectorDrafts.delete(draftId)) return;
+		if (!pendingDrafts.delete(draftId)) return;
 		const parsed = rawText
 			.split(",")
 			.map((s) => s.trim())
 			.filter((s) => s.length > 0);
 		onCommit(parsed);
-	}, [draftId, inspectorDrafts, rawText, onCommit]);
+	}, [draftId, pendingDrafts, rawText, onCommit]);
 
 	return (
 		<InspectorField label={label}>
@@ -847,8 +847,8 @@ function CommaSeparatedField({
 				placeholder={placeholder}
 				onChange={(e) => {
 					const value = e.target.value;
-					if (value === items.join(", ")) inspectorDrafts.delete(draftId);
-					else inspectorDrafts.add(draftId);
+					if (value === items.join(", ")) pendingDrafts.delete(draftId);
+					else pendingDrafts.add(draftId);
 					setRawText(value);
 				}}
 				onFocus={() => setIsFocused(true)}

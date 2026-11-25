@@ -1,6 +1,7 @@
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TextAnnotationNode } from "@/components/canvas/nodes/text-annotation-node";
 import { PropertiesTab } from "@/components/panels/properties-tab";
 import { useDocumentRegistry } from "@/stores/document-registry";
 import { createDocumentStores, setActiveStores } from "@/stores/document-stores";
@@ -175,6 +176,35 @@ describe("desktop document sync", () => {
 		fireEvent.blur(field);
 		expect(stores.model.getState().model?.elements[0].technologies).toEqual(["nginx", "TLS"]);
 		expect(stores.model.getState().isDirty).toBe(true);
+	});
+
+	it("preserves an uncommitted canvas annotation until the editor closes", async () => {
+		const stores = open();
+		mocks.checkDocumentUpdate.mockResolvedValue(update);
+		renderHook(() => useDocumentSync());
+		render(
+			createElement(TextAnnotationNode, {
+				id: "note",
+				data: { label: "Note" },
+				type: "text",
+				selected: false,
+				dragging: false,
+				zIndex: 0,
+				isConnectable: false,
+				positionAbsoluteX: 0,
+				positionAbsoluteY: 0,
+			}),
+		);
+		fireEvent.doubleClick(screen.getByText("Note"));
+		const field = screen.getByRole("textbox");
+		fireEvent.change(field, { target: { value: "Unsaved note" } });
+		await poll();
+		expect(stores.model.getState()).toMatchObject({ fileRevision: "one", fileSync: "conflict" });
+		expect(field).toHaveValue("Unsaved note");
+
+		fireEvent.keyDown(field, { key: "Escape" });
+		await poll();
+		expect(stores.model.getState()).toMatchObject({ fileRevision: "two", fileSync: "updated" });
 	});
 
 	it("does not check disk in the browser", async () => {

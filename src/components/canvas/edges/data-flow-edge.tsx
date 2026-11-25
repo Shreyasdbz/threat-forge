@@ -8,6 +8,7 @@ import {
 } from "@xyflow/react";
 import { Lock, Plus } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCanvasDraft } from "@/hooks/use-canvas-draft";
 import { nodeToRect } from "@/lib/canvas-utils";
 import { cn } from "@/lib/utils";
 import { type DfdEdgeData, useCanvasStore } from "@/stores/canvas-store";
@@ -474,6 +475,7 @@ function EdgeLabelEditor({
 	onClose: () => void;
 }) {
 	const nameRef = useRef<HTMLInputElement>(null);
+	useCanvasDraft(true);
 	const protocolRef = useRef<HTMLInputElement>(null);
 	const dataRef = useRef<HTMLInputElement>(null);
 	const { setEdges } = useReactFlow();
@@ -486,17 +488,11 @@ function EdgeLabelEditor({
 			.map((s) => s.trim())
 			.filter((s) => s.length > 0);
 
-		// Update model store
-		const model = useModelStore.getState().model;
-		if (model) {
-			const updatedFlows = model.data_flows.map((f) =>
-				f.id === edgeId ? { ...f, name: newName, protocol: newProtocol, data: newData } : f,
-			);
-			useModelStore
-				.getState()
-				.setModel({ ...model, data_flows: updatedFlows }, useModelStore.getState().filePath);
-			useModelStore.getState().markDirty();
-		}
+		useModelStore.getState().updateDataFlow(edgeId, {
+			name: newName,
+			protocol: newProtocol,
+			data: newData,
+		});
 
 		// Update canvas edge data
 		setEdges((edges) =>

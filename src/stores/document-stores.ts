@@ -13,7 +13,7 @@ export interface DocumentStores {
 	model: StoreApi<ModelState>;
 	canvas: StoreApi<CanvasState>;
 	history: StoreApi<HistoryState>;
-	inspectorDrafts: Set<string>;
+	pendingDrafts: Set<string>;
 }
 
 /** Build a fresh, fully wired bundle. History first, then model, then canvas. */
@@ -21,7 +21,7 @@ export function createDocumentStores(): DocumentStores {
 	const history = createHistoryStore();
 	const model = createModelStore({ history });
 	const canvas = createCanvasStore({ model, history });
-	return { model, canvas, history, inspectorDrafts: new Set() };
+	return { model, canvas, history, pendingDrafts: new Set() };
 }
 
 /**

@@ -1,6 +1,7 @@
 import type { NodeProps } from "@xyflow/react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { IconRenderer } from "@/components/icons/icon-renderer";
+import { useCanvasDraft } from "@/hooks/use-canvas-draft";
 import { DEFAULT_NODE_WIDTH } from "@/lib/canvas-utils";
 import { resolveComponent, resolveElementIcon } from "@/lib/registry/registry";
 import type { ShapeKind } from "@/lib/registry/types";
@@ -43,6 +44,7 @@ function shapeClass(shape: ShapeKind): string {
 export function DfdElementNode({ id, data, selected }: NodeProps) {
 	const nodeData = data as DfdNodeData;
 	const [isEditing, setIsEditing] = useState(false);
+	useCanvasDraft(isEditing);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const threatCount = useThreatCount(id);
 

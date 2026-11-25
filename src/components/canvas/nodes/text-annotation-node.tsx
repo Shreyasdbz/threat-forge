@@ -1,5 +1,6 @@
 import type { NodeProps } from "@xyflow/react";
 import { useCallback, useRef, useState } from "react";
+import { useCanvasDraft } from "@/hooks/use-canvas-draft";
 import { cn } from "@/lib/utils";
 import type { DfdNodeData } from "@/stores/canvas-store";
 import { useCanvasStore } from "@/stores/canvas-store";
@@ -23,6 +24,7 @@ function hexToRgba(hex: string, opacity: number): string | undefined {
 export function TextAnnotationNode({ id, data, selected }: NodeProps) {
 	const nodeData = data as DfdNodeData;
 	const [isEditing, setIsEditing] = useState(false);
+	useCanvasDraft(isEditing);
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	const fontSize = (nodeData.fontSize as number) ?? DEFAULT_FONT_SIZE;
