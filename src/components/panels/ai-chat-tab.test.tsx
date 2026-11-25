@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useDocumentSync } from "@/hooks/use-document-sync";
 import type { StreamConversationHandlers } from "@/lib/ai/protocol/client";
 import { flattenText } from "@/lib/ai/protocol/messages";
 import { DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL } from "@/lib/ai-models";
@@ -20,6 +21,33 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 // captured so a test can push stream events and hold the turn open; the
 // transport is an inert stand-in the mocked client never touches.
 const streamConversationMock = vi.hoisted(() => vi.fn());
+const desktop = vi.hoisted(() => ({ checkDocumentUpdate: vi.fn(), enabled: false }));
+
+vi.mock("@/lib/platform", async (original) => ({
+	...(await original<typeof import("@/lib/platform")>()),
+	isTauri: () => desktop.enabled,
+}));
+
+vi.mock("@/lib/adapters/tauri-file-adapter", () => ({
+	checkDocumentUpdate: desktop.checkDocumentUpdate,
+}));
+
+function SyncingAiChat() {
+	useDocumentSync();
+	return <AiChatTab />;
+}
+
+async function reloadOnDisk(model: ThreatModel) {
+	desktop.checkDocumentUpdate.mockResolvedValue({
+		model,
+		path: "/diagram.thf",
+		revision: "new",
+		sourceYaml: "new YAML",
+	});
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(1500);
+	});
+}
 // Whether the mocked keychain reports a stored key; a test flips it to reach the
 // chat view instead of the empty state. `rejection` is the #234 case: storage that
 // could not answer at all, which must not read as "no key configured".
@@ -76,6 +104,7 @@ const textTurn =
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	desktop.enabled = false;
 	localStorage.clear();
 	keychain.hasKey = false;
 	keychain.rejection = null;
@@ -391,6 +420,82 @@ describe("AiChatTab tool-loop turn", () => {
 		});
 		registry.activateDocument(id);
 	}
+
+	it.each(["native", "fenced"])("invalidates %s proposals on an external reload", async (mode) => {
+		vi.useFakeTimers();
+		try {
+			keychain.hasKey = true;
+			const flow = {
+				id: "flow-1",
+				from: "api",
+				to: "api",
+				name: "Old flow",
+				protocol: "",
+				data: [],
+				authenticated: false,
+			};
+			const original = {
+				...makeModel("On disk"),
+				elements: [
+					{
+						id: "api",
+						type: "process",
+						name: "API",
+						description: "",
+						trust_zone: "",
+						technologies: [],
+					},
+				],
+				data_flows: [flow],
+			} satisfies ThreatModel;
+			useDocumentRegistry.getState().createDocument({
+				model: original,
+				filePath: "/diagram.thf",
+				fileRevision: "old",
+				pendingLayout: null,
+			});
+			desktop.enabled = true;
+			const action = { action: "delete_data_flow", id: flow.id };
+			if (mode === "native") {
+				streamConversationMock.mockImplementation(
+					async (_r: unknown, _t: unknown, handlers: StreamConversationHandlers) => {
+						handlers.onEvent({ type: "message_start", model: "m" });
+						handlers.onEvent({
+							type: "tool_call_complete",
+							id: "delete",
+							name: action.action,
+							input: action,
+						});
+						handlers.onEvent({ type: "message_stop", stopReason: "tool_use" });
+					},
+				);
+			} else {
+				useSettingsStore.setState((state) => ({
+					settings: { ...state.settings, aiModelAnthropic: "unknown-text-model" },
+				}));
+				streamConversationMock.mockImplementation(
+					textTurn("Proposed change.\n```actions\n" + JSON.stringify([action]) + "\n```"),
+				);
+			}
+			await act(async () => {
+				render(<SyncingAiChat />);
+			});
+			await act(async () => {
+				await useAiTurnStore.getState().submitTurn("review the flow", original);
+			});
+			const button = mode === "native" ? "Approve" : "Apply All";
+			expect(screen.getByRole("button", { name: button })).toBeInTheDocument();
+			const replacement = { ...original, data_flows: [{ ...flow, name: "Replacement flow" }] };
+			await reloadOnDisk(replacement);
+			expect(screen.queryByRole("button", { name: button })).not.toBeInTheDocument();
+			await act(async () => {
+				useAiTurnStore.getState().approveCall("delete");
+			});
+			expect(useModelStore.getState().model?.data_flows[0]?.name).toBe("Replacement flow");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 
 	it("does not render fenced Apply buttons for a tool-enabled turn", async () => {
 		keychain.hasKey = true;

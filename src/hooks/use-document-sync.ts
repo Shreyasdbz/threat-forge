@@ -2,6 +2,7 @@ import { useCallback, useEffect } from "react";
 import { getFileAdapter } from "@/lib/adapters/get-file-adapter";
 import { buildLayoutFromModel } from "@/lib/model-layout-utils";
 import { isTauri } from "@/lib/platform";
+import { disposeDocumentTurns } from "@/stores/ai-turn-bridge";
 import { useDocumentRegistry } from "@/stores/document-registry";
 import type { ModelState } from "@/stores/model-store-factory";
 import type { DocumentId } from "@/types/document";
@@ -68,6 +69,7 @@ async function refreshDocument(id: DocumentId, cancelled: () => boolean, discard
 		edges: [],
 	});
 	stores.history.getState().clear();
+	disposeDocumentTurns(id);
 	state.setModel(update.model, update.path, update.revision, update.sourceYaml);
 	registry.setDocumentFileSettings(id, update.model.metadata.settings ?? null);
 	stores.model.setState({ fileSync: "updated" });

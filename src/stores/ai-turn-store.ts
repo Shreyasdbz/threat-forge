@@ -234,6 +234,12 @@ useChatStore.subscribe((chat, previous) => {
 });
 
 registerDocumentTurnDisposer((documentId) => {
+	if (useChatStore.getState().documentId === documentId) {
+		if (isLive(activeRunner?.getState().phase)) activeRunner?.cancel();
+		activeRunner = null;
+		conversationHistory = [];
+		useAiTurnStore.setState({ turn: null, turnStartIndex: 0 });
+	}
 	for (const [id, entry] of sessionRunners) {
 		if (entry.documentId === documentId) sessionRunners.delete(id);
 	}
