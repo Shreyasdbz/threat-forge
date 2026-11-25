@@ -1,6 +1,8 @@
 use crate::models::{Position, Size, ThreatModel};
 use base64::{engine::general_purpose::STANDARD, Engine};
+use read_fonts::{collections::IntSet, FontRef};
 use resvg::{tiny_skia, usvg};
+use skera::{subset_font, Plan, SubsetFlags, DEFAULT_LAYOUT_FEATURES};
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::sync::OnceLock;
@@ -14,9 +16,22 @@ const MAX_NODES: usize = 1_000;
 const MAX_SIDE: f32 = 2_048.0;
 const INTER_FAMILY: &str = "Inter";
 
-fn embedded_inter() -> &'static str {
-    static FONT: OnceLock<String> = OnceLock::new();
-    FONT.get_or_init(|| STANDARD.encode(include_bytes!("../../public/fonts/InterVariable.woff2")))
+fn inter_subset(characters: &IntSet<u32>) -> Result<Vec<u8>, &'static str> {
+    const FONT_ERROR: &str = "Could not prepare the diagram font.";
+    let font = FontRef::new(include_bytes!("../assets/fonts/InterVariable.ttf"))
+        .map_err(|_| FONT_ERROR)?;
+    let plan = Plan::new(
+        &IntSet::empty(),
+        characters,
+        &font,
+        SubsetFlags::default(),
+        &IntSet::empty(),
+        &IntSet::all(),
+        &DEFAULT_LAYOUT_FEATURES.iter().copied().collect(),
+        &IntSet::all(),
+        &IntSet::all(),
+    );
+    subset_font(&font, &plan).map_err(|_| FONT_ERROR)
 }
 
 #[derive(Clone, Copy)]
@@ -61,6 +76,7 @@ impl Rect {
 
 struct Node<'a> {
     name: &'a str,
+    caption: String,
     rect: Rect,
     fill: &'a str,
     stroke: &'a str,
@@ -116,6 +132,7 @@ impl<'a> Scene<'a> {
             }
             containers.push(Node {
                 name: &boundary.name,
+                caption: String::new(),
                 rect,
                 kind: "boundary",
                 fill: color(boundary.fill_color.as_deref(), "none"),
@@ -143,6 +160,7 @@ impl<'a> Scene<'a> {
             );
             rects.insert(group.id.as_str(), rect);
             containers.push(Node {
+                caption: String::new(),
                 name: &group.name,
                 rect,
                 kind: "group",
@@ -196,6 +214,16 @@ impl<'a> Scene<'a> {
             };
             nodes.push(Node {
                 name: &element.name,
+                caption: if kind == "annotation" || rect.height < 44.0 {
+                    String::new()
+                } else {
+                    let technologies = element.technologies.join(" · ");
+                    [element.trust_zone.as_str(), technologies.as_str()]
+                        .into_iter()
+                        .filter(|part| !part.is_empty())
+                        .collect::<Vec<_>>()
+                        .join(" / ")
+                },
                 rect,
                 kind,
                 fill: color(element.fill_color.as_deref(), "#ffffff"),
@@ -252,7 +280,15 @@ impl<'a> Scene<'a> {
         })
     }
 
-    pub fn svg(&self) -> String {
+    pub fn svg(&self) -> Result<String, &'static str> {
+        self.render_svg(true)
+    }
+
+    pub fn png(&self) -> Result<Vec<u8>, &'static str> {
+        png(&self.render_svg(false)?)
+    }
+
+    fn render_svg(&self, embed_font: bool) -> Result<String, &'static str> {
         let (mut x, mut y, mut right, mut bottom) = (0.0_f64, 0.0_f64, 320.0_f64, 160.0_f64);
         for node in self.containers.iter().chain(&self.nodes) {
             let r = node.rect;
@@ -263,32 +299,61 @@ impl<'a> Scene<'a> {
         }
         let (width, height) = (right - x, bottom - y);
         let scale = (f64::from(MAX_SIDE) / width.max(height)).min(1.0);
-        let title = xml_text(self.title, 240);
+        let title = xml_text(rendered_chars(self.title, 240));
+        let mut shapes = SvgShapes::default();
+        for node in &self.containers {
+            node.draw(&mut shapes);
+        }
+        for edge in &self.edges {
+            edge.draw(&mut shapes);
+        }
+        for node in &self.nodes {
+            node.draw(&mut shapes);
+        }
+        let mut styles = String::new();
+        let font = if embed_font && !shapes.characters.is_empty() {
+            Some(inter_subset(&shapes.characters)?)
+        } else {
+            None
+        };
+        if let Some(font) = font {
+            let font = STANDARD.encode(font);
+            let license = xml_text(include_str!("../../public/fonts/Inter-OFL.txt").chars());
+            let _ = write!(
+                styles,
+                "<metadata>{license}</metadata><style>@font-face{{font-family:{INTER_FAMILY};src:url(data:font/ttf;base64,{font}) format('truetype');font-weight:100 900;}}</style>",
+            );
+        }
         let mut svg = format!(
             r##"<svg xmlns="http://www.w3.org/2000/svg" width="{:.0}" height="{:.0}" viewBox="{x:.2} {y:.2} {width:.2} {height:.2}">
-<title>{title}</title><defs><style>@font-face{{font-family:{INTER_FAMILY};src:url(data:font/woff2;base64,{font}) format('woff2');font-weight:100 900;}}</style><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path fill="#606973" d="M0 0L10 5L0 10z"/></marker></defs>
+<title>{title}</title><defs>{styles}<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path fill="#606973" d="M0 0L10 5L0 10z"/></marker></defs>
 <rect x="{x:.2}" y="{y:.2}" width="{width:.2}" height="{height:.2}" fill="#f7f8fa"/>
 <g font-family="{INTER_FAMILY}, sans-serif" fill="#16181c">"##,
             (width * scale).ceil(),
             (height * scale).ceil(),
-            font = embedded_inter(),
         );
-        for node in &self.containers {
-            node.draw(&mut svg);
-        }
-        for edge in &self.edges {
-            edge.draw(&mut svg);
-        }
-        for node in &self.nodes {
-            node.draw(&mut svg);
-        }
+        svg.push_str(&shapes.markup);
         svg.push_str("</g></svg>\n");
-        svg
+        Ok(svg)
+    }
+}
+
+#[derive(Default)]
+struct SvgShapes {
+    markup: String,
+    characters: IntSet<u32>,
+}
+
+impl SvgShapes {
+    fn text(&mut self, text: &str, max_chars: usize) -> String {
+        xml_text(rendered_chars(text, max_chars).inspect(|ch| {
+            self.characters.insert(u32::from(*ch));
+        }))
     }
 }
 
 impl Node<'_> {
-    fn draw(&self, svg: &mut String) {
+    fn draw(&self, shapes: &mut SvgShapes) {
         let Rect {
             x,
             y,
@@ -306,19 +371,20 @@ impl Node<'_> {
         } else {
             6
         };
-        let label = xml_text(self.name, (width / 8.0).floor().max(1.0) as usize);
+        let label = shapes.text(self.name, (width / 8.0).floor().max(1.0) as usize);
         let (label_x, label_y, font_size, weight, anchor, ink) = if is_container {
             (x + 30.0, y + 25.0, 13, 500, "start", "#505863")
         } else {
             (
                 x + width / 2.0,
-                y + height / 2.0 + 5.0,
+                y + height / 2.0 + if self.caption.is_empty() { 5.0 } else { -4.0 },
                 14,
                 600,
                 "middle",
                 "#16181c",
             )
         };
+        let svg = &mut shapes.markup;
         let _ = writeln!(
             svg,
             r#"<g class="{}"><rect x="{x:.2}" y="{y:.2}" width="{width:.2}" height="{height:.2}" rx="{rx}" fill="{}" fill-opacity="{:.3}" stroke="{}" stroke-opacity="{:.2}"{dash}/>"#,
@@ -335,13 +401,22 @@ impl Node<'_> {
         }
         let _ = writeln!(
             svg,
-            r#"<text x="{label_x:.2}" y="{label_y:.2}" font-size="{font_size}" font-weight="{weight}" text-anchor="{anchor}" fill="{ink}">{label}</text></g>"#,
+            r#"<text x="{label_x:.2}" y="{label_y:.2}" font-size="{font_size}" font-weight="{weight}" text-anchor="{anchor}" fill="{ink}">{label}</text>"#,
         );
+        if !self.caption.is_empty() {
+            let caption = shapes.text(&self.caption, (width / 7.0).floor().max(1.0) as usize);
+            let caption_y = label_y + 17.0;
+            let _ = writeln!(
+                shapes.markup,
+                r##"<text x="{label_x:.2}" y="{caption_y:.2}" font-size="12" font-weight="400" text-rendering="geometricPrecision" style="font-kerning:normal" text-anchor="middle" fill="#505863">{caption}</text>"##,
+            );
+        }
+        shapes.markup.push_str("</g>\n");
     }
 }
 
 impl Edge<'_> {
-    fn draw(&self, svg: &mut String) {
+    fn draw(&self, shapes: &mut SvgShapes) {
         let (x, y) = self.from.toward(self.to.center());
         let (to_x, to_y) = self.to.toward(self.from.center());
         let mid_x = (x + to_x) / 2.0;
@@ -386,14 +461,14 @@ impl Edge<'_> {
                 "middle",
             )
         };
-        let label = xml_text(self.name, 80);
+        let label = shapes.text(self.name, 80);
         let dash = if self.dashed {
             r#" stroke-dasharray="6 4""#
         } else {
             ""
         };
         let _ = writeln!(
-            svg,
+            shapes.markup,
             r##"<path d="{path}" fill="none" stroke="#606973" stroke-width="1.25" marker-end="url(#arrow)"{dash}/><text x="{label_x:.2}" y="{label_y:.2}" text-anchor="{anchor}" font-size="13" font-weight="500" fill="#505863">{label}</text>"##
         );
     }
@@ -421,13 +496,15 @@ fn color<'a>(value: Option<&'a str>, fallback: &'a str) -> &'a str {
         .unwrap_or(fallback)
 }
 
-fn xml_text(text: &str, max_chars: usize) -> String {
-    let mut output = String::new();
-    for ch in text
-        .chars()
+fn rendered_chars(text: &str, max_chars: usize) -> impl Iterator<Item = char> + '_ {
+    text.chars()
         .filter(|ch| !ch.is_control() && *ch != '\u{fffe}' && *ch != '\u{ffff}')
         .take(max_chars)
-    {
+}
+
+fn xml_text(text: impl Iterator<Item = char>) -> String {
+    let mut output = String::new();
+    for ch in text {
         match ch {
             '&' => output.push_str("&amp;"),
             '<' => output.push_str("&lt;"),
@@ -438,7 +515,7 @@ fn xml_text(text: &str, max_chars: usize) -> String {
     output
 }
 
-pub(crate) fn png(svg: &str) -> Result<Vec<u8>, &'static str> {
+fn png(svg: &str) -> Result<Vec<u8>, &'static str> {
     static FONTS: OnceLock<std::sync::Arc<usvg::fontdb::Database>> = OnceLock::new();
     let fontdb = FONTS.get_or_init(|| {
         let mut db = usvg::fontdb::Database::new();
@@ -473,4 +550,27 @@ pub(crate) fn png(svg: &str) -> Result<Vec<u8>, &'static str> {
     pixmap
         .encode_png()
         .map_err(|_| "Could not encode the diagram as PNG.")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use read_fonts::TableProvider;
+
+    #[test]
+    fn subset_keeps_rendered_characters_and_layout() {
+        let mut shapes = SvgShapes::default();
+        assert_eq!(shapes.text("A&VàZ", 4), "A&amp;Và");
+        let bytes = inter_subset(&shapes.characters).unwrap();
+        let face = FontRef::new(&bytes).unwrap();
+        let cmap = face.cmap().unwrap();
+        for ch in ['A', '&', 'V', 'à'] {
+            assert!(cmap.map_codepoint(ch).is_some(), "missing {ch}");
+        }
+        for ch in ['Z', 'm', 'p', ';'] {
+            assert!(cmap.map_codepoint(ch).is_none(), "unexpected {ch}");
+        }
+        assert!(face.gpos().is_ok());
+        assert!(face.fvar().is_ok());
+    }
 }

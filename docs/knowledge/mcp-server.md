@@ -133,8 +133,9 @@ created with `create_document`.
 The editor's **Present diagram** control opens a read-only diagram with **Export SVG**
 and **Export PNG**. The desktop uses the MCP Rust renderer directly; the browser loads
 the same renderer as WebAssembly on demand. Clean documents use the saved model;
-unsaved diagrams include the active canvas layout. Both targets embed Inter in SVG and use
-the bundled static Inter faces for PNG, with DejaVu Sans for missing glyphs.
+unsaved diagrams include the active canvas layout. SVG embeds a deterministic Inter subset for
+the visible text, including the layout tables and glyph dependencies needed to shape it.
+PNG uses bundled static Inter faces, with DejaVu Sans for missing glyphs.
 
 After changing the Rust scene or its model, regenerate the browser asset with
 `bash scripts/build-scene-wasm.sh` (Rust target `wasm32-unknown-unknown` and

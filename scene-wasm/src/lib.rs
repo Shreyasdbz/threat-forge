@@ -15,19 +15,20 @@ pub fn import_tm7(source: &str) -> Result<String, JsError> {
     serde_json::to_string(&model).map_err(|_| invalid())
 }
 
-fn svg(model: &str) -> Result<String, JsError> {
-    let model = serde_json::from_str(model).map_err(|_| JsError::new("Invalid diagram model."))?;
-    Ok(scene::Scene::from_model(&model)
-        .map_err(JsError::new)?
-        .svg())
+fn parse_model(model: &str) -> Result<models::ThreatModel, JsError> {
+    serde_json::from_str(model).map_err(|_| JsError::new("Invalid diagram model."))
 }
 
 #[wasm_bindgen]
 pub fn render_svg(model: &str) -> Result<String, JsError> {
-    svg(model)
+    scene::Scene::from_model(&parse_model(model)?)
+        .and_then(|scene| scene.svg())
+        .map_err(JsError::new)
 }
 
 #[wasm_bindgen]
 pub fn render_png(model: &str) -> Result<Vec<u8>, JsError> {
-    scene::png(&svg(model)?).map_err(JsError::new)
+    scene::Scene::from_model(&parse_model(model)?)
+        .and_then(|scene| scene.png())
+        .map_err(JsError::new)
 }

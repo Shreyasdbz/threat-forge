@@ -346,7 +346,7 @@ fn workspace_builds_an_architecture_and_exports_svg_and_png_over_stdio() {
     let svg = std::fs::read_to_string(dir.path().join("diagram.svg")).unwrap();
     assert_eq!(exported_svg["content"][1]["text"], svg);
     assert!(svg.contains("<title>API &amp; Store</title>"));
-    assert!(svg.contains("@font-face{font-family:Inter;src:url(data:font/woff2;base64,d09GMg"));
+    assert!(svg.contains("@font-face{font-family:Inter;src:url(data:font/ttf;base64,AAEAAA"));
     assert!(svg.contains("Read &amp; write"));
     assert!(svg.contains(r#"x="350.00" y="100.00" width="200.00" height="90.00""#));
 

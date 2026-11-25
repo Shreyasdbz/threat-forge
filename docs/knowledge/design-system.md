@@ -11,8 +11,10 @@ communicate layering; do not blur the diagram behind it.
 
 - Editor UI: `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif`.
   Bundle [Inter 4.1](https://github.com/rsms/inter/releases/tag/v4.1) under the SIL Open Font License.
-  Use its upright variable WOFF2 for the editor and self-contained SVG, and the release's static
-  400/500/600 TTF faces for resvg. Do not fetch fonts from a CDN or ship an Apple font.
+  Use its upright variable WOFF2 for the editor, embed a per-diagram variable TrueType subset in
+  SVG, and use its static 400/500/600 TTF faces for resvg. Do not fetch fonts from a CDN or ship an
+  Apple font. Canvas captions use Inter's small-size optical metrics and normal kerning without
+  added tracking.
   Apply Inter's `cv11` to editor text and its open digits (`ss01`) and tabular width (`tnum`)
   to numeric readouts. The landing page keeps its separate typography.
 - IDs, code, and paths when precision matters:

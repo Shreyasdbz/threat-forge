@@ -1,6 +1,6 @@
 use crate::file_io;
 use crate::models::ThreatModel;
-use crate::scene::{self, Scene};
+use crate::scene::Scene;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -125,7 +125,7 @@ pub enum DiagramFormat {
 #[tauri::command]
 pub async fn render_diagram(model: ThreatModel) -> Result<String, String> {
     file_io::validate_model(&model).map_err(|error| error.user_message())?;
-    Ok(Scene::from_model(&model)?.svg())
+    Scene::from_model(&model)?.svg().map_err(String::from)
 }
 
 #[tauri::command]
@@ -139,10 +139,11 @@ pub async fn export_diagram(
         DiagramFormat::Svg => "svg",
         DiagramFormat::Png => "png",
     };
-    let svg = render_diagram(model).await?;
+    file_io::validate_model(&model).map_err(|error| error.user_message())?;
+    let scene = Scene::from_model(&model)?;
     let bytes = match format {
-        DiagramFormat::Svg => svg.into_bytes(),
-        DiagramFormat::Png => scene::png(&svg)?,
+        DiagramFormat::Svg => scene.svg()?.into_bytes(),
+        DiagramFormat::Png => scene.png()?,
     };
     let name = default_name.rsplit(['/', '\\']).next().unwrap_or("diagram");
     let Some(picked) = app

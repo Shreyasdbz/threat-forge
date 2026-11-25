@@ -30,6 +30,8 @@ tauri-plugin-clipboard-manager = "2"
 tauri-plugin-updater = "2"
 rmcp = { version = "2.2", features = ["server", "transport-io"] }
 resvg = { version = "0.47", default-features = false, features = ["text"] }
+read-fonts = "0.47"
+skera = "0.10"
 base64 = "0.22"
 schemars = "1"
 serde = { version = "1", features = ["derive"] }

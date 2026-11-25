@@ -9,7 +9,7 @@ use crate::file_io::{
     atomic_write, commit_document, merge_layout_into_model, prepare_document, read_document,
     resolve_target, DocumentSnapshot,
 };
-use crate::scene::{self, Scene};
+use crate::scene::Scene;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
@@ -813,25 +813,30 @@ impl ThreatForgeServer {
         tokio::task::spawn_blocking(move || {
             let mut model = snapshot.model;
             merge_layout_into_model(&mut model, &model_path);
-            let svg = Scene::from_model(&model).map_err(mcp_err)?.svg();
-            let bytes = if raster {
-                scene::png(&svg).map_err(mcp_err)?
+            let scene = Scene::from_model(&model).map_err(mcp_err)?;
+            let svg = (!raster)
+                .then(|| scene.svg())
+                .transpose()
+                .map_err(mcp_err)?;
+            let png;
+            let bytes = if let Some(svg) = &svg {
+                svg.as_bytes()
             } else {
-                svg.as_bytes().to_vec()
+                png = scene.png().map_err(mcp_err)?;
+                png.as_slice()
             };
             let mut content = Vec::new();
             if let Some((path, relative)) = output {
                 if resolve_target(&path).ok().as_ref() != Some(&path) {
                     return Err(mcp_err("The selected export location has moved."));
                 }
-                atomic_write(&path, &bytes).map_err(|error| mcp_err(error.user_message()))?;
+                atomic_write(&path, bytes).map_err(|error| mcp_err(error.user_message()))?;
                 content.push(ContentBlock::text(format!("Saved {relative}")));
             }
-            if raster {
-                content.push(ContentBlock::image(STANDARD.encode(bytes), "image/png"));
-            } else {
-                content.push(ContentBlock::text(svg));
-            }
+            content.push(match svg {
+                Some(svg) => ContentBlock::text(svg),
+                None => ContentBlock::image(STANDARD.encode(bytes), "image/png"),
+            });
             Ok(CallToolResult::success(content))
         })
         .await
@@ -1142,7 +1147,9 @@ impl ServerHandler for ThreatForgeServer {
                 .map_err(|error| mcp_err(error.user_message()))?
         } else {
             merge_layout_into_model(&mut snapshot.model, &path);
-            Scene::from_model(&snapshot.model).map_err(mcp_err)?.svg()
+            Scene::from_model(&snapshot.model)
+                .and_then(|scene| scene.svg())
+                .map_err(mcp_err)?
         };
         Ok(ReadResourceResult::new(vec![ResourceContents::text(
             text,

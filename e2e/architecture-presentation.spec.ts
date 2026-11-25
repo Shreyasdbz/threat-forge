@@ -44,12 +44,24 @@ test("browses architecture memberships, then presents and exports the shared dia
 		const bytes = await readFile(await file.path());
 		if (format === "SVG") {
 			const svg = bytes.toString("utf8");
+			expect(bytes.length).toBeLessThan(60_000);
 			expect(svg).toContain("Web Application");
 			expect(svg).toContain('fill="#f7f8fa"');
-			expect(
-				svg.includes("@font-face{font-family:Inter;src:url(data:font/woff2;base64,d09GMg"),
-			).toBe(true);
+			const font = svg.match(
+				/@font-face\{font-family:Inter;src:url\((data:font\/ttf;base64,[^)]+)\)/,
+			)?.[1];
+			expect(font).toBeDefined();
+			await expect(
+				page.evaluate(async (source) => {
+					const face = new FontFace("Export Inter", `url(${source})`, { weight: "100 900" });
+					return (await face.load()).status;
+				}, font),
+			).resolves.toBe("loaded");
 			expect(svg.includes('font-family="Inter, sans-serif"')).toBe(true);
+			expect(svg).toMatch(
+				/<text [^>]*font-size="12" font-weight="400" text-rendering="geometricPrecision" style="font-kerning:normal"[^>]*>dmz \/ nginx<\/text>/,
+			);
+			expect(svg).toContain(">internal / postgresql</text>");
 			expect(svg).toContain('font-size="14" font-weight="600"');
 			expect(svg).toContain('fill="none" fill-opacity="0.000" stroke="#15803d"');
 			expect(svg).toContain('fill="#22c55e" fill-opacity="0.003" stroke="#15803d"');
