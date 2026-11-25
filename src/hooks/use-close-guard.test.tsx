@@ -1,5 +1,27 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+beforeAll(() => {
+	Object.defineProperties(HTMLDialogElement.prototype, {
+		showModal: {
+			configurable: true,
+			value(this: HTMLDialogElement) {
+				this.open = true;
+			},
+		},
+		close: {
+			configurable: true,
+			value(this: HTMLDialogElement) {
+				this.open = false;
+			},
+		},
+	});
+});
+
+afterAll(() => {
+	Reflect.deleteProperty(HTMLDialogElement.prototype, "showModal");
+	Reflect.deleteProperty(HTMLDialogElement.prototype, "close");
+});
 
 type CloseHandler = (event: { preventDefault: () => void }) => unknown;
 type QuitHandler = () => unknown;
@@ -187,6 +209,19 @@ describe("useCloseGuard desktop guard", () => {
 	});
 	afterEach(() => {
 		(window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = undefined;
+	});
+
+	it("opens the dirty-window prompt in the native top layer", async () => {
+		const documentId = open("Dirty");
+		requireStores(documentId).model.getState().markDirty();
+		render(<Harness />);
+		await waitFor(() => expect(tauriWindow.getHandler()).toBeTruthy());
+		await act(async () => {
+			await tauriWindow.getHandler()?.({ preventDefault: vi.fn() });
+		});
+		const modal = screen.getByTestId("close-guard-modal");
+		expect(modal.tagName).toBe("DIALOG");
+		expect(modal).toHaveAttribute("open");
 	});
 
 	it("intercepts the close, lists every dirty document, and destroys only after confirmation", async () => {
