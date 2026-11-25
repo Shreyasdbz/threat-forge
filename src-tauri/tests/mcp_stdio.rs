@@ -335,7 +335,10 @@ fn workspace_builds_an_architecture_and_exports_svg_and_png_over_stdio() {
         .as_array()
         .unwrap()
         .is_empty());
-    let applied = server.tool_json(11, "analyze_stride", json!({ "apply": true }));
+    let applied = server.tool_json(11, "analyze_stride", json!({
+        "apply": true, "expected_revision": stride["revision"], "preview_id": stride["preview_id"]
+    }));
+    assert_eq!(applied["threats"], stride["threats"]);
     assert_ne!(applied["revision"], committed["revision"]);
     assert_eq!(
         server.tool_json(12, "get_model", json!({}))["threats"],
@@ -655,4 +658,34 @@ fn workspace_move_preview_rejects_changed_sidecar_positions() {
         server.tool_json(7, "get_model", json!({}))["elements"][0]["position"],
         json!({"x": 310.0, "y": 220.0})
     );
+}
+
+#[test]
+fn stride_apply_rejects_an_edited_document_after_preview() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("work.thf");
+    std::fs::write(&path, MODEL_THF).unwrap();
+    let mut server = McpServer::spawn(&path);
+    server.start_workspace();
+    server.tool(
+        2,
+        "add_element",
+        json!({"element_type": "process", "name": "API"}),
+    );
+    let preview = server.tool_json(3, "analyze_stride", json!({}));
+    assert!(!preview["threats"].as_array().unwrap().is_empty());
+    let edited = std::fs::read_to_string(&path)
+        .unwrap()
+        .replace("MCP Fixture", "External edit");
+    std::fs::write(&path, &edited).unwrap();
+    let response = server.request_raw(4, "tools/call", json!({
+        "name":"analyze_stride", "arguments":{
+            "apply":true, "expected_revision":preview["revision"], "preview_id":preview["preview_id"]
+        }
+    }));
+    assert!(
+        response.to_string().contains("changed on disk"),
+        "{response}"
+    );
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), edited);
 }

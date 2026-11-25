@@ -96,6 +96,13 @@ pub struct ThreatForgeServer {
 struct Session {
     active: Option<PathBuf>,
     journal: Journal,
+    stride_preview: Option<StridePreview>,
+}
+
+struct StridePreview {
+    id: String,
+    revision: String,
+    threats: Vec<Threat>,
 }
 
 impl ThreatForgeServer {
@@ -320,6 +327,8 @@ struct StrideRequest {
         description = "Persist suggested threats as one undoable edit; default is preview only"
     )]
     apply: bool,
+    expected_revision: Option<String>,
+    preview_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -533,13 +542,50 @@ impl ThreatForgeServer {
                 ..
             },
         ) = self.read()?;
-        let suggestions = crate::stride::analyze(&model);
-        let revision = if req.apply && !suggestions.is_empty() {
-            model.threats.extend(suggestions.iter().cloned());
-            self.save(&path, &revision, model)?
-        } else {
-            revision
+        let token = document_revision(&path, &revision);
+        if !req.apply {
+            let suggestions = crate::stride::analyze(&model);
+            let id = uuid::Uuid::new_v4().to_string();
+            let result = json_result(serde_json::json!({
+                "revision": token, "preview_id": id, "threats": suggestions
+            }))?;
+            self.session()?.stride_preview = Some(StridePreview {
+                id,
+                revision: token,
+                threats: suggestions,
+            });
+            return Ok(result);
+        }
+        let (Some(expected), Some(id)) = (req.expected_revision, req.preview_id) else {
+            return Err(mcp_err(
+                "Applying STRIDE requires the preview's expected_revision and preview_id.",
+            ));
         };
+        if expected != token {
+            return Err(mcp_err(
+                crate::errors::ThreatForgeError::DocumentConflict.user_message(),
+            ));
+        }
+        let mut session = self.session()?;
+        let preview = session
+            .stride_preview
+            .as_ref()
+            .filter(|preview| preview.id == id && preview.revision == token)
+            .ok_or_else(|| {
+                mcp_err("This STRIDE preview is no longer current. Run a new preview.")
+            })?;
+        let suggestions = preview.threats.clone();
+        let revision = if suggestions.is_empty() {
+            revision
+        } else {
+            model.threats.extend(suggestions.iter().cloned());
+            let target = self.write_workspace.write_target(&path).map_err(mcp_err)?;
+            session
+                .journal
+                .commit(&target, &revision, model)
+                .map_err(mcp_err)?
+        };
+        session.stride_preview = None;
         json_result(serde_json::json!({
             "revision": document_revision(&path, &revision), "threats": suggestions
         }))

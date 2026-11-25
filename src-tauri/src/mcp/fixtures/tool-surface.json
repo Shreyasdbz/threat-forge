@@ -181,6 +181,18 @@
           "default": false,
           "description": "Persist suggested threats as one undoable edit; default is preview only",
           "type": "boolean"
+        },
+        "expected_revision": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "preview_id": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "type": "object"

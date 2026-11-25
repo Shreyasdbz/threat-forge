@@ -107,7 +107,7 @@ Add to your Cursor MCP configuration:
 | `auto_layout` | Arrange elements in a grid, keeping boundary members together. |
 | `batch_transaction` | Apply 1–100 graph or layout operations as a single transaction. |
 | `undo`, `redo` | Replay active-document edits from this MCP session, only if the file revision still matches. |
-| `analyze_stride` | Preview STRIDE suggestions; set `apply: true` to save them as one edit. |
+| `analyze_stride` | Preview STRIDE suggestions. Save the latest preview as one edit with `apply: true`, its `preview_id`, and its `revision` as `expected_revision`. |
 | `export_svg`, `export_png`, `screenshot` | Render the same scene. SVG is returned as text, PNG and screenshot as MCP images. Optional `path` writes an artifact inside the workspace, replacing an existing artifact of the same type. Screenshot is a headless diagram capture, not a desktop window capture. |
 
 For a batch, use these arguments to preview adding a node and positioning it:
