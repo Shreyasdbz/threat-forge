@@ -1,5 +1,26 @@
 @import "tailwindcss";
 
+@theme static {
+	--color-editor-surface: var(--color-card);
+	--color-editor-canvas: color-mix(in srgb, var(--color-background), var(--color-foreground) 3%);
+	--color-editor-hover: color-mix(in srgb, var(--color-card), var(--color-foreground) 6%);
+	--color-editor-line: color-mix(in srgb, var(--color-card), var(--color-foreground) 13%);
+	--color-editor-outline: color-mix(in srgb, var(--color-card), var(--color-foreground) 32%);
+	--color-editor-selection: color-mix(in srgb, var(--color-card), var(--color-tf-signal-ink) 8%);
+	--color-editor-accent: var(--color-tf-signal-ink);
+	--text-editor-small: 0.75rem;
+	--text-editor-small--line-height: 1rem;
+	--text-editor-body: 0.875rem;
+	--text-editor-body--line-height: 1.25rem;
+	--text-editor-heading: 1.125rem;
+	--text-editor-heading--line-height: 1.5rem;
+	--text-editor-title: 1.75rem;
+	--text-editor-title--line-height: 2rem;
+	--radius-editor-control: 0.375rem;
+	--radius-editor-panel: 0.75rem;
+	--shadow-editor-dialog: 0 16px 64px rgb(0 0 0 / 0.18);
+}
+
 /*
  * ThreatForge Design Tokens
  *
