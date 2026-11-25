@@ -1,6 +1,8 @@
 use crate::file_io::merge_layout_into_model;
 use crate::models::{Position, Size, ThreatModel};
-use crate::scene::{Scene, COLUMN_GAP, CONTAINER_INSET, ELEMENT_HEIGHT, ELEMENT_WIDTH, ROW_GAP};
+use crate::scene::{
+    node_position, COLUMN_GAP, CONTAINER_INSET, ELEMENT_HEIGHT, ELEMENT_WIDTH, ROW_GAP,
+};
 use std::collections::HashSet;
 use std::path::Path;
 
@@ -52,7 +54,7 @@ pub(super) fn move_node(
         None => {
             let mut resolved = model.clone();
             merge_layout_into_model(&mut resolved, path);
-            Scene::node_position(&resolved, id)?
+            node_position(&resolved, id)?
         }
     };
     position(model, id, origin.x + dx, origin.y + dy)

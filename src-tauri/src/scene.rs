@@ -94,6 +94,134 @@ struct Edge<'a> {
     lane: usize,
 }
 
+struct Geometry {
+    boundaries: Vec<Rect>,
+    groups: Vec<Rect>,
+}
+
+impl Geometry {
+    fn new(model: &ThreatModel) -> Self {
+        let boundaries = model
+            .trust_boundaries
+            .iter()
+            .enumerate()
+            .map(|(i, boundary)| {
+                Rect::new(
+                    boundary.position.as_ref(),
+                    boundary.size.as_ref(),
+                    Rect {
+                        x: 0.0,
+                        y: i as f64 * 360.0,
+                        width: 640.0,
+                        height: 300.0,
+                    },
+                )
+            })
+            .collect();
+        let groups = model
+            .groups
+            .iter()
+            .enumerate()
+            .map(|(i, group)| {
+                Rect::new(
+                    group.position.as_ref(),
+                    group.size.as_ref(),
+                    Rect {
+                        x: 680.0,
+                        y: i as f64 * 320.0,
+                        width: 420.0,
+                        height: 280.0,
+                    },
+                )
+            })
+            .collect();
+        Self { boundaries, groups }
+    }
+
+    fn element_rects<'a>(
+        &'a self,
+        model: &'a ThreatModel,
+    ) -> impl Iterator<Item = (Rect, Rect)> + 'a {
+        let membership: HashMap<_, _> = model
+            .trust_boundaries
+            .iter()
+            .zip(&self.boundaries)
+            .flat_map(|(boundary, rect)| {
+                boundary.contains.iter().map(move |id| (id.as_str(), rect))
+            })
+            .collect();
+        let groups: HashMap<_, _> = model
+            .groups
+            .iter()
+            .zip(&self.groups)
+            .map(|(group, rect)| (group.id.as_str(), rect))
+            .collect();
+        let mut group_positions = HashMap::new();
+        model.elements.iter().enumerate().map(move |(i, element)| {
+            let boundary = membership.get(element.id.as_str()).copied();
+            let group = element
+                .group
+                .as_deref()
+                .and_then(|id| groups.get(id))
+                .copied();
+            let local_index = boundary.or(group).map_or(i, |rect| {
+                let counter = group_positions
+                    .entry((rect.x.to_bits(), rect.y.to_bits()))
+                    .or_insert(0);
+                let index = *counter;
+                *counter += 1;
+                index
+            });
+            let mut local = Rect::new(
+                element.position.as_ref(),
+                element.size.as_ref(),
+                Rect {
+                    x: CONTAINER_INSET + (local_index % 4) as f64 * (ELEMENT_WIDTH + COLUMN_GAP),
+                    y: CONTAINER_INSET + (local_index / 4) as f64 * (ELEMENT_HEIGHT + ROW_GAP),
+                    width: ELEMENT_WIDTH,
+                    height: ELEMENT_HEIGHT,
+                },
+            );
+            // Group fallback positions are global; children of trust boundaries store local coordinates.
+            if let Some(group) = group.filter(|_| boundary.is_none() && element.position.is_none())
+            {
+                local.x += group.x;
+                local.y += group.y;
+            }
+            let mut canvas = local;
+            if let Some(parent) = boundary {
+                canvas.x += parent.x;
+                canvas.y += parent.y;
+            }
+            (local, canvas)
+        })
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn node_position(model: &ThreatModel, id: &str) -> Result<Position, String> {
+    let geometry = Geometry::new(model);
+    let rect = if let Some(index) = model.elements.iter().position(|node| node.id == id) {
+        geometry
+            .element_rects(model)
+            .nth(index)
+            .map(|(local, _)| local)
+    } else if let Some(index) = model.trust_boundaries.iter().position(|node| node.id == id) {
+        geometry.boundaries.get(index).copied()
+    } else {
+        model
+            .groups
+            .iter()
+            .position(|node| node.id == id)
+            .and_then(|index| geometry.groups.get(index).copied())
+    };
+    rect.map(|rect| Position {
+        x: rect.x,
+        y: rect.y,
+    })
+    .ok_or_else(|| format!("Node not found: {id}"))
+}
+
 pub(crate) struct Scene<'a> {
     title: &'a str,
     containers: Vec<Node<'a>>,
@@ -103,27 +231,6 @@ pub(crate) struct Scene<'a> {
 
 impl<'a> Scene<'a> {
     pub fn from_model(model: &'a ThreatModel) -> Result<Self, &'static str> {
-        Self::build(model, |_, _| {})
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn node_position(model: &'a ThreatModel, id: &str) -> Result<Position, String> {
-        let mut position = None;
-        Self::build(model, |node_id, rect| {
-            if node_id == id {
-                position = Some(Position {
-                    x: rect.x,
-                    y: rect.y,
-                });
-            }
-        })?;
-        position.ok_or_else(|| format!("Node not found: {id}"))
-    }
-
-    fn build(
-        model: &'a ThreatModel,
-        mut local_rect: impl FnMut(&str, Rect),
-    ) -> Result<Self, &'static str> {
         if model.elements.len()
             + model.groups.len()
             + model.trust_boundaries.len()
@@ -136,22 +243,8 @@ impl<'a> Scene<'a> {
         let mut containers = Vec::new();
         let mut nodes = Vec::new();
         let mut rects = HashMap::new();
-        let mut membership = HashMap::new();
-        for (i, boundary) in model.trust_boundaries.iter().enumerate() {
-            let rect = Rect::new(
-                boundary.position.as_ref(),
-                boundary.size.as_ref(),
-                Rect {
-                    x: 0.0,
-                    y: i as f64 * 360.0,
-                    width: 640.0,
-                    height: 300.0,
-                },
-            );
-            local_rect(&boundary.id, rect);
-            for id in &boundary.contains {
-                membership.insert(id.as_str(), rect);
-            }
+        let geometry = Geometry::new(model);
+        for (boundary, &rect) in model.trust_boundaries.iter().zip(&geometry.boundaries) {
             containers.push(Node {
                 name: &boundary.name,
                 caption: String::new(),
@@ -169,18 +262,7 @@ impl<'a> Scene<'a> {
                 stroke_opacity: boundary.stroke_opacity.unwrap_or(0.6).clamp(0.0, 0.6),
             });
         }
-        for (i, group) in model.groups.iter().enumerate() {
-            let rect = Rect::new(
-                group.position.as_ref(),
-                group.size.as_ref(),
-                Rect {
-                    x: 680.0,
-                    y: i as f64 * 320.0,
-                    width: 420.0,
-                    height: 280.0,
-                },
-            );
-            local_rect(&group.id, rect);
+        for (group, &rect) in model.groups.iter().zip(&geometry.groups) {
             rects.insert(group.id.as_str(), rect);
             containers.push(Node {
                 caption: String::new(),
@@ -199,41 +281,7 @@ impl<'a> Scene<'a> {
                 stroke_opacity: group.stroke_opacity.unwrap_or(0.6).clamp(0.0, 0.6),
             });
         }
-        let mut group_positions = HashMap::new();
-        for (i, element) in model.elements.iter().enumerate() {
-            let boundary = membership.get(element.id.as_str());
-            let group = element.group.as_deref().and_then(|id| rects.get(id));
-            let container = boundary.or(group);
-            let local_index = container.map_or(i, |rect| {
-                let counter = group_positions
-                    .entry((rect.x.to_bits(), rect.y.to_bits()))
-                    .or_insert(0);
-                let index = *counter;
-                *counter += 1;
-                index
-            });
-            let mut rect = Rect::new(
-                element.position.as_ref(),
-                element.size.as_ref(),
-                Rect {
-                    x: CONTAINER_INSET + (local_index % 4) as f64 * (ELEMENT_WIDTH + COLUMN_GAP),
-                    y: CONTAINER_INSET + (local_index / 4) as f64 * (ELEMENT_HEIGHT + ROW_GAP),
-                    width: ELEMENT_WIDTH,
-                    height: ELEMENT_HEIGHT,
-                },
-            );
-            // Trust boundary children use relative coordinates in the editor. Architecture
-            // groups supply a fallback origin only when an element has no explicit position.
-            if let Some(group) = group.filter(|_| boundary.is_none() && element.position.is_none())
-            {
-                rect.x += group.x;
-                rect.y += group.y;
-            }
-            local_rect(&element.id, rect);
-            if let Some(parent) = boundary {
-                rect.x += parent.x;
-                rect.y += parent.y;
-            }
+        for (element, (_, rect)) in model.elements.iter().zip(geometry.element_rects(model)) {
             rects.insert(element.id.as_str(), rect);
             let kind = match element.element_type.as_str() {
                 "data_store" => "data-store",

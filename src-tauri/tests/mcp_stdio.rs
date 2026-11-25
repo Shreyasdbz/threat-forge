@@ -559,3 +559,32 @@ fn workspace_rejects_a_replaced_root() {
     assert!(!original.join("new.thf").exists());
     assert!(!root.join("new.thf").exists());
 }
+
+#[test]
+fn workspace_relative_move_does_not_require_a_renderable_model() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut elements = String::from("elements:\n");
+    for index in 0..1001 {
+        elements.push_str(&format!(
+            "- id: node-{index}\n  type: process\n  name: Node {index}\n"
+        ));
+    }
+    std::fs::write(
+        dir.path().join("work.thf"),
+        MODEL_THF.replace("elements: []\n", &elements),
+    )
+    .unwrap();
+    let mut server = McpServer::spawn_workspace(dir.path());
+    server.start_workspace();
+    server.tool(2, "open_document", json!({ "path": "work.thf" }));
+    server.tool(
+        3,
+        "move_node",
+        json!({ "id": "node-0", "dx": 10, "dy": -20 }),
+    );
+    let saved: serde_yaml::Value =
+        serde_yaml::from_str(&std::fs::read_to_string(dir.path().join("work.thf")).unwrap())
+            .unwrap();
+    assert_eq!(saved["elements"][0]["position"]["x"].as_f64(), Some(58.0));
+    assert_eq!(saved["elements"][0]["position"]["y"].as_f64(), Some(28.0));
+}
