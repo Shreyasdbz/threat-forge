@@ -96,7 +96,10 @@ export interface CanvasState {
 	pendingLayout: DiagramLayout | null;
 
 	// ReactFlow change handlers
-	onNodesChange: (changes: Parameters<OnNodesChange<DfdNode>>[0], key?: string) => void;
+	onNodesChange: (
+		changes: Parameters<OnNodesChange<DfdNode>>[0],
+		keyboard?: Pick<KeyboardEvent, "key" | "repeat">,
+	) => void;
 	resizeArchitectureGroup: (id: string, size: Size) => void;
 	onEdgesChange: OnEdgesChange<DfdEdge>;
 	setViewport: (viewport: Viewport) => void;
@@ -324,7 +327,7 @@ function defaultElementName(type: string): string {
 export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> {
 	/** Model snapshot captured at the start of a drag (with pre-drag canvas positions baked in). */
 	let preDragSnapshot: ThreatModel | null = null;
-	let lastKeyboardMoveModel: ThreatModel | null = null;
+	let lastKeyboardMove: { model: ThreatModel; key: string } | null = null;
 
 	/** Nudge gesture state (arrow key): snapshot + debounce timer. */
 	const nudgeState = {
@@ -357,7 +360,7 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			return `boundary-${boundaryCounter}`;
 		},
 
-		onNodesChange: (changes, key) => {
+		onNodesChange: (changes, keyboard) => {
 			const previousNodes = get().nodes;
 			// Capture pre-drag model snapshot BEFORE applying changes (nodes still have old positions)
 			const hasDragStart = changes.some((c) => c.type === "position" && c.dragging === true);
@@ -368,6 +371,7 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 				}
 			}
 
+			const key = keyboard?.key;
 			const horizontal = key === "ArrowLeft" || key === "ArrowRight";
 			const vertical = key === "ArrowUp" || key === "ArrowDown";
 			let keyboardMoved = false;
@@ -398,9 +402,16 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			if (hasDragEnd && !altDragActive) {
 				const model = deps.model.getState().model;
 				if (model && (preDragSnapshot || keyboardMoved)) {
-					deps.history
-						.getState()
-						.pushSnapshot(preDragSnapshot ?? writePositionsToModel(model, previousNodes));
+					const isRepeat =
+						keyboardMoved &&
+						keyboard?.repeat &&
+						lastKeyboardMove?.model === model &&
+						lastKeyboardMove.key === key;
+					if (!isRepeat) {
+						deps.history
+							.getState()
+							.pushSnapshot(preDragSnapshot ?? writePositionsToModel(model, previousNodes));
+					}
 					const nodes = get().nodes;
 					let updated = writePositionsToModel(model, nodes);
 					for (const change of changes) {
@@ -413,7 +424,7 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 							});
 						}
 					}
-					if (keyboardMoved) lastKeyboardMoveModel = updated;
+					if (keyboardMoved && key) lastKeyboardMove = { model: updated, key };
 					deps.model.setState({ model: updated, isDirty: true });
 				}
 			}
@@ -866,8 +877,6 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 
 		syncFromModel: () => {
 			const model = deps.model.getState().model;
-			const alreadyApplied = model != null && model === lastKeyboardMoveModel;
-			lastKeyboardMoveModel = null;
 			if (!model) {
 				set({ nodes: [], edges: [], pendingLayout: null });
 				return;
@@ -875,7 +884,7 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 
 			// Consume pending layout (set before loading a model via setPendingLayout)
 			const layout = get().pendingLayout;
-			if (alreadyApplied && !layout) return;
+			if (model === lastKeyboardMove?.model && !layout) return;
 			const layoutPositions = layout ? new Map(layout.nodes.map((n) => [n.id, n])) : null;
 
 			// Reset counters based on existing IDs

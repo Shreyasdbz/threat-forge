@@ -56,7 +56,7 @@ export function DfdCanvas() {
 	const onNodesChange = useCanvasStore((s) => s.onNodesChange);
 	const keyboardEvent = useRef<KeyboardEvent | null>(null);
 	const handleNodesChange = useCallback<typeof onNodesChange>(
-		(changes) => onNodesChange(changes, keyboardEvent.current?.key),
+		(changes) => onNodesChange(changes, keyboardEvent.current?.nativeEvent),
 		[onNodesChange],
 	);
 	const onEdgesChange = useCanvasStore((s) => s.onEdgesChange);

@@ -185,6 +185,18 @@ test("preserves a focused off-grid node's vertical position on ArrowRight", asyn
 	expect((await position()).y).toBe(before.y);
 });
 
+test("undoes more than twenty repeats of a held arrow in one step", async ({ page }) => {
+	await page.getByTestId("node-web-app").click();
+	const node = page.locator('.react-flow__node[data-id="web-app"]');
+	const initial = await node.evaluate((element) => getComputedStyle(element).transform);
+	await node.focus();
+	for (let i = 0; i < 25; i++) await page.keyboard.down("ArrowRight");
+	await page.keyboard.up("ArrowRight");
+	await expect(node).not.toHaveCSS("transform", initial);
+	await page.keyboard.press("Control+z");
+	await expect(node).toHaveCSS("transform", initial);
+});
+
 test("moves and resizes a group outline independently of its members, with undo", async ({
 	page,
 }) => {
