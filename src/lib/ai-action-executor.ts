@@ -2,7 +2,7 @@
  * AI Action Executor — applies validated AI actions to the threat model via stores.
  */
 
-import type { AiAction } from "@/lib/ai-actions";
+import { type AiAction, describeAction } from "@/lib/ai-actions";
 import { removeGraphItems } from "@/lib/remove-graph-items";
 import { generateBoundaryId, generateElementId, generateFlowId } from "@/stores/canvas-store";
 import { useHistoryStore } from "@/stores/history-store";
@@ -12,6 +12,43 @@ import type { DataFlow, Element, Threat, ThreatModel, TrustBoundary } from "@/ty
 function generateThreatId(): string {
 	const hex = Math.random().toString(16).slice(2, 10);
 	return `threat-${hex}`;
+}
+
+export function isDestructiveAction(action: AiAction["action"]): boolean {
+	return action.startsWith("delete_");
+}
+
+export function describeActionReview(action: AiAction, model: ThreatModel | null): string {
+	const summary = describeAction(action);
+	if (!model || (action.action !== "delete_element" && action.action !== "delete_data_flow")) {
+		return summary;
+	}
+	const next = applyAction(model, action);
+	if (!next) return summary;
+	const removed = <T extends { id: string }>(before: T[], after: T[]) => {
+		const remaining = new Set(after.map(({ id }) => id));
+		return before.filter(({ id }) => !remaining.has(id)).map(({ id }) => id);
+	};
+	const impacts = [
+		[
+			"Data flows also removed",
+			action.action === "delete_element" ? removed(model.data_flows, next.data_flows) : [],
+		],
+		["Relationships removed", removed(model.relationships ?? [], next.relationships ?? [])],
+		["Threats removed", removed(model.threats, next.threats)],
+		[
+			"Membership removed from boundaries",
+			action.action === "delete_element"
+				? model.trust_boundaries.filter((b) => b.contains.includes(action.id)).map(({ id }) => id)
+				: [],
+		],
+	] as const;
+	return [
+		summary,
+		...impacts
+			.filter(([, ids]) => ids.length > 0)
+			.map(([label, ids]) => `${label}: ${ids.join(", ")}`),
+	].join("\n");
 }
 
 /** Sort actions so dependencies resolve first: adds before updates/deletes, elements before flows. */
@@ -83,7 +120,7 @@ export function applyAction(model: ThreatModel, action: AiAction): ThreatModel |
 		case "delete_element": {
 			const exists = model.elements.some((e) => e.id === action.id);
 			if (!exists) return null;
-			return removeGraphItems(model, new Set([action.id]), new Set());
+			return removeGraphItems(model, { elements: new Set([action.id]) });
 		}
 
 		case "add_data_flow": {
@@ -125,7 +162,7 @@ export function applyAction(model: ThreatModel, action: AiAction): ThreatModel |
 		case "delete_data_flow": {
 			const exists = model.data_flows.some((f) => f.id === action.id);
 			if (!exists) return null;
-			return removeGraphItems(model, new Set(), new Set([action.id]));
+			return removeGraphItems(model, { flows: new Set([action.id]) });
 		}
 
 		case "add_trust_boundary": {

@@ -16,6 +16,7 @@
 import type { ProtocolError } from "@/lib/ai/protocol/errors";
 import type { StreamEvent } from "@/lib/ai/protocol/events";
 import type { ContentBlock, ProtocolMessage, ToolResultBlock } from "@/lib/ai/protocol/messages";
+import type { ThreatModel } from "@/types/threat-model";
 import {
 	type ApprovalGrant,
 	authorizeStart,
@@ -178,7 +179,11 @@ export function createIdleTurnState(): TurnState {
 }
 
 /** The total, pure transition function. */
-export function reduceTurn(state: TurnState, input: TurnInput): TurnState {
+export function reduceTurn(
+	state: TurnState,
+	input: TurnInput,
+	reviewDocument?: ThreatModel | null,
+): TurnState {
 	if (state.phase === "settled") {
 		// A settled turn is terminal. The one exception is `undoTurn`, which flips
 		// this turn's applied calls to `undone`; every other late input is dropped
@@ -199,7 +204,7 @@ export function reduceTurn(state: TurnState, input: TurnInput): TurnState {
 			// Progress only: no call record is created and no JSON is parsed here.
 			return state;
 		case "tool_call_complete":
-			return onToolCallComplete(state, input);
+			return onToolCallComplete(state, input, reviewDocument);
 		case "usage":
 			// Token usage is not surfaced (token display is a non-goal); accept and ignore it.
 			return state;
@@ -277,6 +282,7 @@ function onTextDelta(state: TurnState, text: string): TurnState {
 function onToolCallComplete(
 	state: TurnState,
 	event: Extract<StreamEvent, { type: "tool_call_complete" }>,
+	reviewDocument: ThreatModel | null | undefined,
 ): TurnState {
 	if (state.phase !== "streaming") return state;
 
@@ -335,7 +341,7 @@ function onToolCallComplete(
 		);
 	}
 
-	const prepared = tool.prepare(event.input);
+	const prepared = tool.prepare(event.input, reviewDocument);
 	if (!prepared.ok) {
 		const text = prepared.issues.join("; ");
 		const record: CallRecord = {

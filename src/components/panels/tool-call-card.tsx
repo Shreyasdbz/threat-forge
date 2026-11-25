@@ -98,7 +98,11 @@ export function ToolCallCard({ call, onApprove, onDeny }: ToolCallCardProps) {
 			<CallIcon status={call.status} />
 			<div className="min-w-0 flex-1">
 				<div className={cn(call.status === "undone" && "line-through opacity-70")}>
-					<ExpandableText text={call.summary} />
+					{call.destructive ? (
+						<span className="whitespace-pre-wrap break-words">{call.summary}</span>
+					) : (
+						<ExpandableText text={call.summary} />
+					)}
 				</div>
 				{call.result !== null &&
 					!creationApplied &&

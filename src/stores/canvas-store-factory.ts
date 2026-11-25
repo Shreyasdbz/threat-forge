@@ -668,12 +668,18 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			const model = deps.model.getState().model;
 			if (model) {
 				deps.history.getState().pushSnapshot(model);
-				deps.model
-					.getState()
-					.setModel(
-						removeGraphItems(model, selectedNodeIds, allRemovedEdgeIds),
-						deps.model.getState().filePath,
-					);
+				deps.model.getState().setModel(
+					removeGraphItems(model, {
+						elements: new Set(
+							selectedNodes.filter((n) => n.type !== "trustBoundary").map((n) => n.id),
+						),
+						boundaries: new Set(
+							selectedNodes.filter((n) => n.type === "trustBoundary").map((n) => n.id),
+						),
+						flows: selectedEdgeIds,
+					}),
+					deps.model.getState().filePath,
+				);
 				deps.model.getState().markDirty();
 				deps.model.getState().setSelectedElement(null);
 			}

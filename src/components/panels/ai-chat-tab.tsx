@@ -21,8 +21,13 @@ import {
 } from "@/lib/ai/legacy/fenced-actions";
 import type { TurnState } from "@/lib/ai/loop/turn-machine";
 import { flattenText, type ProtocolMessage } from "@/lib/ai/protocol/messages";
-import { executeActions, executeSingleAction } from "@/lib/ai-action-executor";
-import { type AiAction, describeAction } from "@/lib/ai-actions";
+import {
+	describeActionReview,
+	executeActions,
+	executeSingleAction,
+	isDestructiveAction,
+} from "@/lib/ai-action-executor";
+import type { AiAction } from "@/lib/ai-actions";
 import { suggestionToThreat } from "@/lib/ai-utils";
 import { cn } from "@/lib/utils";
 import { useAiTurnStore } from "@/stores/ai-turn-store";
@@ -545,6 +550,7 @@ type ActionStatus = "pending" | "applied" | "failed";
 /** Preview and apply AI-suggested model actions. */
 function ActionPreview({ actions }: { actions: AiAction[] }) {
 	const [actionStatus, setActionStatus] = useState<Map<number, ActionStatus>>(new Map());
+	const model = useModelStore((s) => s.model);
 
 	let appliedCount = 0;
 	let failedCount = 0;
@@ -554,9 +560,13 @@ function ActionPreview({ actions }: { actions: AiAction[] }) {
 	}
 	const remainingCount = actions.length - appliedCount - failedCount;
 	const allDone = appliedCount + failedCount === actions.length;
+	const hasPendingDeletion = actions.some(
+		(action, i) => !actionStatus.has(i) && isDestructiveAction(action.action),
+	);
 
 	const handleApplyOne = useCallback(
 		(index: number) => {
+			if (useModelStore.getState().model !== model) return;
 			const success = executeSingleAction(actions[index]);
 			setActionStatus((prev) => {
 				const next = new Map(prev);
@@ -565,10 +575,11 @@ function ActionPreview({ actions }: { actions: AiAction[] }) {
 			});
 			useCanvasStore.getState().syncFromModel();
 		},
-		[actions],
+		[actions, model],
 	);
 
 	const handleApplyRemaining = useCallback(() => {
+		if (hasPendingDeletion || useModelStore.getState().model !== model) return;
 		const remaining = actions
 			.map((action, i) => ({ action, i }))
 			.filter(({ i }) => !actionStatus.has(i));
@@ -584,7 +595,7 @@ function ActionPreview({ actions }: { actions: AiAction[] }) {
 			return next;
 		});
 		useCanvasStore.getState().syncFromModel();
-	}, [actions, actionStatus]);
+	}, [actions, actionStatus, hasPendingDeletion, model]);
 
 	return (
 		<div className="flex flex-col gap-1.5 border-t border-border/30 pt-1.5">
@@ -592,7 +603,7 @@ function ActionPreview({ actions }: { actions: AiAction[] }) {
 				<span className="text-editor-caption2 text-muted-foreground">
 					Suggested changes ({actions.length}):
 				</span>
-				{!allDone && (
+				{!allDone && !hasPendingDeletion && (
 					<button
 						type="button"
 						onClick={handleApplyRemaining}
@@ -612,7 +623,7 @@ function ActionPreview({ actions }: { actions: AiAction[] }) {
 				<ActionRow
 					// biome-ignore lint/suspicious/noArrayIndexKey: action index is stable after streaming
 					key={i}
-					action={action}
+					summary={describeActionReview(action, model)}
 					status={actionStatus.get(i) ?? "pending"}
 					onApply={() => handleApplyOne(i)}
 				/>
@@ -623,11 +634,11 @@ function ActionPreview({ actions }: { actions: AiAction[] }) {
 
 /** Single action row with per-action apply button. */
 function ActionRow({
-	action,
+	summary,
 	status,
 	onApply,
 }: {
-	action: AiAction;
+	summary: string;
 	status: ActionStatus;
 	onApply: () => void;
 }) {
@@ -640,7 +651,7 @@ function ActionRow({
 				status === "pending" && "border-border/50 bg-background/50",
 			)}
 		>
-			<span className="flex-1">{describeAction(action)}</span>
+			<span className="min-w-0 flex-1 whitespace-pre-wrap break-words">{summary}</span>
 			<button
 				type="button"
 				onClick={onApply}

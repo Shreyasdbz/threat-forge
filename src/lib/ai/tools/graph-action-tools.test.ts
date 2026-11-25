@@ -57,6 +57,41 @@ const model: ThreatModel = {
 	diagrams: [],
 };
 
+it("reviews cascades without removing a boundary that shares the element ID", async () => {
+	const document: ThreatModel = {
+		...model,
+		trust_boundaries: [
+			{ id: "web-app", name: "Same ID boundary", contains: ["web-app", "api-gw"] },
+		],
+		relationships: [{ id: "rel-1", type: "depends_on", from: "web-app", to: "api-gw" }],
+		threats: [{ ...model.threats[0], flow: "flow-1" }],
+	};
+	const tool = GRAPH_ACTION_TOOLS.find((tool) => tool.name === "delete_element");
+	const reviewed = tool?.prepare({ action: "delete_element", id: "web-app" }, document);
+	if (!reviewed?.ok) throw new Error("Delete was not prepared");
+	expect(reviewed.call.summary).toBe(
+		[
+			"Delete element: web-app",
+			"Data flows also removed: flow-1",
+			"Relationships removed: rel-1",
+			"Threats removed: threat-1",
+			"Membership removed from boundaries: web-app",
+		].join("\n"),
+	);
+	const signal = new AbortController().signal;
+	const applied = await reviewed.call.run({ document, signal });
+	expect(applied.document).toMatchObject({
+		elements: [document.elements[1]],
+		data_flows: [],
+		relationships: [],
+		threats: [],
+		trust_boundaries: [{ ...document.trust_boundaries[0], contains: ["api-gw"] }],
+	});
+	const stale = await reviewed.call.run({ document: { ...document }, signal });
+	expect(stale.status).toBe("error");
+	expect(stale.document).toBeUndefined();
+});
+
 /** One valid input per tool, so every tool can be prepared and run. */
 const VALID_INPUT: Record<string, unknown> = {
 	add_element: { action: "add_element", element: { type: "process", name: "New" } },

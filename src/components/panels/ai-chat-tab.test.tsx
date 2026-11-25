@@ -447,6 +447,16 @@ describe("AiChatTab tool-loop turn", () => {
 					},
 				],
 				data_flows: [flow],
+				threats: [
+					{
+						id: "threat-1",
+						flow: flow.id,
+						title: "Threat",
+						category: "Tampering",
+						severity: "high",
+						description: "",
+					},
+				],
 			} satisfies ThreatModel;
 			useDocumentRegistry.getState().createDocument({
 				model: original,
@@ -483,8 +493,9 @@ describe("AiChatTab tool-loop turn", () => {
 			await act(async () => {
 				await useAiTurnStore.getState().submitTurn("review the flow", original);
 			});
-			const button = mode === "native" ? "Approve" : "Apply All";
+			const button = mode === "native" ? "Approve" : "Apply this change";
 			expect(screen.getByRole("button", { name: button })).toBeInTheDocument();
+			expect(screen.getByText(/Threats removed: threat-1/)).toBeInTheDocument();
 			const replacement = { ...original, data_flows: [{ ...flow, name: "Replacement flow" }] };
 			await reloadOnDisk(replacement);
 			expect(screen.queryByRole("button", { name: button })).not.toBeInTheDocument();

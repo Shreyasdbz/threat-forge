@@ -108,7 +108,13 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 	}
 
 	function dispatch(input: TurnInput): void {
-		setState(reduceTurn(state, input));
+		setState(
+			reduceTurn(
+				state,
+				input,
+				input.type === "tool_call_complete" ? deps.getDocument() : undefined,
+			),
+		);
 	}
 
 	function signal(): AbortSignal {

@@ -81,7 +81,7 @@ export interface RegisteredTool extends AdvertisedTool {
 	/** Destroys information. Never covered by a batch approval. */
 	readonly destructive: boolean;
 	/** The only way to obtain something runnable from raw model output. */
-	prepare(raw: unknown): PreparedCallResult;
+	prepare(raw: unknown, reviewDocument?: ThreatModel | null): PreparedCallResult;
 }
 
 /** The strict input type a Zod field shape validates to, matching `defineTool`. */
