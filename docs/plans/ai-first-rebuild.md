@@ -22,6 +22,22 @@ untrusted agent inputs, reviewable changes, and no silent loss of edits.
 - Gate: old files round-trip, invalid changes never reach disk, competing writers
   cannot silently overwrite one another, and desktop and MCP use the same checks.
 
+### C1 dependency triage
+
+The baseline `npm audit` reports 14 packages (10 high, 4 moderate),
+four of which are present with `--omit=dev`:
+
+| Production package | Exposure and follow-up |
+| --- | --- |
+| `js-yaml` (moderate) | Accepts local, potentially untrusted files. Prioritize updating to a patched 5.x release and verify the shared YAML fixtures. |
+| `zod` (high) | Validates agent/provider data; oversized input can exhaust memory. Update to a patched 4.x release and retain the existing input budgets. |
+| `react-router`, `react-router-dom` (high) | One upstream React Router advisory affects RSC server actions; ThreatForge ships a client-only Vite router, not an RSC handler. Update the packages together. |
+
+Development-only findings cover Vite/Vitest and Wrangler plus their transitive
+dependencies. Keep the dev server local and take compatible lockfile updates
+in a separate dependency change; align Wrangler-generated worker types in that
+change. Package updates are not included in this triage.
+
 ## C2 — MCP v2
 
 - Add create/list/open/search for `.thf` in a configured workspace root, plus
