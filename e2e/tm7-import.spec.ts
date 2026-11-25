@@ -7,7 +7,11 @@ test("imports the native TM7 reference fixture into a new browser tab", async ({
 		page.getByTestId("btn-import").click(),
 	]);
 	await chooser.setFiles("src-tauri/src/importers/fixtures/tmt-4.3-sample.tm7");
-	await expect(page.getByRole("tab", { name: "Payments & Billing Platform" })).toBeVisible();
+	await expect(
+		page
+			.getByRole("tablist", { name: "Open documents" })
+			.getByRole("tab", { name: "Payments & Billing Platform" }),
+	).toBeVisible();
 	await expect(page.getByTestId("node-payments-billing-api")).toBeVisible();
 	await expect(page.getByText("Browse & Checkout", { exact: true })).toBeVisible();
 	await page.getByTestId("tab-threats").click();
@@ -18,7 +22,7 @@ test("imports the native TM7 reference fixture into a new browser tab", async ({
 
 test("rejects a non-TM7 XML file without opening a document", async ({ page }) => {
 	await page.goto("/app");
-	const tabs = page.getByRole("tab");
+	const tabs = page.getByRole("tablist", { name: "Open documents" }).getByRole("tab");
 	const count = await tabs.count();
 	const [chooser] = await Promise.all([
 		page.waitForEvent("filechooser"),

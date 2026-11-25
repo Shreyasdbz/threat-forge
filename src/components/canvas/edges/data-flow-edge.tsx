@@ -409,7 +409,7 @@ export function DataFlowEdge({
 							.join(" · ")}
 						type="button"
 						className={cn(
-							"pointer-events-auto nodrag nopan absolute left-0 top-0 z-10 flex w-max max-w-48 items-center gap-1.5 rounded-editor-control border px-2 py-1 text-left transition-colors",
+							"pointer-events-auto nodrag nopan absolute left-0 top-0 z-10 flex min-h-6 w-max max-w-48 items-center gap-1.5 rounded-editor-control border px-2 py-1 text-left transition-colors",
 							selected
 								? "border-editor-accent bg-editor-selection text-foreground cursor-grab active:cursor-grabbing"
 								: "border-editor-line bg-editor-surface text-muted-foreground hover:border-muted-foreground cursor-pointer",

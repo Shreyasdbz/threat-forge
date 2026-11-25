@@ -68,10 +68,10 @@ export function TopMenuBar() {
 	return (
 		<header
 			data-testid="top-menu-bar"
-			className="flex h-12 shrink-0 items-center gap-2 border-b border-editor-line bg-editor-surface px-4"
+			className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-2 border-b border-editor-line bg-editor-surface px-4 py-1"
 		>
 			{/* App title / branding */}
-			<div className="flex min-w-0 items-center gap-2">
+			<div className="flex min-w-0 basis-full items-center gap-2 sm:basis-auto">
 				<img src="/logo_square.png" alt="Threat Forge" className="h-5 w-5 shrink-0" />
 				{editingTitle && model ? (
 					<input
@@ -158,7 +158,7 @@ export function TopMenuBar() {
 				<section
 					aria-label={`Canvas summary: ${countLabel(componentCount, "component")}, ${countLabel(dataFlowCount, "data flow")}, ${countLabel(threatCount, "identified threat")}, ${countLabel(mitigatedThreatCount, "mitigated threat")}`}
 					data-testid="canvas-count-badge"
-					className="flex shrink-0 items-center text-editor-caption text-muted-foreground"
+					className="hidden shrink-0 items-center text-editor-caption text-muted-foreground lg:flex"
 				>
 					<dl className="flex items-center gap-3">
 						<CountItem label="Components" value={componentCount} />
@@ -249,7 +249,7 @@ function CountItem({
 }) {
 	return (
 		<div className="flex gap-1 whitespace-nowrap" title={title}>
-			<dt>{label}</dt> <dd className="font-semibold tabular-nums text-foreground">{value}</dd>
+			<dt>{label}</dt> <dd className="tabular-nums text-foreground">{value}</dd>
 		</div>
 	);
 }

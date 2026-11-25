@@ -48,7 +48,7 @@ export async function switchToTab(
 	await test.step(`switchToTab: activate tab (${label})`, async () => {
 		const tab =
 			"index" in locate
-				? page.getByRole("tab").nth(locate.index)
+				? page.getByRole("tablist", { name: "Open documents" }).getByRole("tab").nth(locate.index)
 				: page.getByTestId(`document-tab-${locate.documentId}`).getByRole("tab");
 		await tab.click();
 		await expect(tab).toHaveAttribute("aria-selected", "true");
@@ -228,7 +228,9 @@ export async function openDocuments(page: Page, count: number): Promise<void> {
 	await test.step(`openDocuments: open ${count} documents via the tab-strip control`, async () => {
 		for (let i = 1; i <= count; i++) {
 			await page.getByTestId("btn-new-document").click();
-			await expect(page.getByRole("tab")).toHaveCount(i);
+			await expect(
+				page.getByRole("tablist", { name: "Open documents" }).getByRole("tab"),
+			).toHaveCount(i);
 		}
 	});
 }

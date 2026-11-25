@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("fits every inspector tab label at the default panel width", async ({ page }) => {
-	const tabs = page.getByTestId("right-panel").locator("button[aria-pressed]");
+	const tabs = page.getByRole("tablist", { name: "Inspector" }).getByRole("tab");
 	await expect(tabs).toHaveCount(4);
 	await page.evaluate(() => document.fonts.ready);
 	await expect
@@ -18,7 +18,14 @@ test("fits every inspector tab label at the default panel width", async ({ page 
 			tabs.evaluateAll((buttons) =>
 				buttons.map((button) => {
 					const label = button.lastElementChild;
-					return Boolean(label?.clientWidth && label.scrollWidth <= label.clientWidth);
+					if (!label) return false;
+					const range = document.createRange();
+					range.selectNodeContents(label);
+					return (
+						range.getClientRects().length === 1 &&
+						range.getBoundingClientRect().width <= button.clientWidth &&
+						button.clientHeight >= 24
+					);
 				}),
 			),
 		)

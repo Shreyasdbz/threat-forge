@@ -14,7 +14,7 @@ import {
 	Sparkles,
 	X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { GithubIcon } from "@/components/icons/github-icon";
 import { openExternalUrl } from "@/lib/platform";
 import { cn } from "@/lib/utils";
@@ -56,31 +56,47 @@ export function SettingsDialog() {
 	const closeSettingsDialog = useSettingsStore((s) => s.closeSettingsDialog);
 	const initialTab = useSettingsStore((s) => s.settingsDialogInitialTab);
 	const [section, setSection] = useState<SettingsTab>(initialTab ?? "general");
+	const dialog = useRef<HTMLDialogElement>(null);
+
+	useEffect(() => {
+		dialog.current?.showModal();
+	}, []);
+
+	function close() {
+		dialog.current?.close();
+		closeSettingsDialog();
+	}
 
 	function handleKeyDown(e: React.KeyboardEvent) {
+		e.stopPropagation();
 		if (e.key === "Escape") {
-			closeSettingsDialog();
+			e.preventDefault();
+			close();
 		}
 	}
 
 	return (
-		// biome-ignore lint/a11y/useKeyWithClickEvents: overlay click to close is a convenience
-		<div
-			className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+		<dialog
+			ref={dialog}
+			aria-labelledby="settings-title"
+			data-testid="settings-dialog"
+			className="fixed inset-0 m-auto h-[560px] max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-editor-dialog border border-editor-separator bg-editor-raised p-0 text-foreground shadow-editor-dialog backdrop:bg-black/50"
 			onClick={(e) => {
-				if (e.target === e.currentTarget) closeSettingsDialog();
+				if (e.target === e.currentTarget) close();
 			}}
+			onKeyDown={handleKeyDown}
 		>
-			<div
-				data-testid="settings-dialog"
-				className="flex h-[560px] max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-2xl rounded-editor-dialog border border-editor-separator bg-editor-raised shadow-editor-dialog"
-				onKeyDown={handleKeyDown}
-			>
+			<div className="flex h-full flex-col sm:flex-row">
 				{/* Sidebar nav */}
-				<nav className="flex w-44 shrink-0 flex-col border-r border-editor-line p-4">
+				<nav
+					aria-label="Settings sections"
+					className="flex shrink-0 flex-wrap border-b border-editor-line p-2 sm:w-40 sm:flex-col sm:border-r sm:border-b-0 sm:p-4"
+				>
 					<div className="mb-3 flex items-center gap-2 px-2 pt-1">
 						<Settings className="h-4 w-4 text-muted-foreground" />
-						<h2 className="text-editor-footnote">Settings</h2>
+						<h2 id="settings-title" className="text-editor-headline">
+							Settings
+						</h2>
 					</div>
 					{SECTIONS.map((s) => (
 						<button
@@ -93,6 +109,7 @@ export function SettingsDialog() {
 									? "bg-accent text-foreground"
 									: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
 							)}
+							aria-current={section === s.id ? "true" : undefined}
 						>
 							{s.icon}
 							{s.label}
@@ -104,15 +121,16 @@ export function SettingsDialog() {
 				</nav>
 
 				{/* Content */}
-				<div className="flex flex-1 flex-col overflow-hidden">
-					<div className="flex items-center justify-between border-b border-editor-line px-6 py-4">
+				<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+					<div className="flex items-center justify-between border-b border-editor-line px-4 py-2 sm:px-6">
 						<span className="text-editor-footnote">
 							{SECTIONS.find((s) => s.id === section)?.label}
 						</span>
 						<button
 							type="button"
-							onClick={closeSettingsDialog}
-							className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+							onClick={close}
+							aria-label="Close settings"
+							className="rounded-editor-control p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
 						>
 							<X className="h-4 w-4" />
 						</button>
@@ -126,7 +144,7 @@ export function SettingsDialog() {
 					</div>
 				</div>
 			</div>
-		</div>
+		</dialog>
 	);
 }
 
@@ -154,6 +172,7 @@ function GeneralSection() {
 		<div className="space-y-5">
 			<SettingRow label="Author name" description="Your name for edit tracking in threat models">
 				<TextInput
+					label="Author name"
 					value={settings.authorName}
 					placeholder="e.g. Jane Doe"
 					onChange={(v) => updateSetting("authorName", v)}
@@ -162,6 +181,7 @@ function GeneralSection() {
 
 			<SettingRow label="Author email" description="Your email for edit tracking in threat models">
 				<TextInput
+					label="Author email"
 					value={settings.authorEmail}
 					placeholder="e.g. jane@example.com"
 					onChange={(v) => updateSetting("authorEmail", v)}
@@ -172,6 +192,7 @@ function GeneralSection() {
 
 			<SettingRow label="Language" description="Interface language (more coming soon)">
 				<select
+					aria-label="Language"
 					disabled
 					className="rounded border border-border bg-background px-2 py-1.5 text-editor-body opacity-60"
 				>
@@ -181,6 +202,7 @@ function GeneralSection() {
 
 			<SettingRow label="Autosave" description="Automatically save when changes are made">
 				<ToggleSwitch
+					label="Autosave"
 					checked={settings.autosaveEnabled}
 					onChange={(v) => updateSetting("autosaveEnabled", v)}
 				/>
@@ -192,6 +214,7 @@ function GeneralSection() {
 					description="Seconds to wait after last change before saving"
 				>
 					<NumberInput
+						label="Autosave interval"
 						value={settings.autosaveIntervalSeconds}
 						min={5}
 						max={300}
@@ -205,6 +228,7 @@ function GeneralSection() {
 				description="Ask for confirmation before deleting elements"
 			>
 				<ToggleSwitch
+					label="Confirm before delete"
 					checked={settings.confirmBeforeDelete}
 					onChange={(v) => updateSetting("confirmBeforeDelete", v)}
 				/>
@@ -221,6 +245,7 @@ function AppearanceSection() {
 		<div className="space-y-5">
 			<SettingRow label="Show keytips" description="Include shortcuts in toolbar tooltips">
 				<ToggleSwitch
+					label="Show keytips"
 					checked={settings.keytipsVisible}
 					onChange={(v) => updateSetting("keytipsVisible", v)}
 				/>
@@ -228,6 +253,7 @@ function AppearanceSection() {
 
 			<SettingRow label="Reduce motion" description="Minimize animations throughout the interface">
 				<ToggleSwitch
+					label="Reduce motion"
 					checked={settings.reduceMotion}
 					onChange={(v) => updateSetting("reduceMotion", v)}
 					testId="toggle-reduce-motion"
@@ -253,11 +279,16 @@ function AppearanceSection() {
 			</div>
 
 			<SettingRow label="Grid snap" description="Snap elements to grid when moving on canvas">
-				<ToggleSwitch checked={settings.gridSnap} onChange={(v) => updateSetting("gridSnap", v)} />
+				<ToggleSwitch
+					label="Grid snap"
+					checked={settings.gridSnap}
+					onChange={(v) => updateSetting("gridSnap", v)}
+				/>
 			</SettingRow>
 
 			<SettingRow label="Grid size" description="Grid cell size in pixels">
 				<NumberInput
+					label="Grid size"
 					value={settings.gridSize}
 					min={4}
 					max={64}
@@ -267,6 +298,7 @@ function AppearanceSection() {
 
 			<SettingRow label="Show minimap" description="Display a minimap overview on the canvas">
 				<ToggleSwitch
+					label="Show minimap"
 					checked={settings.minimapVisible}
 					onChange={(v) => updateSetting("minimapVisible", v)}
 				/>
@@ -444,8 +476,8 @@ function SettingRow({
 	children: React.ReactNode;
 }) {
 	return (
-		<div className="flex items-center justify-between gap-4">
-			<div className="min-w-0">
+		<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+			<div className="min-w-0 sm:flex-1">
 				<p className="text-editor-footnote text-foreground">{label}</p>
 				<p className="text-editor-caption text-muted-foreground">{description}</p>
 			</div>
@@ -455,10 +487,12 @@ function SettingRow({
 }
 
 function ToggleSwitch({
+	label,
 	checked,
 	onChange,
 	testId,
 }: {
+	label: string;
 	checked: boolean;
 	onChange: (value: boolean) => void;
 	testId?: string;
@@ -467,17 +501,18 @@ function ToggleSwitch({
 		<button
 			type="button"
 			role="switch"
+			aria-label={label}
 			aria-checked={checked}
 			data-testid={testId}
 			onClick={() => onChange(!checked)}
 			className={cn(
-				"relative h-5 w-9 shrink-0 rounded-full transition-colors",
+				"relative h-6 w-10 shrink-0 rounded-full transition-colors",
 				checked ? "bg-primary" : "bg-muted",
 			)}
 		>
 			<span
 				className={cn(
-					"absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-background transition-transform",
+					"absolute left-1 top-1 h-4 w-4 rounded-full bg-background transition-transform",
 					checked && "translate-x-4",
 				)}
 			/>
@@ -486,10 +521,12 @@ function ToggleSwitch({
 }
 
 function TextInput({
+	label,
 	value,
 	placeholder,
 	onChange,
 }: {
+	label: string;
 	value: string;
 	placeholder?: string;
 	onChange: (value: string) => void;
@@ -497,20 +534,23 @@ function TextInput({
 	return (
 		<input
 			type="text"
+			aria-label={label}
 			value={value}
 			placeholder={placeholder}
 			onChange={(e) => onChange(e.target.value)}
-			className="w-48 rounded border border-border bg-background px-2 py-1.5 text-editor-body text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
+			className="w-48 max-w-full rounded border border-border bg-background px-2 py-1.5 text-editor-body text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
 		/>
 	);
 }
 
 function NumberInput({
+	label,
 	value,
 	min,
 	max,
 	onChange,
 }: {
+	label: string;
 	value: number;
 	min: number;
 	max: number;
@@ -519,6 +559,7 @@ function NumberInput({
 	return (
 		<input
 			type="number"
+			aria-label={label}
 			value={value}
 			min={min}
 			max={max}

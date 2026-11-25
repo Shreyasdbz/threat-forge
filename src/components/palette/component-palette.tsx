@@ -76,7 +76,7 @@ export function ComponentPalette() {
 			<div className="shrink-0 px-4 pt-4 pb-2">
 				<h2 className="text-editor-footnote text-muted-foreground">Generic</h2>
 			</div>
-			<div className="shrink-0 px-3 pb-2">
+			<div className="shrink-0 px-2 pb-2">
 				<div className="flex flex-col gap-1">
 					{GENERIC_ITEMS.map((item) => (
 						<GenericPaletteItem
@@ -97,10 +97,14 @@ export function ComponentPalette() {
 			{/* Search */}
 			<div className="shrink-0 px-4 pb-2">
 				<div className="relative">
-					<Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+					<Search
+						aria-hidden="true"
+						className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+					/>
 					<input
 						data-testid="library-search"
 						type="text"
+						aria-label="Search components"
 						placeholder="Search components..."
 						value={searchQuery}
 						onChange={(e) => {

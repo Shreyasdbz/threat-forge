@@ -246,8 +246,12 @@ export async function seedStaleManifestWorkspace(
 		};
 
 		await page.reload();
-		await expect(page.getByRole("tab")).toHaveCount(1);
-		await expect(page.getByRole("tab").first()).toHaveAttribute("aria-selected", "true");
+		await expect(
+			page.getByRole("tablist", { name: "Open documents" }).getByRole("tab"),
+		).toHaveCount(1);
+		await expect(
+			page.getByRole("tablist", { name: "Open documents" }).getByRole("tab").first(),
+		).toHaveAttribute("aria-selected", "true");
 		return result;
 	});
 }
@@ -331,8 +335,12 @@ export async function seedCorruptSoleDocumentWorkspace(page: Page): Promise<void
 		);
 
 		await page.reload();
-		await expect(page.getByRole("tab")).toHaveCount(1);
-		await expect(page.getByRole("tab").first()).toHaveAttribute("aria-selected", "true");
+		await expect(
+			page.getByRole("tablist", { name: "Open documents" }).getByRole("tab"),
+		).toHaveCount(1);
+		await expect(
+			page.getByRole("tablist", { name: "Open documents" }).getByRole("tab").first(),
+		).toHaveAttribute("aria-selected", "true");
 		await expect(page.getByTestId("empty-canvas")).toBeVisible();
 	});
 }

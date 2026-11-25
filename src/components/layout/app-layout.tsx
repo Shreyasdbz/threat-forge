@@ -128,22 +128,24 @@ export function AppLayout() {
 					<TopMenuBar />
 					<UpdateBar />
 
-					<div className="flex flex-1 overflow-hidden">
+					<div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row md:overflow-hidden">
 						{/* Left sidebar — Component palette */}
 						{leftPanelOpen && (
 							<aside
-								className="relative shrink-0 border-r border-editor-separator bg-editor-grouped-background"
-								style={{ width: leftPanelWidth }}
+								className="relative h-48 w-full shrink-0 border-b border-editor-separator bg-editor-grouped-background md:h-auto md:w-(--pane-width) md:border-b-0 md:border-r"
+								style={{ "--pane-width": `${leftPanelWidth}px` } as React.CSSProperties}
 							>
 								<ComponentPalette />
-								<ResizeHandle side="right" onResize={handleLeftResize} />
+								<div className="hidden md:block">
+									<ResizeHandle side="right" onResize={handleLeftResize} />
+								</div>
 							</aside>
 						)}
 
 						{/* Main canvas area: the tab strip sits above the canvas, which becomes the tabpanel
 					    the tablist controls. The role/labelling go on the wrapper, not on <main>, so the
 					    main landmark survives (`#54` D4). */}
-						<main className="flex flex-1 flex-col overflow-hidden">
+						<main className="flex min-h-80 min-w-0 flex-1 flex-col overflow-hidden md:min-h-0">
 							<DocumentTabStrip />
 							<div
 								className="flex-1 overflow-hidden"
@@ -162,10 +164,12 @@ export function AppLayout() {
 						{/* Right panel — Properties / Threats */}
 						{rightPanelOpen && (
 							<aside
-								className="relative shrink-0 border-l border-editor-separator bg-editor-grouped-background"
-								style={{ width: rightPanelWidth }}
+								className="relative h-96 w-full shrink-0 border-t border-editor-separator bg-editor-grouped-background md:h-auto md:w-(--pane-width) md:border-t-0 md:border-l"
+								style={{ "--pane-width": `${rightPanelWidth}px` } as React.CSSProperties}
 							>
-								<ResizeHandle side="left" onResize={handleRightResize} />
+								<div className="hidden md:block">
+									<ResizeHandle side="left" onResize={handleRightResize} />
+								</div>
 								<RightPanel />
 							</aside>
 						)}

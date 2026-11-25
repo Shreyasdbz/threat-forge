@@ -1,4 +1,4 @@
-import { Layers3, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useId, useState } from "react";
 import { useModelStore } from "@/stores/model-store";
 import { useUiStore } from "@/stores/ui-store";
@@ -19,9 +19,7 @@ export function ArchitectureTab() {
 	return (
 		<div className="space-y-6">
 			<div className="pb-2">
-				<h2 className="flex items-center gap-2 text-editor-title3">
-					<Layers3 className="size-4 text-primary" aria-hidden="true" /> Architecture
-				</h2>
+				<h2 className="text-editor-title3">Architecture</h2>
 				<p className="mt-1 text-editor-caption leading-relaxed text-muted-foreground">
 					Layers describe system tiers. Groups organize related components independently of trust
 					boundaries.

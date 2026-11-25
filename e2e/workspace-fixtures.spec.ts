@@ -81,8 +81,12 @@ test("seedMalformedWorkspace surfaces the complete parse-failure alert and leave
 
 test("seedMultiTabWorkspace opens ten tabs with the tenth selected", async ({ page }) => {
 	await seedMultiTabWorkspace(page);
-	await expect(page.getByRole("tab")).toHaveCount(10);
-	await expect(page.getByRole("tab").nth(9)).toHaveAttribute("aria-selected", "true");
+	await expect(page.getByRole("tablist", { name: "Open documents" }).getByRole("tab")).toHaveCount(
+		10,
+	);
+	await expect(
+		page.getByRole("tablist", { name: "Open documents" }).getByRole("tab").nth(9),
+	).toHaveAttribute("aria-selected", "true");
 });
 
 test("seedEphemeralWorkspace announces the session will not be saved", async ({ page }) => {
@@ -130,11 +134,17 @@ test("seedStaleManifestWorkspace drops the orphan tab silently and keeps only th
 	const seeded = await seedStaleManifestWorkspace(page);
 	expect(seeded.manifestCountBeforeReload).toBe(2);
 	expect(seeded.orphanPresentBeforeReload).toBe(true);
-	await expect(page.getByRole("tab")).toHaveCount(1);
-	await expect(page.getByRole("tab").first()).toHaveAttribute("aria-selected", "true");
+	await expect(page.getByRole("tablist", { name: "Open documents" }).getByRole("tab")).toHaveCount(
+		1,
+	);
+	await expect(
+		page.getByRole("tablist", { name: "Open documents" }).getByRole("tab").first(),
+	).toHaveAttribute("aria-selected", "true");
 	// The app remains fully usable: no crash, and a fresh document can still be created.
 	await page.getByTestId("btn-new-document").click();
-	await expect(page.getByRole("tab")).toHaveCount(2);
+	await expect(page.getByRole("tablist", { name: "Open documents" }).getByRole("tab")).toHaveCount(
+		2,
+	);
 });
 
 test("seedCorruptSoleDocumentWorkspace selects an unhydrated tab, shows the empty canvas, and stays interactive", async ({
@@ -146,14 +156,22 @@ test("seedCorruptSoleDocumentWorkspace selects an unhydrated tab, shows the empt
 	// all — not "Recovery needed", nothing. This test asserts exactly that safe-but-silent
 	// behavior, not the unreachable #55 UI.
 	await seedCorruptSoleDocumentWorkspace(page);
-	await expect(page.getByRole("tab")).toHaveCount(1);
-	await expect(page.getByRole("tab").first()).toHaveAttribute("aria-selected", "true");
+	await expect(page.getByRole("tablist", { name: "Open documents" }).getByRole("tab")).toHaveCount(
+		1,
+	);
+	await expect(
+		page.getByRole("tablist", { name: "Open documents" }).getByRole("tab").first(),
+	).toHaveAttribute("aria-selected", "true");
 	await expect(page.getByTestId("empty-canvas")).toBeVisible();
 	await expect(page.getByText("Recovery needed", { exact: true })).toHaveCount(0);
 	// The app stays interactive: a fresh document can still be created afterward.
 	await page.getByTestId("btn-new-document").click();
-	await expect(page.getByRole("tab")).toHaveCount(2);
-	await expect(page.getByRole("tab").nth(1)).toHaveAttribute("aria-selected", "true");
+	await expect(page.getByRole("tablist", { name: "Open documents" }).getByRole("tab")).toHaveCount(
+		2,
+	);
+	await expect(
+		page.getByRole("tablist", { name: "Open documents" }).getByRole("tab").nth(1),
+	).toHaveAttribute("aria-selected", "true");
 });
 
 test("shared interaction helpers execute real create, switch, edit, drag, connect, save, export, and restore workflows", async ({
@@ -161,7 +179,11 @@ test("shared interaction helpers execute real create, switch, edit, drag, connec
 }) => {
 	await seedEmptyWorkspace(page);
 	await createDocument(page);
-	const secondTabId = await page.getByRole("tab").nth(1).getAttribute("id");
+	const secondTabId = await page
+		.getByRole("tablist", { name: "Open documents" })
+		.getByRole("tab")
+		.nth(1)
+		.getAttribute("id");
 	if (!secondTabId?.startsWith("tab-doc-")) {
 		throw new Error("new document tab is missing its stable id");
 	}

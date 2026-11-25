@@ -1,104 +1,99 @@
-import { Layers3, type LucideIcon, MessageSquare, Shield, SlidersHorizontal } from "lucide-react";
+import { type KeyboardEvent, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useModelStore } from "@/stores/model-store";
-import { useUiStore } from "@/stores/ui-store";
+import { type RightPanelTab, useUiStore } from "@/stores/ui-store";
 import { AiChatTab } from "./ai-chat-tab";
 import { ArchitectureTab } from "./architecture-tab";
 import { PropertiesTab } from "./properties-tab";
 import { ThreatsTab } from "./threats-tab";
 
+const tabs = [
+	{ id: "properties", label: "Properties", Panel: PropertiesTab },
+	{ id: "architecture", label: "Architecture", Panel: ArchitectureTab },
+	{ id: "threats", label: "Threats", Panel: ThreatsTab },
+	{ id: "ai", label: "AI", Panel: AiChatTab },
+] as const;
+
 export function RightPanel() {
-	const tab = useUiStore((s) => s.rightPanelTab);
+	const selected = useUiStore((s) => s.rightPanelTab);
 	const setTab = useUiStore((s) => s.setRightPanelTab);
 	const threatCount = useModelStore((s) => s.model?.threats.length ?? 0);
+	const [focused, setFocused] = useState<RightPanelTab | null>(null);
+
+	function moveFocus(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+		let next: number;
+		switch (event.key) {
+			case "ArrowLeft":
+				next = (index + tabs.length - 1) % tabs.length;
+				break;
+			case "ArrowRight":
+				next = (index + 1) % tabs.length;
+				break;
+			case "Home":
+				next = 0;
+				break;
+			case "End":
+				next = tabs.length - 1;
+				break;
+			default:
+				return;
+		}
+		event.preventDefault();
+		event.stopPropagation();
+		event.currentTarget.parentElement?.querySelectorAll("button")[next]?.focus();
+	}
 
 	return (
-		<div data-testid="right-panel" className="flex h-full flex-col">
-			{/* Tab bar */}
-			<div className="mx-2 mt-3 grid shrink-0 grid-cols-4 gap-px rounded-editor-panel bg-editor-fill p-1">
-				<TabButton
-					testId="tab-properties"
-					icon={SlidersHorizontal}
-					active={tab === "properties"}
-					onClick={() => setTab("properties")}
-				>
-					Properties
-				</TabButton>
-				<TabButton
-					testId="tab-architecture"
-					icon={Layers3}
-					active={tab === "architecture"}
-					onClick={() => setTab("architecture")}
-				>
-					Architecture
-				</TabButton>
-				<TabButton
-					testId="tab-threats"
-					icon={Shield}
-					count={threatCount}
-					active={tab === "threats"}
-					onClick={() => setTab("threats")}
-				>
-					Threats
-				</TabButton>
-				<TabButton
-					testId="tab-ai"
-					icon={MessageSquare}
-					active={tab === "ai"}
-					onClick={() => setTab("ai")}
-				>
-					AI
-				</TabButton>
+		<div data-testid="right-panel" className="@container/inspector flex h-full min-h-0 flex-col">
+			<div
+				role="tablist"
+				aria-label="Inspector"
+				onBlur={(event) => {
+					if (!event.currentTarget.contains(event.relatedTarget)) setFocused(null);
+				}}
+				className="mx-4 grid shrink-0 grid-cols-2 gap-x-1 border-b border-editor-separator pt-1 @min-[18rem]/inspector:grid-cols-[repeat(4,minmax(max-content,1fr))]"
+			>
+				{tabs.map(({ id, label }, index) => (
+					<button
+						key={id}
+						type="button"
+						role="tab"
+						id={`inspector-tab-${id}`}
+						data-testid={`tab-${id}`}
+						aria-selected={selected === id}
+						aria-description={
+							id === "threats" && threatCount ? `${threatCount} identified` : undefined
+						}
+						aria-controls={`inspector-panel-${id}`}
+						tabIndex={(focused ?? selected) === id ? 0 : -1}
+						onFocus={() => setFocused(id)}
+						onClick={() => setTab(id)}
+						onKeyDown={(event) => moveFocus(event, index)}
+						className={cn(
+							"min-h-8 min-w-0 break-words rounded-t-editor-control border-b-2 px-1 py-2 text-editor-caption transition-colors duration-120 ease-editor hover:bg-editor-hover active:bg-editor-pressed",
+							selected === id
+								? "border-editor-accent text-foreground"
+								: "border-transparent text-editor-secondary-label",
+						)}
+					>
+						<span>{label}</span>
+					</button>
+				))}
 			</div>
-
-			{/* Tab content */}
-			<div className="flex-1 overflow-y-auto p-4">
-				{tab === "properties" && <PropertiesTab />}
-				{tab === "architecture" && <ArchitectureTab />}
-				{tab === "threats" && <ThreatsTab />}
-				{tab === "ai" && <AiChatTab />}
-			</div>
+			{tabs.map(({ id, Panel }) => (
+				<div
+					key={id}
+					id={`inspector-panel-${id}`}
+					role="tabpanel"
+					aria-labelledby={`inspector-tab-${id}`}
+					hidden={id !== selected}
+					// biome-ignore lint/a11y/noNoninteractiveTabindex: arrow-key tabs lead into scrollable panel content
+					tabIndex={0}
+					className="min-h-0 flex-1 overflow-y-auto p-4 focus-visible:-outline-offset-2"
+				>
+					{id === selected && <Panel />}
+				</div>
+			))}
 		</div>
-	);
-}
-
-function TabButton({
-	testId,
-	icon: Icon,
-	count,
-	active,
-	onClick,
-	children,
-}: {
-	testId?: string;
-	icon: LucideIcon;
-	count?: number;
-	active: boolean;
-	onClick: () => void;
-	children: React.ReactNode;
-}) {
-	return (
-		<button
-			type="button"
-			data-testid={testId}
-			aria-pressed={active}
-			onClick={onClick}
-			className={cn(
-				"flex min-w-0 flex-col items-center justify-center gap-1 rounded-editor-control py-1.5 transition-colors duration-120 ease-editor",
-				active
-					? "bg-editor-selection text-foreground"
-					: "text-muted-foreground hover:bg-editor-hover hover:text-foreground",
-			)}
-		>
-			<span className="relative">
-				<Icon aria-hidden="true" className="size-4" />
-				{!!count && (
-					<span className="absolute left-full top-0 ml-1 text-editor-caption2 tabular-nums text-editor-tertiary-label">
-						{count > 99 ? "99+" : count}
-					</span>
-				)}
-			</span>
-			<span className="max-w-full truncate text-editor-caption2">{children}</span>
-		</button>
 	);
 }

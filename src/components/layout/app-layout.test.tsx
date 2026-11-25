@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LegacyResidue } from "@/lib/adapters/keychain-adapter";
@@ -102,12 +102,17 @@ describe("AppLayout document tabpanel relationship (#54 step 5)", () => {
 		// The main landmark survives — role and labelling went on the wrapper, not on <main>.
 		expect(screen.getByRole("main")).toBeInTheDocument();
 
-		const tabs = screen.getAllByRole("tab");
+		const tabs = within(screen.getByRole("tablist", { name: "Open documents" })).getAllByRole(
+			"tab",
+		);
 		expect(tabs).toHaveLength(2);
 
-		const panel = screen.getByRole("tabpanel");
+		const panel = within(screen.getByRole("main")).getByRole("tabpanel");
 		expect(panel.id).toBe("document-panel");
-		const selectedTab = screen.getByRole("tab", { selected: true });
+		const selectedTab = within(screen.getByRole("tablist", { name: "Open documents" })).getByRole(
+			"tab",
+			{ selected: true },
+		);
 		expect(selectedTab.id).toBe(`tab-${b}`);
 		expect(panel).toHaveAttribute("aria-labelledby", selectedTab.id);
 
@@ -121,8 +126,8 @@ describe("AppLayout document tabpanel relationship (#54 step 5)", () => {
 	it("renders no tablist or tabpanel with zero documents, keeping the new-document button and main landmark", () => {
 		render(<AppLayout />);
 
-		expect(screen.queryByRole("tablist")).toBeNull();
-		expect(screen.queryByRole("tabpanel")).toBeNull();
+		expect(screen.queryByRole("tablist", { name: "Open documents" })).toBeNull();
+		expect(within(screen.getByRole("main")).queryByRole("tabpanel")).toBeNull();
 		expect(screen.getByTestId("btn-new-document")).toBeInTheDocument();
 		expect(screen.getByRole("main")).toBeInTheDocument();
 	});

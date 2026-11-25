@@ -1,9 +1,31 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useUpdateStore } from "@/stores/update-store";
 import { DEFAULT_USER_SETTINGS } from "@/types/settings";
 import { SettingsDialog } from "./settings-dialog";
+
+beforeAll(() => {
+	Object.defineProperties(HTMLDialogElement.prototype, {
+		showModal: {
+			configurable: true,
+			value(this: HTMLDialogElement) {
+				this.open = true;
+			},
+		},
+		close: {
+			configurable: true,
+			value(this: HTMLDialogElement) {
+				this.open = false;
+			},
+		},
+	});
+});
+
+afterAll(() => {
+	Reflect.deleteProperty(HTMLDialogElement.prototype, "showModal");
+	Reflect.deleteProperty(HTMLDialogElement.prototype, "close");
+});
 
 beforeEach(() => {
 	useSettingsStore.setState({
@@ -57,6 +79,7 @@ describe("SettingsDialog", () => {
 		// Autosave is the first switch on the General tab (default: false)
 		const switches = screen.getAllByRole("switch");
 		const autosaveSwitch = switches[0];
+		expect(autosaveSwitch).toHaveAccessibleName("Autosave");
 		expect(autosaveSwitch).toHaveAttribute("aria-checked", "false");
 
 		fireEvent.click(autosaveSwitch);

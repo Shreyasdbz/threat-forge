@@ -23,6 +23,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 	const [query, setQuery] = useState("");
 	const [selectedIndex, setSelectedIndex] = useState(0);
+	const dialogRef = useRef<HTMLDialogElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const listRef = useRef<HTMLDivElement>(null);
 
@@ -91,7 +92,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 		if (open) {
 			setQuery("");
 			setSelectedIndex(0);
-			requestAnimationFrame(() => inputRef.current?.focus());
+			dialogRef.current?.showModal();
+			inputRef.current?.focus();
 		}
 	}, [open]);
 
@@ -110,6 +112,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
 	const executeCommand = useCallback(
 		(cmd: Command) => {
+			dialogRef.current?.close();
 			onClose();
 			// Defer execution slightly so the palette closes first
 			requestAnimationFrame(() => cmd.action());
@@ -136,6 +139,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 					break;
 				case "Escape":
 					e.preventDefault();
+					dialogRef.current?.close();
 					onClose();
 					break;
 			}
@@ -158,21 +162,20 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 	}
 
 	return (
-		<>
-			{/* Backdrop */}
-			<div
-				className="fixed inset-0 z-50 bg-black/50"
-				onClick={onClose}
-				onKeyDown={(e) => e.key === "Escape" && onClose()}
-				data-testid="command-palette-backdrop"
-			/>
-			{/* Palette */}
-			<div
-				className="fixed left-1/2 top-[20%] z-50 w-full max-w-lg -translate-x-1/2 rounded-editor-dialog border border-editor-separator bg-editor-raised shadow-editor-dialog"
-				data-testid="command-palette"
-			>
+		<dialog
+			ref={dialogRef}
+			aria-label="Command palette"
+			className="fixed inset-x-0 top-[16%] mx-auto max-h-[80%] w-[calc(100%-2rem)] max-w-lg overflow-hidden rounded-editor-dialog border border-editor-separator bg-editor-raised p-0 text-foreground shadow-editor-dialog backdrop:bg-black/50"
+			data-testid="command-palette"
+			onClose={onClose}
+			onClick={(event) => {
+				if (event.target === event.currentTarget) event.currentTarget.close();
+			}}
+			onKeyDown={(event) => event.stopPropagation()}
+		>
+			<div className="flex max-h-[75dvh] flex-col">
 				{/* Search input */}
-				<div className="flex items-center border-b border-border px-3">
+				<div className="flex shrink-0 items-center border-b border-border px-3 focus-within:ring-2 focus-within:ring-inset focus-within:ring-editor-accent">
 					<svg
 						className="mr-2 h-4 w-4 shrink-0 text-muted-foreground"
 						fill="none"
@@ -189,6 +192,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 					</svg>
 					<input
 						ref={inputRef}
+						aria-label="Search commands"
 						type="text"
 						value={query}
 						onChange={(e) => {
@@ -196,7 +200,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 							setSelectedIndex(0);
 						}}
 						onKeyDown={handleKeyDown}
-						className="w-full bg-transparent py-3 text-editor-body text-foreground outline-none placeholder:text-muted-foreground"
+						className="w-full bg-transparent py-3 text-editor-body text-foreground placeholder:text-muted-foreground focus-visible:outline-none"
 						placeholder="Type a command…"
 						data-testid="command-palette-input"
 					/>
@@ -238,6 +242,6 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 					))}
 				</div>
 			</div>
-		</>
+		</dialog>
 	);
 }

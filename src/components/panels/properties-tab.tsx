@@ -300,8 +300,8 @@ function ElementProperties({ elementId }: { elementId: string }) {
 
 	return (
 		<div className="flex flex-col gap-4">
-			<div className="flex items-center gap-2 pb-2">
-				<Box className="size-4 shrink-0 text-primary" aria-hidden="true" />
+			<div className="flex items-center gap-2">
+				<Box className="size-4 shrink-0 text-editor-secondary-label" aria-hidden="true" />
 				<h2 className="min-w-0 break-words text-editor-title3">{element.name}</h2>
 			</div>
 			<InspectorGroup title="Details">

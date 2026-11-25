@@ -6,7 +6,9 @@ test.describe("Dirty State — New opens a tab, Close still guards", () => {
 		await createModel(page);
 		// Add an element to make the model dirty
 		await addPaletteItem(page, "palette-item-generic");
-		await expect(page.getByRole("tab")).toHaveAccessibleName(/unsaved changes/);
+		await expect(
+			page.getByRole("tablist", { name: "Open documents" }).getByRole("tab"),
+		).toHaveAccessibleName(/unsaved changes/);
 	});
 
 	test("Cmd+N with unsaved changes opens a second tab and prompts nothing (#54)", async ({
@@ -22,13 +24,17 @@ test.describe("Dirty State — New opens a tab, Close still guards", () => {
 		await page.keyboard.press(`${modKey}+n`);
 
 		// A second tab opened and is now the active, empty document.
-		await expect(page.getByRole("tab")).toHaveCount(2);
-		await expect(page.getByRole("tab").nth(1)).toHaveAttribute("aria-selected", "true");
+		await expect(
+			page.getByRole("tablist", { name: "Open documents" }).getByRole("tab"),
+		).toHaveCount(2);
+		await expect(
+			page.getByRole("tablist", { name: "Open documents" }).getByRole("tab").nth(1),
+		).toHaveAttribute("aria-selected", "true");
 		await expect(page.locator("[data-testid^='node-']")).toHaveCount(0);
 		expect(dialogAppeared).toBe(false);
 
 		// The first document's node is preserved on its own tab.
-		await page.getByRole("tab").nth(0).click();
+		await page.getByRole("tablist", { name: "Open documents" }).getByRole("tab").nth(0).click();
 		await expect(page.locator("[data-testid^='node-']")).toHaveCount(1);
 	});
 
@@ -41,10 +47,12 @@ test.describe("Dirty State — New opens a tab, Close still guards", () => {
 
 		await page.getByTestId("btn-new").click();
 
-		await expect(page.getByRole("tab")).toHaveCount(2);
+		await expect(
+			page.getByRole("tablist", { name: "Open documents" }).getByRole("tab"),
+		).toHaveCount(2);
 		expect(dialogAppeared).toBe(false);
 		// The first document still has its node.
-		await page.getByRole("tab").nth(0).click();
+		await page.getByRole("tablist", { name: "Open documents" }).getByRole("tab").nth(0).click();
 		await expect(page.locator("[data-testid^='node-']")).toHaveCount(1);
 	});
 
@@ -61,9 +69,13 @@ test.describe("Dirty State — New opens a tab, Close still guards", () => {
 
 		// The prompt names unsaved changes; dismissing leaves the document and its node in place.
 		expect(dialogMessage).toContain("unsaved changes");
-		await expect(page.getByRole("tab")).toHaveCount(1);
+		await expect(
+			page.getByRole("tablist", { name: "Open documents" }).getByRole("tab"),
+		).toHaveCount(1);
 		await expect(page.locator("[data-testid^='node-']")).toHaveCount(1);
-		await expect(page.getByRole("tab")).toHaveAccessibleName(/unsaved changes/);
+		await expect(
+			page.getByRole("tablist", { name: "Open documents" }).getByRole("tab"),
+		).toHaveAccessibleName(/unsaved changes/);
 	});
 
 	test("Closing a dirty tab and accepting discards it", async ({ page }) => {
@@ -76,7 +88,9 @@ test.describe("Dirty State — New opens a tab, Close still guards", () => {
 
 		// The only document closed: the empty launch view returns.
 		await expect(page.getByTestId("empty-canvas")).toBeVisible();
-		await expect(page.getByRole("tab")).toHaveCount(0);
+		await expect(
+			page.getByRole("tablist", { name: "Open documents" }).getByRole("tab"),
+		).toHaveCount(0);
 	});
 
 	test("no dialog appears when creating a new model from a clean document", async ({ page }) => {
@@ -92,7 +106,9 @@ test.describe("Dirty State — New opens a tab, Close still guards", () => {
 		await page.keyboard.press(`${modKey}+n`);
 
 		// A second tab opens directly, with no dialog.
-		await expect(page.getByRole("tab")).toHaveCount(2);
+		await expect(
+			page.getByRole("tablist", { name: "Open documents" }).getByRole("tab"),
+		).toHaveCount(2);
 		expect(dialogAppeared).toBe(false);
 		await expect(page.getByTestId("canvas-area")).toBeVisible();
 	});
