@@ -58,7 +58,6 @@ function mergedCloseNeighbor(id: DocumentId): DocumentId | null {
 
 export function useFileOperations() {
 	const model = useModelStore((s) => s.model);
-	const filePath = useModelStore((s) => s.filePath);
 
 	const newModel = useCallback(async () => {
 		const adapter = await getFileAdapter();
@@ -108,60 +107,52 @@ export function useFileOperations() {
 		// syncFromModel runs from the DfdCanvas effect once the new bundle is active.
 	}, []);
 
-	const saveDocument = useCallback(
-		async (saveAs: boolean) => {
-			if (!model) return false;
-			const registry = useDocumentRegistry.getState();
-			const id = registry.activeDocumentId;
-			const target = (id && registry.getDocumentStores(id)?.model) || useModelStore;
-			if (target.getState().model !== model) return false;
-			const { fileRevision: expectedRevision, sourceYaml } = target.getState();
+	const saveDocument = useCallback(async (saveAs: boolean) => {
+		const registry = useDocumentRegistry.getState();
+		const id = registry.activeDocumentId;
+		const target = (id && registry.getDocumentStores(id)?.model) || useModelStore;
+		const { model, filePath, fileRevision: expectedRevision, sourceYaml } = target.getState();
+		if (!model) return false;
 
-			const identity = getAuthorIdentity();
-			const captured = captureActiveCanvas({
-				...model,
-				metadata: {
-					...model.metadata,
-					modified: todayString(),
-					modified_by: identity || model.metadata.modified_by,
-					last_edit_timestamp: Math.floor(Date.now() / 1000),
-				},
-			});
+		const identity = getAuthorIdentity();
+		const captured = captureActiveCanvas({
+			...model,
+			metadata: {
+				...model.metadata,
+				modified: todayString(),
+				modified_by: identity || model.metadata.modified_by,
+				last_edit_timestamp: Math.floor(Date.now() / 1000),
+			},
+		});
 
-			try {
-				const adapter = await getFileAdapter();
-				const saved = saveAs
-					? await adapter.saveThreatModel(captured, filePath, expectedRevision, true, sourceYaml)
-					: await adapter.saveThreatModel(captured, filePath, expectedRevision);
-				if (!saved) return false;
-				const path = typeof saved === "string" ? saved : saved.path;
-				const revision = typeof saved === "string" ? undefined : saved.revision;
-				const savedYaml = typeof saved === "string" ? undefined : saved.sourceYaml;
-				const current = target.getState();
-				if (current.model === model) {
-					current.setModel(captured, path, revision, savedYaml);
-					if (id) registry.setDocumentFileSettings(id, captured.metadata.settings ?? null);
-				} else if (
-					id &&
-					current.filePath === filePath &&
-					current.fileRevision === expectedRevision
-				) {
-					target.setState({
-						filePath: path,
-						fileRevision: revision,
-						sourceYaml: savedYaml,
-						fileSync: undefined,
-					});
-				}
-				return true;
-			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err);
-				window.alert(`Save failed: ${message}`);
-				return false;
+		try {
+			const adapter = await getFileAdapter();
+			const saved = saveAs
+				? await adapter.saveThreatModel(captured, filePath, expectedRevision, true, sourceYaml)
+				: await adapter.saveThreatModel(captured, filePath, expectedRevision);
+			if (!saved) return false;
+			const path = typeof saved === "string" ? saved : saved.path;
+			const revision = typeof saved === "string" ? undefined : saved.revision;
+			const savedYaml = typeof saved === "string" ? undefined : saved.sourceYaml;
+			const current = target.getState();
+			if (current.model === model) {
+				current.setModel(captured, path, revision, savedYaml);
+				if (id) registry.setDocumentFileSettings(id, captured.metadata.settings ?? null);
+			} else if (id && current.filePath === filePath && current.fileRevision === expectedRevision) {
+				target.setState({
+					filePath: path,
+					fileRevision: revision,
+					sourceYaml: savedYaml,
+					fileSync: undefined,
+				});
 			}
-		},
-		[model, filePath],
-	);
+			return true;
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			window.alert(`Save failed: ${message}`);
+			return false;
+		}
+	}, []);
 	const saveModel = useCallback(() => saveDocument(false), [saveDocument]);
 	const saveModelAs = useCallback(() => saveDocument(true), [saveDocument]);
 
