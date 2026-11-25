@@ -27,13 +27,13 @@ communicate layering; do not blur the diagram behind it.
 
 | Role | Size / line | Weight | Tracking | Use |
 | --- | ---: | ---: | ---: | --- |
-| Caption 2 | 11 / 16 | 500 | 0 | Count pills, shortcut glyphs, compact segmented labels; never instructions |
+| Caption 2 | 11 / 16 | 400 | 0 | Count pills and shortcut glyphs; never instructions |
 | Caption | 12 / 16 | 400 | 0 | Diagram metadata, status bar, helper text and IDs |
-| Footnote | 13 / 18 | 500 | 0 | Field labels, list section labels, one-line connector labels |
-| Body | 14 / 20 | 400 | 0 | Rows, controls, tooltips, inspector values and descriptions |
-| Headline | 14 / 20 | 600 | 0 | Node titles, current document, inspector section headers |
-| Title 3 | 18 / 24 | 600 | -0.015em | Panel and dialog titles |
-| Title 2 | 24 / 32 | 600 | -0.02em | Empty workspace title or an equivalent top-level heading |
+| Footnote | 12 / 16 | 500 | 0 | Field labels, list section labels, one-line connector labels |
+| Body | 13 / 20 | 400 | 0 | Rows, controls, tooltips, inspector values and descriptions |
+| Headline | 13 / 20 | 500 | 0 | Node titles, current document, inspector section headers |
+| Title 3 | 15 / 20 | 500 | 0 | Panel and dialog titles |
+| Title 2 | 22 / 28 | 590 | -0.015em | Empty workspace title |
 
 Use sentence case for prose and controls. Use weight to make the next thing to read obvious, not to
 make every label prominent. Truncate unbounded one-line names only when the full text remains
@@ -121,7 +121,7 @@ stored `.thf` colors on theme change or export.
 | --- | --- |
 | App shell and toolbar | One quiet 48 px strip. Separate command groups with short hairlines, not a border around each icon. Keep navigation stable with overflow titles; do not repeat shortcut hints under buttons. |
 | Sidebar library | Source list, not a card grid. Use category headers and 36 px minimum rows with aligned glyph and single-line label. Use description in a tooltip or details, not a second row. Keep drag/drop and keyboard discovery. |
-| Inspector segments | Equal-width segments in one inset track, selected as a surface or tinted fill. Use consistent text-first labels; add icons only if the whole control uses them. Keep all four labels readable at the default width. Conserve space by moving counts out of the segment when necessary, not clipping labels. Expose selected state to assistive tech. |
+| Inspector tabs | Equal-width, regular-weight labels above a single separator; mark selection with a rule. Use two columns when the pane is narrow rather than clipping labels. Arrow keys move focus; Enter or Space selects the tab. |
 | Document tabs | One row, underline or inset selection (not both); preserve close and pin targets, the existing keyboard model, and access to full names. Do not conflate document tabs with inspector segments. |
 | Inspector fields | Inset groups with a headline above, 8 px before the first row and 24 px between groups. Rows share one surface and internal hairlines. Place short label and control on a shared baseline, using stacked rows for long content or narrow panes. Use one compact inline color/opacity row with a named reset. |
 | Text inputs and selects | Use body type, an opaque fill and a clear focus boundary. Labels remain visible while typing; placeholders only provide examples. Align select chevrons to the right, with no second outline. |
@@ -155,6 +155,25 @@ stored `.thf` colors on theme change or export.
   depend on the browser's installed fonts for PNG rendering or include editor-only grid/handles.
 
 ## Sources and design decisions
+
+Use the [design review reference notes](editor-design-references.md) and check each changed
+workflow against these acceptance criteria:
+
+- **Hierarchy:** The saved architecture and the current editing task get the strongest visual
+  emphasis. Secondary chrome is regular or medium weight; strip out repeated counts, icons and
+  labels if they add no meaning. Check both a sparse document and a populated one.
+- **Rhythm:** Align panel labels and field insets on the 4/8 px rhythm. Use consistent icon scale
+  and stroke, and reserve accent for focus, selection, primary actions and document semantics.
+  Compare the same surface in light/dark at 1× and 2× device scale.
+- **Interaction:** Test the complete task using Tab, arrows, Enter/Space and Escape where
+  applicable. Confirm focus is visible and not hidden by chrome, dialogs return focus, and
+  selection is programmatically exposed. Every added control must be named and have at least
+  a 24×24 CSS px target; aim for 44×44 wherever possible.
+- **Adaptation:** Separately check 200% zoom, long titles, narrow panes and reduced motion.
+  Forms and controls wrap or scroll without clipping; only the diagram may require two axes.
+- **Contrast:** Meet 4.5:1 for normal text and 3:1 for meaningful controls and graphical cues.
+  Run axe on real editor states in both themes, and inspect states and graphics it cannot
+  certify. A zero-violation scan is not a substitute for keyboard or visual verification.
 
 - **Apple HIG:** [Typography](https://developer.apple.com/design/human-interface-guidelines/typography.md)
   for named styles, typographic hierarchy, and Dynamic Type behavior;
