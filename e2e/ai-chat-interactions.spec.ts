@@ -186,9 +186,9 @@ test.describe("Chat interactions", () => {
 			await input.fill(
 				"Line one\nLine two\nLine three\nLine four\nLine five\nLine six\nLine seven\nLine eight\nLine nine",
 			);
-			const grownHeight = (await input.boundingBox())?.height ?? 0;
-			expect(grownHeight).toBeGreaterThan(initialHeight);
-			expect(grownHeight).toBeLessThanOrEqual(160);
+			const inputHeight = async () => (await input.boundingBox())?.height ?? 0;
+			await expect.poll(inputHeight).toBeGreaterThan(initialHeight);
+			expect(await inputHeight()).toBeLessThanOrEqual(160);
 			await input.press("Shift+Enter");
 			await expect(input).toHaveValue(/Line nine\n/);
 			await input.press("Enter");
