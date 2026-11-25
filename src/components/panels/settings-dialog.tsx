@@ -80,6 +80,7 @@ export function SettingsDialog() {
 			ref={dialog}
 			aria-labelledby="settings-title"
 			data-testid="settings-dialog"
+			onClose={closeSettingsDialog}
 			className="fixed inset-0 m-auto h-[560px] max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-editor-dialog border border-editor-separator bg-editor-raised p-0 text-foreground shadow-editor-dialog backdrop:bg-black/50"
 			onClick={(e) => {
 				if (e.target === e.currentTarget) close();

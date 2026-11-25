@@ -124,3 +124,22 @@ test("keeps library results reachable below the fixed controls in the stacked ed
 	await page.mouse.wheel(0, 300);
 	await expect.poll(() => results.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
 });
+
+test("reopens both dialogs after a native dismissal request", async ({ page }) => {
+	await page.goto("/app");
+	const settingsButton = page.getByTestId("btn-settings-dialog");
+	for (const { id, open } of [
+		{ id: "settings-dialog", open: () => settingsButton.click() },
+		{ id: "command-palette", open: () => page.keyboard.press("Control+k") },
+	]) {
+		const dialog = page.getByTestId(id);
+		await open();
+		await expect(dialog).toBeVisible();
+		await dialog.evaluate((element: HTMLDialogElement) => element.requestClose());
+		await expect(dialog).toHaveCount(0);
+		await open();
+		await expect(dialog).toBeVisible();
+		await page.keyboard.press("Escape");
+		await expect(dialog).toBeHidden();
+	}
+});
