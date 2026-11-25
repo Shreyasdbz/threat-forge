@@ -1,5 +1,6 @@
 import { readThreatModelText } from "@/lib/thf-validation";
 import { serializeThreatModelYaml } from "@/lib/thf-yaml";
+import { loadThreatModelWasm } from "@/lib/threat-model-wasm";
 import type { ThreatModel } from "@/types/threat-model";
 import type { FileAdapter } from "./file-adapter";
 
@@ -51,8 +52,22 @@ export class BrowserFileAdapter implements FileAdapter {
 	}
 
 	async importThreatModel(): Promise<{ model: ThreatModel } | null> {
-		window.alert("Import is only available in the desktop app.");
-		return null;
+		const file = await pickFile(".tm7");
+		if (!file) return null;
+		if (!file.name.toLowerCase().endsWith(".tm7")) throw new Error("Choose a .tm7 file.");
+		if (file.size > 16 * 1024 * 1024) throw new Error("Choose a .tm7 file under 16 MiB.");
+		const text = await file.text();
+		try {
+			if (text.includes("<!DOCTYPE")) throw new Error();
+			const xml = new DOMParser().parseFromString(text, "application/xml");
+			if (xml.documentElement.localName !== "ThreatModel" || xml.querySelector("parsererror")) {
+				throw new Error();
+			}
+			const wasm = await loadThreatModelWasm();
+			return { model: readThreatModelText(wasm.import_tm7(text)) };
+		} catch {
+			throw new Error("Could not import the selected .tm7 file.");
+		}
 	}
 
 	async saveThreatModel(model: ThreatModel, _path: string | null): Promise<string | null> {

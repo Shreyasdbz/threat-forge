@@ -2,6 +2,7 @@ import {
 	BookOpen,
 	FileOutput,
 	FilePlus,
+	FileUp,
 	FolderOpen,
 	LayoutPanelLeft,
 	PanelRight,
@@ -35,7 +36,8 @@ export function TopMenuBar() {
 	const toggleRightPanel = useUiStore((s) => s.toggleRightPanel);
 	const openSettingsDialog = useSettingsStore((s) => s.openSettingsDialog);
 	const keytipsVisible = useSettingsStore((s) => s.settings.keytipsVisible);
-	const { newModel, openModel, saveModel, saveModelAs, exportAsHtml } = useFileOperations();
+	const { newModel, openModel, importModel, saveModel, saveModelAs, exportAsHtml } =
+		useFileOperations();
 	const [guidePickerOpen, setGuidePickerOpen] = useState(false);
 	const [editingTitle, setEditingTitle] = useState(false);
 	const [presentation, setPresentation] = useState<ThreatModel>();
@@ -139,6 +141,12 @@ export function TopMenuBar() {
 							);
 					}}
 					disabled={!model}
+				/>
+				<MenuButton
+					testId="btn-import"
+					icon={<FileUp className="h-3.5 w-3.5" />}
+					tooltip="Import Microsoft Threat Model (.tm7)"
+					onClick={() => void importModel()}
 				/>
 				{presentation && (
 					<DiagramPresentation model={presentation} onClose={() => setPresentation(undefined)} />

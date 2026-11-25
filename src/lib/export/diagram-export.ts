@@ -1,28 +1,16 @@
 import { isTauri } from "@/lib/platform";
 import { validateThreatModel } from "@/lib/thf-validation";
+import { loadThreatModelWasm } from "@/lib/threat-model-wasm";
 import type { ThreatModel } from "@/types/threat-model";
 
 export type DiagramFormat = "svg" | "png";
-
-interface SceneRenderer {
-	default: () => Promise<unknown>;
-	render_svg: (json: string) => string;
-	render_png: (json: string) => Uint8Array<ArrayBuffer>;
-}
-
-async function browserRenderer(): Promise<SceneRenderer> {
-	const url = new URL("/scene/renderer.js", window.location.origin).href;
-	const renderer: SceneRenderer = await import(/* @vite-ignore */ url);
-	await renderer.default();
-	return renderer;
-}
 
 export async function renderDiagramSvg(model: ThreatModel): Promise<string> {
 	if (isTauri()) {
 		const { renderDiagram } = await import("@/lib/adapters/tauri-file-adapter");
 		return renderDiagram(model);
 	}
-	const renderer = await browserRenderer();
+	const renderer = await loadThreatModelWasm();
 	return renderer.render_svg(JSON.stringify(validateThreatModel(model)));
 }
 
@@ -37,7 +25,7 @@ export async function saveDiagram(model: ThreatModel, format: DiagramFormat): Pr
 		await exportDiagram(model, format, filename);
 		return;
 	}
-	const renderer = await browserRenderer();
+	const renderer = await loadThreatModelWasm();
 	const json = JSON.stringify(validateThreatModel(model));
 	const blob =
 		format === "png"
