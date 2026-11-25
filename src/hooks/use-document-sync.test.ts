@@ -1,5 +1,7 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PropertiesTab } from "@/components/panels/properties-tab";
 import { useDocumentRegistry } from "@/stores/document-registry";
 import { createDocumentStores, setActiveStores } from "@/stores/document-stores";
 import type { ThreatModel } from "@/types/threat-model";
@@ -136,6 +138,43 @@ describe("desktop document sync", () => {
 			filePath: "/copy.thf",
 			fileSync: "unavailable",
 		});
+	});
+
+	it("preserves an uncommitted inspector field when the disk version changes", async () => {
+		const stores = open();
+		stores.model.getState().setModel(
+			{
+				...model("Original"),
+				elements: [
+					{
+						id: "api",
+						type: "process",
+						name: "API",
+						description: "",
+						trust_zone: "",
+						technologies: ["nginx"],
+						tags: [],
+					},
+				],
+			},
+			path,
+			"one",
+		);
+		stores.model.getState().setSelectedElement("api");
+		mocks.checkDocumentUpdate.mockResolvedValue(update);
+		renderHook(() => useDocumentSync());
+		render(createElement(PropertiesTab));
+		const field = screen.getByRole("textbox", { name: "Technologies" });
+		fireEvent.focus(field);
+		fireEvent.change(field, { target: { value: "nginx, TLS" } });
+		expect(stores.model.getState().isDirty).toBe(false);
+
+		await poll();
+		expect(stores.model.getState()).toMatchObject({ fileRevision: "one", fileSync: "conflict" });
+		expect(field).toHaveValue("nginx, TLS");
+		fireEvent.blur(field);
+		expect(stores.model.getState().model?.elements[0].technologies).toEqual(["nginx", "TLS"]);
+		expect(stores.model.getState().isDirty).toBe(true);
 	});
 
 	it("does not check disk in the browser", async () => {

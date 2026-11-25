@@ -1,8 +1,9 @@
 import { MarkerType } from "@xyflow/react";
 import { ArrowLeftRight, Box, MousePointer2, RotateCcw } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useId, useLayoutEffect, useState } from "react";
 import { getComponent, listCategories, listComponents } from "@/lib/registry/registry";
 import { type DfdEdge, type DfdEdgeData, useCanvasStore } from "@/stores/canvas-store";
+import { useActiveStores } from "@/stores/document-stores";
 import { useModelStore } from "@/stores/model-store";
 import { useUiStore } from "@/stores/ui-store";
 import type { DataFlow } from "@/types/threat-model";
@@ -50,7 +51,7 @@ export function PropertiesTab() {
 		if (!flow) {
 			return <p className="text-editor-caption text-muted-foreground">Data flow not found.</p>;
 		}
-		return <EdgeProperties flow={flow} />;
+		return <EdgeProperties key={flow.id} flow={flow} />;
 	}
 
 	if (selectedBoundaryId) {
@@ -62,7 +63,7 @@ export function PropertiesTab() {
 	}
 
 	if (selectedElementId) {
-		return <ElementProperties elementId={selectedElementId} />;
+		return <ElementProperties key={selectedElementId} elementId={selectedElementId} />;
 	}
 
 	return (
@@ -812,6 +813,15 @@ function CommaSeparatedField({
 }) {
 	const [rawText, setRawText] = useState(items.join(", "));
 	const [isFocused, setIsFocused] = useState(false);
+	const { inspectorDrafts } = useActiveStores();
+	const draftId = useId();
+
+	useLayoutEffect(
+		() => () => {
+			inspectorDrafts.delete(draftId);
+		},
+		[draftId, inspectorDrafts],
+	);
 
 	// Sync from external changes only when not focused
 	useEffect(() => {
@@ -821,12 +831,13 @@ function CommaSeparatedField({
 	}, [items, isFocused]);
 
 	const commitValue = useCallback(() => {
+		if (!inspectorDrafts.delete(draftId)) return;
 		const parsed = rawText
 			.split(",")
 			.map((s) => s.trim())
 			.filter((s) => s.length > 0);
 		onCommit(parsed);
-	}, [rawText, onCommit]);
+	}, [draftId, inspectorDrafts, rawText, onCommit]);
 
 	return (
 		<InspectorField label={label}>
@@ -834,7 +845,12 @@ function CommaSeparatedField({
 				type="text"
 				value={rawText}
 				placeholder={placeholder}
-				onChange={(e) => setRawText(e.target.value)}
+				onChange={(e) => {
+					const value = e.target.value;
+					if (value === items.join(", ")) inspectorDrafts.delete(draftId);
+					else inspectorDrafts.add(draftId);
+					setRawText(value);
+				}}
 				onFocus={() => setIsFocused(true)}
 				onBlur={() => {
 					setIsFocused(false);

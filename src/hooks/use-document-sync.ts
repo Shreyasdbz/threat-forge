@@ -45,11 +45,12 @@ async function refreshDocument(id: DocumentId, cancelled: () => boolean, discard
 		return;
 	}
 	if (
-		state.isDirty &&
-		(!discard ||
-			state.model !== discard.model ||
-			state.filePath !== discard.filePath ||
-			state.fileRevision !== discard.fileRevision)
+		stores.inspectorDrafts.size > 0 ||
+		(state.isDirty &&
+			(!discard ||
+				state.model !== discard.model ||
+				state.filePath !== discard.filePath ||
+				state.fileRevision !== discard.fileRevision))
 	) {
 		if (state.fileSync !== "conflict") stores.model.setState({ fileSync: "conflict" });
 		return;
