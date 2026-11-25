@@ -169,6 +169,22 @@ test("records a focused node's arrow-key movement as a document edit", async ({ 
 	);
 });
 
+test("preserves a focused off-grid node's vertical position on ArrowRight", async ({ page }) => {
+	await page.getByTestId("node-web-app").click();
+	const node = page.locator('.react-flow__node[data-id="web-app"]');
+	const position = () =>
+		node.evaluate((element) => {
+			const { m41, m42 } = new DOMMatrixReadOnly(getComputedStyle(element).transform);
+			return { x: m41, y: m42 };
+		});
+	const before = await position();
+	expect(before.y % 16).not.toBe(0);
+	await node.focus();
+	await page.keyboard.press("ArrowRight");
+	await expect.poll(async () => (await position()).x).toBeGreaterThan(before.x);
+	expect((await position()).y).toBe(before.y);
+});
+
 test("moves and resizes a group outline independently of its members, with undo", async ({
 	page,
 }) => {

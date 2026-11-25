@@ -96,7 +96,7 @@ export interface CanvasState {
 	pendingLayout: DiagramLayout | null;
 
 	// ReactFlow change handlers
-	onNodesChange: OnNodesChange<DfdNode>;
+	onNodesChange: (changes: Parameters<OnNodesChange<DfdNode>>[0], key?: string) => void;
 	resizeArchitectureGroup: (id: string, size: Size) => void;
 	onEdgesChange: OnEdgesChange<DfdEdge>;
 	setViewport: (viewport: Viewport) => void;
@@ -357,7 +357,7 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			return `boundary-${boundaryCounter}`;
 		},
 
-		onNodesChange: (changes) => {
+		onNodesChange: (changes, key) => {
 			const previousNodes = get().nodes;
 			// Capture pre-drag model snapshot BEFORE applying changes (nodes still have old positions)
 			const hasDragStart = changes.some((c) => c.type === "position" && c.dragging === true);
@@ -368,8 +368,26 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 				}
 			}
 
-			// Apply node changes (positions update here)
-			set({ nodes: applyNodeChanges(changes, previousNodes) as DfdNode[] });
+			const horizontal = key === "ArrowLeft" || key === "ArrowRight";
+			const vertical = key === "ArrowUp" || key === "ArrowDown";
+			let keyboardMoved = false;
+			const appliedChanges =
+				!preDragSnapshot && (horizontal || vertical)
+					? changes.map((change) => {
+							if (change.type !== "position" || change.dragging !== false || !change.position) {
+								return change;
+							}
+							const before = previousNodes.find((node) => node.id === change.id)?.position;
+							if (!before) return change;
+							const position = {
+								x: horizontal ? change.position.x : before.x,
+								y: vertical ? change.position.y : before.y,
+							};
+							keyboardMoved ||= position.x !== before.x || position.y !== before.y;
+							return { ...change, position };
+						})
+					: changes;
+			set({ nodes: applyNodeChanges(appliedChanges, previousNodes) as DfdNode[] });
 
 			// Handle drag end: push pre-drag snapshot to history, write new positions to model.
 			// Skip when altDragActive — the onNodeDragStop handler owns history for Alt+drag.
@@ -379,19 +397,7 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			const hasDragEnd = changes.some((c) => c.type === "position" && c.dragging === false);
 			if (hasDragEnd && !altDragActive) {
 				const model = deps.model.getState().model;
-				// React Flow emits completed positions without a drag start for keyboard moves.
-				const movedWithoutDrag =
-					!preDragSnapshot &&
-					changes.some((change) => {
-						if (change.type !== "position" || change.dragging !== false || !change.position) {
-							return false;
-						}
-						const before = previousNodes.find((node) => node.id === change.id)?.position;
-						return (
-							before != null && (before.x !== change.position.x || before.y !== change.position.y)
-						);
-					});
-				if (model && (preDragSnapshot || movedWithoutDrag)) {
+				if (model && (preDragSnapshot || keyboardMoved)) {
 					deps.history
 						.getState()
 						.pushSnapshot(preDragSnapshot ?? writePositionsToModel(model, previousNodes));
@@ -407,7 +413,7 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 							});
 						}
 					}
-					if (movedWithoutDrag) lastKeyboardMoveModel = updated;
+					if (keyboardMoved) lastKeyboardMoveModel = updated;
 					deps.model.setState({ model: updated, isDirty: true });
 				}
 			}

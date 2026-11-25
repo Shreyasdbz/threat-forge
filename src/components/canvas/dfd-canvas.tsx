@@ -14,7 +14,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Layers3, Map as MapIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import type { DfdEdge, DfdNode } from "@/stores/canvas-store";
 import { useCanvasStore } from "@/stores/canvas-store";
@@ -54,6 +54,11 @@ export function DfdCanvas() {
 	const nodes = useCanvasStore((s) => s.nodes);
 	const edges = useCanvasStore((s) => s.edges);
 	const onNodesChange = useCanvasStore((s) => s.onNodesChange);
+	const keyboardEvent = useRef<KeyboardEvent | null>(null);
+	const handleNodesChange = useCallback<typeof onNodesChange>(
+		(changes) => onNodesChange(changes, keyboardEvent.current?.key),
+		[onNodesChange],
+	);
 	const onEdgesChange = useCanvasStore((s) => s.onEdgesChange);
 	const setViewport = useCanvasStore((s) => s.setViewport);
 	const addElement = useCanvasStore((s) => s.addElement);
@@ -476,7 +481,13 @@ export function DfdCanvas() {
 			<ReactFlow<DfdNode, DfdEdge>
 				nodes={nodes}
 				edges={edges}
-				onNodesChange={onNodesChange}
+				onNodesChange={handleNodesChange}
+				onKeyDownCapture={(event) => {
+					keyboardEvent.current = event;
+				}}
+				onKeyDown={() => {
+					keyboardEvent.current = null;
+				}}
 				onEdgesChange={onEdgesChange}
 				onConnect={onConnect}
 				onConnectStart={onConnectStart}
