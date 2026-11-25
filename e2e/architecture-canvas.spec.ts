@@ -39,6 +39,14 @@ test("renders the neutral dot grid at a consistent diagram-space scale", async (
 	await expect(dot).toHaveCSS("fill", "rgb(100, 112, 129)");
 });
 
+test("uses Inter's optical metrics and kerning for canvas captions", async ({ page }) => {
+	const caption = page.getByTestId("node-api-gateway").getByText("dmz / nginx", { exact: true });
+	await expect(caption).toHaveCSS("font-kerning", "normal");
+	await expect(caption).toHaveCSS("font-optical-sizing", "auto");
+	await expect(caption).toHaveCSS("letter-spacing", "normal");
+	await expect(caption).toHaveCSS("text-rendering", /geometricprecision/i);
+});
+
 test("aligns inspector rows and section headings on the same inset", async ({ page }) => {
 	await page.getByTestId("node-web-app").click();
 	const panel = page.getByTestId("right-panel");
