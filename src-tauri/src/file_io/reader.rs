@@ -56,6 +56,10 @@ impl LegacyLayouts {
         self.0.is_empty()
     }
 
+    pub(super) fn has_unavailable(&self) -> bool {
+        self.0.iter().any(|(_, layout)| layout.is_none())
+    }
+
     pub fn merge_into(&self, model: &mut ThreatModel) {
         for (index, layout) in &self.0 {
             let Some(layout) = layout else { continue };

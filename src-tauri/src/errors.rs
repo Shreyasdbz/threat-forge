@@ -6,6 +6,9 @@ pub enum ThreatForgeError {
     #[error("The document changed on disk. Reopen it before saving, or save to a new file.")]
     DocumentConflict,
 
+    #[error("The legacy layout could not be loaded safely. Restore the layout file before saving this diagram.")]
+    LegacyLayoutUnavailable,
+
     #[error("The selected file is outside the approved location.")]
     UnapprovedPath,
 

@@ -169,8 +169,8 @@ pub async fn save_threat_model(
     model: ThreatModel,
     source_yaml: Option<String>,
 ) -> Result<Option<SavedDocument>, String> {
-    let (path, is_copy) = match (path, save_as) {
-        (Some(path), false) => (approved.require(&path)?, false),
+    let (destination, is_copy) = match (&path, save_as) {
+        (Some(path), false) => (approved.require(path)?, false),
         (current, _) => {
             let Some(picked) = app
                 .dialog()
@@ -187,10 +187,18 @@ pub async fn save_threat_model(
         }
     };
     let written = if is_copy {
+        if let Some(source) = &path {
+            file_io::verify_desktop_copy_source(
+                &approved.require(source)?,
+                expected_revision.as_deref(),
+                source_yaml.as_deref(),
+            )
+            .map_err(|error| error.user_message())?;
+        }
         let destination_revision =
-            file_io::destination_revision(&path).map_err(|error| error.user_message())?;
+            file_io::destination_revision(&destination).map_err(|error| error.user_message())?;
         file_io::copy_document(
-            &path,
+            &destination,
             destination_revision.as_deref(),
             model,
             source_yaml.as_deref(),
@@ -198,11 +206,11 @@ pub async fn save_threat_model(
     } else {
         let expected_revision =
             expected_revision.ok_or("Reopen the file before saving, or save to a new file.")?;
-        file_io::write_desktop_document(&path, &expected_revision, model)
+        file_io::write_desktop_document(&destination, &expected_revision, model)
     }
     .map_err(|error| error.user_message())?;
     Ok(Some(SavedDocument {
-        path,
+        path: destination,
         revision: written.revision,
         source_yaml: written.yaml,
     }))
@@ -312,5 +320,44 @@ mod tests {
         assert!(file_io::read_document_if_changed(&path, &saved.revision)
             .unwrap()
             .is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn desktop_refuses_to_replace_unreadable_sidecar_with_fallback_layout() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("model.thf");
+        let yaml = include_str!("../../../tests/fixtures/thf/legacy-sidecar/model.thf");
+        let layout = include_str!(
+            "../../../tests/fixtures/thf/legacy-sidecar/.threatforge/layouts/main-dfd.json"
+        );
+        let storage = dir.path().join("storage/layouts");
+        std::fs::create_dir_all(&storage).unwrap();
+        std::fs::write(storage.join("main-dfd.json"), layout).unwrap();
+        std::os::unix::fs::symlink("storage", dir.path().join(".threatforge")).unwrap();
+        std::fs::write(&path, yaml).unwrap();
+        let snapshot = file_io::read_desktop_document(&path).unwrap();
+        assert!(snapshot.model.diagrams[0].viewport.is_none());
+        assert!(matches!(
+            file_io::verify_desktop_copy_source(&path, Some(&snapshot.revision), Some(yaml)),
+            Err(crate::errors::ThreatForgeError::LegacyLayoutUnavailable)
+        ));
+        let mut proposed = snapshot.model;
+        proposed.diagrams[0].layout_file = None;
+        proposed.diagrams[0].viewport = Some(crate::models::Viewport {
+            x: 0.0,
+            y: 0.0,
+            zoom: 1.0,
+        });
+        let result = file_io::write_desktop_document(&path, &snapshot.revision, proposed);
+        assert!(matches!(
+            result,
+            Err(crate::errors::ThreatForgeError::LegacyLayoutUnavailable)
+        ));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), yaml);
+        assert_eq!(
+            std::fs::read_to_string(storage.join("main-dfd.json")).unwrap(),
+            layout
+        );
     }
 }

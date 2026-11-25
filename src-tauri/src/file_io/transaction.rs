@@ -126,6 +126,25 @@ pub(crate) fn write_desktop_document(
     )
 }
 
+pub(crate) fn verify_desktop_copy_source(
+    path: &Path,
+    expected: Option<&str>,
+    source_yaml: Option<&str>,
+) -> Result<(), ThreatForgeError> {
+    if let Some(yaml) = source_yaml {
+        let source = parse_document(path, yaml.as_bytes())?;
+        if source
+            .model
+            .diagrams
+            .iter()
+            .any(|diagram| diagram.layout_file.is_some() && diagram.viewport.is_none())
+        {
+            WriteTarget::from_path(path)?.checked_destination(expected, true)?;
+        }
+    }
+    Ok(())
+}
+
 pub fn copy_document(
     path: &Path,
     expected: Option<&str>,
@@ -382,7 +401,11 @@ impl WriteTarget {
                 let content = revision(&bytes);
                 let current = if desktop {
                     let snapshot = parse_document(self.path(), &bytes)?;
-                    desktop_revision(&content, &self.read_layouts(&snapshot.model))?
+                    let layouts = self.read_layouts(&snapshot.model);
+                    if layouts.has_unavailable() {
+                        return Err(ThreatForgeError::LegacyLayoutUnavailable);
+                    }
+                    desktop_revision(&content, &layouts)?
                 } else {
                     content
                 };
