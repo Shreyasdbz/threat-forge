@@ -149,15 +149,13 @@ test("previews configured appearance colors and keeps default opacity aligned", 
 	await expect(swatch(fill)).toHaveCSS("background-image", "none");
 });
 
-test("keeps the connector inspector usable with invalid colors in browser files", async ({
-	page,
-}) => {
+test("keeps stored connector colors resettable even without a hex preview", async ({ page }) => {
 	const fixture = readFileSync("tests/fixtures/thf/architecture-canonical-full.thf", "utf8");
 	const malformed = fixture
-		.replace("stroke_color: '#ef4444'", "stroke_color: 123")
+		.replace("stroke_color: '#ef4444'", "stroke_color: 0")
 		.replace(
 			"target_handle: top\nrelationships:",
-			"target_handle: top\n  stroke_color: invalid\nrelationships:",
+			"target_handle: top\n  stroke_color: red\nrelationships:",
 		);
 	const chooser = page.waitForEvent("filechooser");
 	await page.getByTestId("btn-open").click();
@@ -166,15 +164,25 @@ test("keeps the connector inspector usable with invalid colors in browser files"
 		mimeType: "text/plain",
 		buffer: Buffer.from(malformed),
 	});
+	await expect(page.getByRole("tab", { name: "invalid-connector-colors" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	const namedEdge = page.locator('.react-flow__edge[data-id="flow-2"] .react-flow__edge-path');
+	await expect(namedEdge).toHaveCSS("stroke", "rgb(255, 0, 0)");
 	for (const id of ["flow-1", "flow-2"]) {
 		await page.getByTestId(`flow-label-${id}`).click();
 		const panel = page.getByTestId("right-panel");
 		const stroke = panel.getByLabel("Stroke Color", { exact: true });
+		const reset = panel.getByRole("button", { name: "Reset stroke color to default" });
+		await expect(reset).toBeVisible();
+		await expect(stroke).toHaveAttribute("aria-description", "Color preview unavailable");
+		await reset.click();
 		await expect(stroke).toHaveAttribute("aria-description", "Default color");
-		await expect(panel.getByRole("button", { name: "Reset stroke color to default" })).toHaveCount(
-			0,
-		);
+		await expect(reset).toHaveCount(0);
 	}
+	await page.getByTestId("node-web-app").click();
+	await expect(namedEdge).not.toHaveCSS("stroke", "rgb(255, 0, 0)");
 });
 
 test("insets the compact horizontal canvas controls", async ({ page }) => {

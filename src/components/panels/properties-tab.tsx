@@ -102,7 +102,7 @@ function EdgeProperties({ flow }: { flow: DataFlow }) {
 
 	// Read current colors from canvas edge data
 	const edge = useCanvasStore((s) => s.edges.find((e) => e.id === flow.id));
-	const strokeColor = (edge?.data?.strokeColor as string) ?? "";
+	const strokeColor = edge?.data?.strokeColor as string | undefined;
 	const strokeOpacity = (edge?.data?.strokeOpacity as number) ?? 1;
 
 	const fromElement = model?.elements.find((e) => e.id === flow.from);
@@ -263,8 +263,8 @@ function ElementProperties({ elementId }: { elementId: string }) {
 
 	// Read current colors from canvas node data (must be before early return for hooks rules)
 	const node = useCanvasStore((s) => s.nodes.find((n) => n.id === elementId));
-	const fillColor = (node?.data.elementFillColor as string) ?? "";
-	const strokeColor = (node?.data.elementStrokeColor as string) ?? "";
+	const fillColor = node?.data.elementFillColor;
+	const strokeColor = node?.data.elementStrokeColor;
 	const fillOpacity = (node?.data.elementFillOpacity as number) ?? 0.15;
 	const strokeOpacity = (node?.data.elementStrokeOpacity as number) ?? 1.0;
 
@@ -593,8 +593,8 @@ function TrustBoundaryProperties({ boundaryId }: { boundaryId: string }) {
 
 	// Read current colors from canvas node data
 	const node = useCanvasStore((s) => s.nodes.find((n) => n.id === boundaryId));
-	const fillColor = (node?.data.boundaryFillColor as string) ?? "";
-	const strokeColor = (node?.data.boundaryStrokeColor as string) ?? "";
+	const fillColor = node?.data.boundaryFillColor;
+	const strokeColor = node?.data.boundaryStrokeColor;
 	const fillOpacity = (node?.data.boundaryFillOpacity as number) ?? 0.05;
 	const strokeOpacity = (node?.data.boundaryStrokeOpacity as number) ?? 0.6;
 
@@ -685,6 +685,7 @@ function ColorField({
 	onColorChange: (color: string) => void;
 	onOpacityChange: (opacity: number) => void;
 }) {
+	const hasStoredColor = color != null;
 	const hex =
 		typeof color === "string" ? color.match(/^#([\da-f]{3}|[\da-f]{6})$/i)?.[1] : undefined;
 	const swatchColor =
@@ -693,6 +694,11 @@ function ColorField({
 			: hex
 				? `#${hex}`
 				: undefined;
+	const description = swatchColor
+		? undefined
+		: hasStoredColor
+			? "Color preview unavailable"
+			: "Default color";
 	return (
 		<div className={ROW}>
 			<span className={LABEL}>{label}</span>
@@ -701,13 +707,13 @@ function ColorField({
 					<span
 						aria-hidden="true"
 						style={{ backgroundColor: swatchColor }}
-						className={`size-5 rounded-sm border border-editor-outline ${swatchColor ? "" : "bg-linear-to-br from-transparent from-45% via-editor-secondary-label via-50% to-transparent to-55%"}`}
+						className={`size-5 rounded-sm border border-editor-outline ${hasStoredColor ? "bg-editor-fill" : "bg-linear-to-br from-transparent from-45% via-editor-secondary-label via-50% to-transparent to-55%"}`}
 					/>
 					<input
 						type="color"
 						aria-label={label}
-						aria-description={swatchColor ? undefined : "Default color"}
-						title={swatchColor ?? "Default color"}
+						aria-description={description}
+						title={swatchColor ?? description}
 						value={swatchColor ?? "#888888"}
 						onChange={(e) => onColorChange(e.target.value)}
 						className="absolute inset-0 size-full cursor-pointer opacity-0"
@@ -730,7 +736,7 @@ function ColorField({
 					/>
 					%
 				</label>
-				{swatchColor ? (
+				{hasStoredColor ? (
 					<button
 						type="button"
 						onClick={() => onColorChange("")}
