@@ -71,7 +71,7 @@ export function ComponentPalette() {
 	}, [filteredComponents]);
 
 	return (
-		<div data-testid="component-palette" className="flex h-full min-h-0 flex-col">
+		<div data-testid="component-palette" className="flex min-h-0 flex-col md:h-full">
 			{/* Generic section */}
 			<div className="shrink-0 px-4 pt-4 pb-2">
 				<h2 className="text-editor-footnote text-muted-foreground">Generic</h2>
@@ -141,7 +141,7 @@ export function ComponentPalette() {
 			{/* Component list */}
 			<section
 				aria-label="Library components"
-				className="min-h-0 flex-1 overflow-y-auto px-3 pb-4"
+				className="h-32 min-h-0 overflow-y-auto px-3 pb-4 md:h-auto md:flex-1"
 				// biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region must be focusable for keyboard access
 				tabIndex={0}
 				onKeyDown={(event) => {

@@ -100,3 +100,27 @@ test("scrolls the focused inspector without moving the selected canvas node", as
 	await expect.poll(() => panel.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
 	await expect(nodeWrapper).toHaveCSS("transform", position);
 });
+
+test("keeps library results reachable below the fixed controls in the stacked editor", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 720, height: 450 });
+	await page.goto("/app");
+	await openDocument(page, fixture);
+	const results = page.getByRole("region", { name: "Library components" });
+	await results.hover();
+	const { height, bottom, canvasTop } = await results.evaluate((element) => {
+		const bounds = element.getBoundingClientRect();
+		const canvas = document.querySelector("main");
+		if (!canvas) throw new Error("Canvas is missing");
+		return {
+			height: bounds.height,
+			bottom: bounds.bottom,
+			canvasTop: canvas.getBoundingClientRect().top,
+		};
+	});
+	expect(height).toBeGreaterThanOrEqual(40);
+	expect(bottom).toBeLessThanOrEqual(canvasTop);
+	await page.mouse.wheel(0, 300);
+	await expect.poll(() => results.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+});

@@ -132,7 +132,7 @@ export function AppLayout() {
 						{/* Left sidebar — Component palette */}
 						{leftPanelOpen && (
 							<aside
-								className="relative h-48 w-full shrink-0 border-b border-editor-separator bg-editor-grouped-background md:h-auto md:w-(--pane-width) md:border-b-0 md:border-r"
+								className="relative w-full shrink-0 border-b border-editor-separator bg-editor-grouped-background md:w-(--pane-width) md:border-b-0 md:border-r"
 								style={{ "--pane-width": `${leftPanelWidth}px` } as React.CSSProperties}
 							>
 								<ComponentPalette />
