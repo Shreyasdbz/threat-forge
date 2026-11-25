@@ -76,8 +76,11 @@ Layout data (positions, sizes, colors, viewport) is stored **inline** on each en
 Current files store layout inline and require no sidecar. Older models may reference
 `.threatforge/layouts/*.json` through `diagrams[].layout_file`. On desktop open, the Rust backend
 reads an available legacy sidecar and merges its positions and viewport into the in-memory model.
-New saves write inline layout and omit `layout_file`. Missing legacy sidecars are tolerated so the
-model remains usable without recovered layout.
+If the sidecar cannot be loaded, you can still open the model, but desktop Save and Save As
+refuse to replace the missing layout with fallback geometry. Restore the sidecar and reopen
+the model before saving. Once loaded, Save writes the layout inline and omits `layout_file`.
+Save As can also write a new file from a snapshot whose layout was loaded, even if the source
+model has changed on disk.
 
 ## Full Example
 
