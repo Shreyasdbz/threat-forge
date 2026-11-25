@@ -149,6 +149,13 @@ jobs:
           cargo fetch --manifest-path src-tauri/Cargo.toml --locked
           cargo test --manifest-path src-tauri/Cargo.toml --frozen
 
+      - name: Compare browser downloads with MCP exports
+        env:
+          THREATFORGE_MCP_BINARY: ./src-tauri/target/debug/threatforge-mcp
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test e2e/export-parity.spec.ts
+
   e2e:
     name: E2E Tests
     needs: [test]
