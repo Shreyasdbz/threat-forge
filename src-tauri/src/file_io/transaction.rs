@@ -1,4 +1,4 @@
-use super::reader::validate_model;
+use super::reader::{validate_model, LegacyLayouts};
 use crate::errors::ThreatForgeError;
 use crate::models::ThreatModel;
 use cap_fs_ext::{DirExt, FollowSymlinks, MetadataExt, OpenOptionsFollowExt};
@@ -221,6 +221,33 @@ impl WriteTarget {
                 source,
             })?;
         parse_document(&self.path, &bytes)
+    }
+
+    pub(crate) fn read_layouts(&self, model: &ThreatModel) -> LegacyLayouts {
+        LegacyLayouts::capture(model, |relative| {
+            if relative.extension()?.to_str()? != "json" {
+                return None;
+            }
+            let mut components = relative.components().peekable();
+            let mut dir = self.dir.try_clone().ok()?;
+            while let Some(part) = components.next() {
+                let Component::Normal(name) = part else {
+                    return None;
+                };
+                if components.peek().is_some() {
+                    dir = dir.open_dir_nofollow(name).ok()?;
+                } else if dir.symlink_metadata(name).ok()?.is_file() {
+                    let file = dir
+                        .open_with(
+                            name,
+                            OpenOptions::new().read(true).follow(FollowSymlinks::No),
+                        )
+                        .ok()?;
+                    return serde_json::from_reader(file).ok();
+                }
+            }
+            None
+        })
     }
 
     pub(crate) fn read_document_for_search(

@@ -6,7 +6,7 @@ use super::journal::Journal;
 use super::layout;
 use super::workspace::{Workspace, MAX_RESULTS};
 use crate::file_io::{
-    merge_layout_into_model, prepare_document, resolve_target, DocumentSnapshot, LegacyLayouts,
+    prepare_document, resolve_target, DocumentSnapshot, LegacyLayouts, WriteTarget,
 };
 use crate::scene::Scene;
 use base64::{engine::general_purpose::STANDARD, Engine};
@@ -166,12 +166,17 @@ impl ThreatForgeServer {
     }
 
     fn read(&self) -> Result<(PathBuf, DocumentSnapshot), ErrorData> {
+        let (target, snapshot) = self.read_target()?;
+        Ok((target.path().to_owned(), snapshot))
+    }
+
+    fn read_target(&self) -> Result<(WriteTarget, DocumentSnapshot), ErrorData> {
         let path = self.active_path()?;
         let target = self.write_workspace.write_target(&path).map_err(mcp_err)?;
         let snapshot = target
             .read_document()
             .map_err(|error| mcp_err(error.user_message()))?;
-        Ok((path, snapshot))
+        Ok((target, snapshot))
     }
 
     fn save(&self, path: &Path, revision: &str, model: ThreatModel) -> Result<String, ErrorData> {
@@ -525,9 +530,10 @@ impl ThreatForgeServer {
                 revision,
                 ..
             },
-        ) = self.read()?;
-        let layouts = LegacyLayouts::read(&model, &path);
-        let document_token = document_revision(&path, &revision);
+        ) = self.read_target()?;
+        let layouts = path.read_layouts(&model);
+        let path = path.path();
+        let document_token = document_revision(path, &revision);
         let preview_token = preview_revision(&document_token, &layouts)?;
         if req
             .expected_revision
@@ -547,7 +553,7 @@ impl ThreatForgeServer {
         let revision = if req.dry_run {
             preview_token
         } else {
-            document_revision(&path, &self.save(&path, &revision, model)?)
+            document_revision(path, &self.save(path, &revision, model)?)
         };
         json_result(serde_json::json!({
             "dry_run": req.dry_run, "revision": revision, "results": results
@@ -926,7 +932,7 @@ impl ThreatForgeServer {
 
 impl ThreatForgeServer {
     async fn export(&self, req: ExportRequest, raster: bool) -> Result<CallToolResult, ErrorData> {
-        let (model_path, snapshot) = self.read()?;
+        let (model_target, snapshot) = self.read_target()?;
         let extension = if raster { "png" } else { "svg" };
         let output = req
             .path
@@ -941,7 +947,7 @@ impl ThreatForgeServer {
         let workspace = Arc::clone(&self.write_workspace);
         tokio::task::spawn_blocking(move || {
             let mut model = snapshot.model;
-            merge_layout_into_model(&mut model, &model_path);
+            model_target.read_layouts(&model).merge_into(&mut model);
             let scene = Scene::from_model(&model).map_err(mcp_err)?;
             let svg = (!raster)
                 .then(|| scene.svg())
@@ -980,14 +986,14 @@ impl ThreatForgeServer {
                 revision,
                 ..
             },
-        ) = self.read()?;
+        ) = self.read_target()?;
         let layouts = if matches!(&mutation, Mutation::MoveNode(_)) {
-            LegacyLayouts::read(&model, &path)
+            path.read_layouts(&model)
         } else {
             LegacyLayouts::default()
         };
         let result = mutation.apply_prepared(&mut model, &layouts)?;
-        self.save(&path, &revision, model)?;
+        self.save(path.path(), &revision, model)?;
         match result {
             serde_json::Value::String(message) => Ok(text_result(message)),
             details => json_result(details),
@@ -1277,13 +1283,15 @@ impl ServerHandler for ThreatForgeServer {
                 ))
             }
         };
-        let (path, mut snapshot) = self.read()?;
+        let (target, mut snapshot) = self.read_target()?;
         let text = if request.uri == MODEL_RESOURCE {
             snapshot
                 .source_yaml()
                 .map_err(|error| mcp_err(error.user_message()))?
         } else {
-            merge_layout_into_model(&mut snapshot.model, &path);
+            target
+                .read_layouts(&snapshot.model)
+                .merge_into(&mut snapshot.model);
             Scene::from_model(&snapshot.model)
                 .and_then(|scene| scene.svg())
                 .map_err(mcp_err)?

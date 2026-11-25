@@ -104,6 +104,42 @@ impl Workspace {
 mod tests {
     use super::*;
 
+    #[test]
+    fn legacy_layout_reads_stay_with_the_opened_model_directory() {
+        let root = tempfile::tempdir().unwrap();
+        let folder = root.path().join("diagrams");
+        let original = root.path().join("original");
+        fs::create_dir(&folder).unwrap();
+        fs::write(
+            folder.join("model.thf"),
+            include_str!("../../../tests/fixtures/thf/legacy-sidecar/model.thf"),
+        )
+        .unwrap();
+        let name = ".threatforge/layouts/main-dfd.json";
+        fs::create_dir_all(folder.join(".threatforge/layouts")).unwrap();
+        fs::write(
+            folder.join(name),
+            include_str!(
+                "../../../tests/fixtures/thf/legacy-sidecar/.threatforge/layouts/main-dfd.json"
+            ),
+        )
+        .unwrap();
+        let workspace = Workspace::new(root.path()).unwrap();
+        let target = workspace.write_target(&folder.join("model.thf")).unwrap();
+        let mut snapshot = target.read_document().unwrap();
+        fs::rename(&folder, &original).unwrap();
+        fs::create_dir_all(folder.join(".threatforge/layouts")).unwrap();
+        fs::write(folder.join(name), "{\"nodes\":[]}").unwrap();
+        target
+            .read_layouts(&snapshot.model)
+            .merge_into(&mut snapshot.model);
+        assert!(snapshot
+            .model
+            .elements
+            .iter()
+            .any(|element| element.position.is_some()));
+    }
+
     #[cfg(unix)]
     #[test]
     fn writes_use_the_opened_directory_when_its_former_path_changes() {

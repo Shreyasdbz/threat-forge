@@ -47,6 +47,16 @@ impl LegacyLayouts {
         let Some(model_dir) = model_path.parent() else {
             return Self::default();
         };
+        Self::capture(model, |relative| {
+            let path = super::resolve_sidecar(model_dir, relative).ok()?;
+            read_layout(&path).ok()
+        })
+    }
+
+    pub(crate) fn capture(
+        model: &ThreatModel,
+        read: impl Fn(&Path) -> Option<DiagramLayout>,
+    ) -> Self {
         Self(
             model
                 .diagrams
@@ -57,9 +67,7 @@ impl LegacyLayouts {
                     else {
                         return None;
                     };
-                    let layout = super::resolve_sidecar(model_dir, Path::new(layout_file))
-                        .ok()
-                        .and_then(|path| read_layout(&path).ok());
+                    let layout = read(Path::new(layout_file));
                     Some((index, layout))
                 })
                 .collect(),
