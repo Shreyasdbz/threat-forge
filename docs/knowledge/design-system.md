@@ -20,7 +20,11 @@ symbols, not control icons. Keep shortcuts available in button labels and the
 shortcuts dialog rather than repeating them under icons. Error, warning and
 success colors are for states, never for routine navigation.
 
+Groups use transparent interiors, and boundary fills never exceed 3% opacity.
+Use document colors on thin outlines and label dots rather than broad surfaces.
+The minimap is off by default and available from the zoom controls.
+
 SVG and PNG exports share the Rust renderer and a neutral light background for
-legibility outside the editor. Explicit document colors survive export; default
-groups are unfilled and default nodes and flows use the neutral diagram palette.
-Browser and MCP must render identical bytes for the same document and options.
+legibility outside the editor. They keep the same container treatment and retain
+explicit component colors. Browser and MCP must render identical bytes for the
+same document and options.

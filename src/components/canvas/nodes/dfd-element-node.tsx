@@ -1,6 +1,7 @@
 import type { NodeProps } from "@xyflow/react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { IconRenderer } from "@/components/icons/icon-renderer";
+import { DEFAULT_NODE_WIDTH } from "@/lib/canvas-utils";
 import { resolveComponent, resolveElementIcon } from "@/lib/registry/registry";
 import type { ShapeKind } from "@/lib/registry/types";
 import { cn } from "@/lib/utils";
@@ -122,21 +123,14 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 						onDoubleClick={() => setIsEditing(true)}
 					>
 						<IconRenderer icon={resolvedIcon} className="h-4 w-4 shrink-0 text-muted-foreground" />
-						<span title={nodeData.label} className="line-clamp-2 wrap-anywhere">
+						<span title={nodeData.label} className="truncate">
 							{nodeData.label}
 						</span>
 					</div>
 				)}
-				{nodeData.trustZone && (
-					<div className="text-editor-small text-muted-foreground">{nodeData.trustZone}</div>
-				)}
-				{nodeData.technologies.length > 0 && (
-					<div className="flex flex-wrap justify-center gap-1">
-						{nodeData.technologies.map((tech) => (
-							<span key={tech} className="px-1 text-editor-small text-muted-foreground">
-								{tech}
-							</span>
-						))}
+				{(nodeData.trustZone || nodeData.technologies.length > 0) && (
+					<div className="mt-1 truncate text-editor-small text-muted-foreground">
+						{[nodeData.trustZone, nodeData.technologies.join(" · ")].filter(Boolean).join(" / ")}
 					</div>
 				)}
 			</div>
@@ -177,8 +171,9 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 				<div
 					className={cn(
 						"group relative flex items-center justify-center px-5 py-3 transition-colors",
-						nodeData.elementSize ? "h-full w-full overflow-hidden" : "min-h-[72px] w-[176px]",
+						nodeData.elementSize ? "h-full w-full overflow-hidden" : "min-h-[72px]",
 					)}
+					style={nodeData.elementSize ? undefined : { width: DEFAULT_NODE_WIDTH }}
 				>
 					{innerContent}
 				</div>
@@ -191,13 +186,13 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 			data-testid={`node-${id}`}
 			className={cn(
 				"group relative flex items-center justify-center bg-editor-surface px-3 py-2 transition-colors",
-				nodeData.elementSize ? "h-full w-full overflow-hidden" : "min-h-[72px] w-[176px]",
+				nodeData.elementSize ? "h-full w-full overflow-hidden" : "min-h-[72px]",
 				shapeClass(shape),
 				!hasCustomColors && (selected ? "border-editor-accent" : "border-editor-outline"),
 				hasCustomColors && selected && "ring-2 ring-tf-signal ring-offset-1 ring-offset-background",
 				connectedToSelectedEdge && !selected && "ring-2 ring-tf-signal/30",
 			)}
-			style={hasCustomColors ? customStyle : undefined}
+			style={{ width: nodeData.elementSize ? undefined : DEFAULT_NODE_WIDTH, ...customStyle }}
 		>
 			{innerContent}
 		</div>

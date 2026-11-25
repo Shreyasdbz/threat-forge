@@ -208,9 +208,13 @@ html.light {
 		width: 100%;
 	}
 
+	.react-flow__minimap-node {
+		vector-effect: non-scaling-stroke;
+	}
+
 	/* Ensure edge labels render above connector lines */
 	.react-flow__edgelabel-renderer {
-		z-index: 5;
+		z-index: 2001;
 	}
 
 	/* Edge reconnect grab handles — circles at edge endpoints for drag-to-reconnect */

@@ -10,10 +10,20 @@ export function ArchitectureGroupNode({ id, data }: NodeProps<DfdNode>) {
 	return (
 		<div
 			data-testid={`group-${data.architectureGroupId}`}
-			className="size-full rounded-editor-panel border border-editor-outline"
+			className="group size-full rounded-editor-panel border border-editor-outline"
+			style={{
+				borderColor: data.groupAccent
+					? `color-mix(in srgb, ${data.groupAccent} ${Math.min(data.groupStrokeOpacity ?? 0.6, 0.6) * 100}%, transparent)`
+					: undefined,
+			}}
 		>
-			<div className="architecture-group-drag-handle pointer-events-auto absolute left-2 top-5 max-w-[calc(100%-1rem)] cursor-grab truncate rounded-editor-control bg-editor-canvas px-2 py-1 text-editor-small font-semibold text-muted-foreground active:cursor-grabbing">
-				{data.label}
+			<div className="architecture-group-drag-handle pointer-events-auto absolute inset-x-0 top-0 flex cursor-grab items-center gap-2 px-4 py-3 text-editor-small font-semibold text-muted-foreground active:cursor-grabbing">
+				<span
+					aria-hidden="true"
+					className="size-1.5 shrink-0 rounded-full bg-editor-outline"
+					style={{ backgroundColor: data.groupAccent }}
+				/>
+				<span className="truncate">{data.label}</span>
 			</div>
 			{!locked && (
 				<NodeResizeControl
@@ -22,7 +32,7 @@ export function ArchitectureGroupNode({ id, data }: NodeProps<DfdNode>) {
 					maxWidth={4096}
 					maxHeight={4096}
 					onResizeEnd={(_event, { width, height }) => resize(id, { width, height })}
-					className="!pointer-events-auto !border-none !bg-transparent"
+					className="!pointer-events-auto !border-none !bg-transparent opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
 				>
 					<MoveDiagonal className="size-4 text-muted-foreground" aria-label="Resize group" />
 				</NodeResizeControl>

@@ -1,5 +1,6 @@
 import { load } from "js-yaml";
 import { describe, expect, it } from "vitest";
+import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH } from "@/lib/canvas-utils";
 import { getComponent, getIcon, isKnownSubtype } from "@/lib/registry/registry";
 import { loadTemplate, TEMPLATES } from "@/lib/templates";
 
@@ -42,6 +43,37 @@ describe("consumer contract: shipped templates resolve", () => {
 			expect(model, `${info.id} failed to load`).not.toBeNull();
 			for (const el of model?.elements ?? []) {
 				assertElementResolves(`template ${info.id}`, el);
+			}
+		});
+
+		it(`${info.id} leaves room inside and between boundaries`, () => {
+			const model = loadTemplate(info.id);
+			if (!model) throw new Error("Missing template");
+			const bounds = model.trust_boundaries.map(({ contains, position, size }) => {
+				if (!position || !size) throw new Error("Missing boundary geometry");
+				for (const element of model.elements.filter(({ id }) => contains.includes(id))) {
+					expect(element.position?.x).toBeGreaterThanOrEqual(48);
+					expect(element.position?.y).toBeGreaterThanOrEqual(48);
+					expect(
+						size.width - (element.position?.x ?? 0) - DEFAULT_NODE_WIDTH,
+					).toBeGreaterThanOrEqual(48);
+					expect(
+						size.height - (element.position?.y ?? 0) - DEFAULT_NODE_HEIGHT,
+					).toBeGreaterThanOrEqual(48);
+				}
+				return { ...position, ...size };
+			});
+			for (const [index, a] of bounds.entries()) {
+				for (const b of bounds.slice(index + 1)) {
+					expect(
+						Math.max(
+							b.x - a.x - a.width,
+							a.x - b.x - b.width,
+							b.y - a.y - a.height,
+							a.y - b.y - b.height,
+						),
+					).toBeGreaterThanOrEqual(96);
+				}
 			}
 		});
 	}

@@ -137,6 +137,7 @@ for (const colorScheme of ["light", "dark"] as const) {
 		await page.emulateMedia({ colorScheme });
 		await page.goto("/app");
 		await openDocument(page, "tests/fixtures/thf/architecture-canonical-full.thf");
+		await page.getByRole("button", { name: "Show minimap" }).click();
 		await page.locator(".react-flow__controls-fitview").click();
 		await waitForCanvasSettled(page, 7);
 		await expect(page.locator(".react-flow")).toHaveScreenshot(

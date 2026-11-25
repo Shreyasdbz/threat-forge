@@ -45,7 +45,8 @@ test("browses architecture memberships, then presents and exports the shared dia
 		if (format === "SVG") {
 			const svg = bytes.toString("utf8");
 			expect(svg).toContain("Web Application");
-			expect(svg).toContain('fill-opacity="0.10"');
+			expect(svg).toContain('fill="none" fill-opacity="0.000" stroke="#15803d"');
+			expect(svg).toContain('fill="#22c55e" fill-opacity="0.003" stroke="#15803d"');
 			const position = (label: string) =>
 				svg.match(new RegExp(`<text (x="[^"]+" y="[^"]+")[^>]*>${label}</text>`))?.[1];
 			expect(position("Persist order")).toBeDefined();

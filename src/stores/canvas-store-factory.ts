@@ -2,6 +2,7 @@ import type { Connection, Edge, Node, OnEdgesChange, OnNodesChange, Viewport } f
 import { applyEdgeChanges, applyNodeChanges, MarkerType } from "@xyflow/react";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import {
+	DEFAULT_NODE_WIDTH,
 	getSelfLoopHandlePair,
 	getSmartHandlePair,
 	isSelfLoop,
@@ -35,6 +36,8 @@ export type DfdNodeData = {
 	description: string;
 	technologies: string[];
 	architectureGroupId?: string;
+	groupAccent?: string;
+	groupStrokeOpacity?: number;
 	/** Element fill color */
 	elementFillColor?: string;
 	/** Element stroke color */
@@ -179,6 +182,8 @@ function architectureGroupToNode(group: Group, index: number, canvasId: string):
 		style: { width, height, pointerEvents: "none" },
 		data: {
 			architectureGroupId: group.id,
+			groupAccent: group.stroke_color ?? group.fill_color,
+			groupStrokeOpacity: group.stroke_opacity,
 			label: group.name,
 			elementType: "",
 			trustZone: "",
@@ -911,7 +916,7 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			// Convert elements to nodes
 			const elementNodes: DfdNode[] = model.elements.map((e, i) => {
 				const pos = resolvePosition(e.id, e.position, {
-					x: 100 + (i % 4) * 312,
+					x: 100 + (i % 4) * (DEFAULT_NODE_WIDTH + 136),
 					y: 100 + Math.floor(i / 4) * 208,
 				});
 				const node = elementToNode(e, pos);

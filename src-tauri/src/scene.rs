@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fmt::Write;
 use std::sync::OnceLock;
 
-pub(crate) const ELEMENT_WIDTH: f64 = 176.0;
+pub(crate) const ELEMENT_WIDTH: f64 = 208.0;
 pub(crate) const ELEMENT_HEIGHT: f64 = 72.0;
 pub(crate) const COLUMN_GAP: f64 = 136.0;
 pub(crate) const ROW_GAP: f64 = 136.0;
@@ -112,9 +112,15 @@ impl<'a> Scene<'a> {
                 rect,
                 kind: "boundary",
                 fill: color(boundary.fill_color.as_deref(), "none"),
-                stroke: color(boundary.stroke_color.as_deref(), "#a3a5a3"),
-                fill_opacity: opacity(boundary.fill_opacity),
-                stroke_opacity: opacity(boundary.stroke_opacity),
+                stroke: color(
+                    boundary
+                        .stroke_color
+                        .as_deref()
+                        .or(boundary.fill_color.as_deref()),
+                    "#a3a5a3",
+                ),
+                fill_opacity: boundary.fill_opacity.unwrap_or(0.05).clamp(0.0, 1.0) * 0.03,
+                stroke_opacity: boundary.stroke_opacity.unwrap_or(0.6).clamp(0.0, 0.6),
             });
         }
         for (i, group) in model.groups.iter().enumerate() {
@@ -133,10 +139,16 @@ impl<'a> Scene<'a> {
                 name: &group.name,
                 rect,
                 kind: "group",
-                fill: color(group.fill_color.as_deref(), "none"),
-                stroke: color(group.stroke_color.as_deref(), "#a3a5a3"),
-                fill_opacity: opacity(group.fill_opacity),
-                stroke_opacity: opacity(group.stroke_opacity),
+                fill: "none",
+                stroke: color(
+                    group
+                        .stroke_color
+                        .as_deref()
+                        .or(group.fill_color.as_deref()),
+                    "#a3a5a3",
+                ),
+                fill_opacity: 0.0,
+                stroke_opacity: group.stroke_opacity.unwrap_or(0.6).clamp(0.0, 0.6),
             });
         }
         let mut group_positions = HashMap::new();
@@ -288,8 +300,7 @@ impl Node<'_> {
         };
         let label = xml_text(self.name, (width / 8.0).floor().max(1.0) as usize);
         let (label_x, label_y, font_size, anchor, ink) = if is_container {
-            let inset_y = if self.kind == "boundary" { 16.0 } else { 24.0 };
-            (x + 16.0, y + inset_y, 12, "start", "#555a57")
+            (x + 30.0, y + 25.0, 12, "start", "#555a57")
         } else {
             (
                 x + width / 2.0,
@@ -301,8 +312,21 @@ impl Node<'_> {
         };
         let _ = writeln!(
             svg,
-            r#"<g class="{}"><rect x="{x:.2}" y="{y:.2}" width="{width:.2}" height="{height:.2}" rx="{rx}" fill="{}" fill-opacity="{:.2}" stroke="{}" stroke-opacity="{:.2}"{dash}/><text x="{label_x:.2}" y="{label_y:.2}" font-size="{font_size}" text-anchor="{anchor}" fill="{ink}">{label}</text></g>"#,
+            r#"<g class="{}"><rect x="{x:.2}" y="{y:.2}" width="{width:.2}" height="{height:.2}" rx="{rx}" fill="{}" fill-opacity="{:.3}" stroke="{}" stroke-opacity="{:.2}"{dash}/>"#,
             self.kind, self.fill, self.fill_opacity, self.stroke, self.stroke_opacity,
+        );
+        if is_container {
+            let _ = writeln!(
+                svg,
+                r#"<circle cx="{:.2}" cy="{:.2}" r="3" fill="{}"/>"#,
+                x + 19.0,
+                y + 21.0,
+                self.stroke,
+            );
+        }
+        let _ = writeln!(
+            svg,
+            r#"<text x="{label_x:.2}" y="{label_y:.2}" font-size="{font_size}" text-anchor="{anchor}" fill="{ink}">{label}</text></g>"#,
         );
     }
 }

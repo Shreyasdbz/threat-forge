@@ -2,6 +2,7 @@ import {
 	Background,
 	BackgroundVariant,
 	type Connection,
+	ControlButton,
 	Controls,
 	type HandleType,
 	MiniMap,
@@ -12,7 +13,7 @@ import {
 	useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { EyeOff, Layers3 } from "lucide-react";
+import { Layers3, Map as MapIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import type { DfdEdge, DfdNode } from "@/stores/canvas-store";
@@ -454,7 +455,6 @@ export function DfdCanvas() {
 	}, [contextMenu, duplicateElement, reverseEdge]);
 
 	const minimapVisible = useSettingsStore((s) => s.settings.minimapVisible);
-	const [minimapHovered, setMinimapHovered] = useState(false);
 
 	return (
 		<div className="relative h-full w-full">
@@ -517,47 +517,33 @@ export function DfdCanvas() {
 					size={1}
 					color="var(--color-editor-line)"
 				/>
-				<Controls className="!rounded-editor-control !border !border-editor-line !bg-editor-surface !shadow-none [&>button]:!bg-editor-surface [&>button]:!border-editor-line [&>button]:!text-muted-foreground [&>button:hover]:!bg-editor-hover" />
+				<Controls className="!rounded-editor-control !border !border-editor-line !bg-editor-surface !shadow-none [&>button]:!bg-editor-surface [&>button]:!border-editor-line [&>button]:!text-muted-foreground [&>button:hover]:!bg-editor-hover">
+					<ControlButton
+						aria-label="Show minimap"
+						title={minimapVisible ? "Hide minimap" : "Show minimap"}
+						aria-pressed={minimapVisible}
+						onClick={() =>
+							useSettingsStore.getState().updateSetting("minimapVisible", !minimapVisible)
+						}
+					>
+						<MapIcon className="size-4" aria-hidden="true" />
+					</ControlButton>
+				</Controls>
 				{minimapVisible && (
 					<MiniMap
 						className="!bg-editor-surface !border !border-editor-line !rounded-editor-control !shadow-none"
 						nodeColor={(node) =>
 							node.data.isBoundary || node.type === "architectureGroup"
 								? "transparent"
-								: "var(--color-primary)"
+								: "color-mix(in srgb, var(--color-editor-surface), var(--color-foreground) 24%)"
 						}
-						nodeStrokeColor={(node) =>
-							node.type === "architectureGroup" ? "var(--color-primary)" : "var(--color-border)"
-						}
-						nodeStrokeWidth={3}
+						nodeStrokeColor="var(--color-editor-outline)"
+						nodeStrokeWidth={1}
 						maskColor="color-mix(in srgb, var(--color-background) 24%, transparent)"
 						maskStrokeColor="var(--color-muted-foreground)"
 						maskStrokeWidth={1}
-						style={{ width: 160, height: 120 }}
+						style={{ width: 112, height: 80 }}
 					/>
-				)}
-				{/* Minimap hide button — overlaid in bottom-right corner */}
-				{minimapVisible && (
-					<div
-						className="absolute bottom-1 right-1 z-10"
-						style={{ pointerEvents: "none" }}
-						onMouseEnter={() => setMinimapHovered(true)}
-						onMouseLeave={() => setMinimapHovered(false)}
-					>
-						<div style={{ width: 160, height: 120, position: "relative", pointerEvents: "auto" }}>
-							{minimapHovered && (
-								<button
-									type="button"
-									className="absolute right-1 top-1 z-20 rounded bg-card/80 p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-									style={{ pointerEvents: "auto" }}
-									title="Hide minimap"
-									onClick={() => useSettingsStore.getState().updateSetting("minimapVisible", false)}
-								>
-									<EyeOff className="h-3.5 w-3.5" />
-								</button>
-							)}
-						</div>
-					</div>
 				)}
 			</ReactFlow>
 			{contextMenu && contextMenuItems.length > 0 && (

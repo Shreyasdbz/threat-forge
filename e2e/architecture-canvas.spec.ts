@@ -6,6 +6,22 @@ test.beforeEach(async ({ page }) => {
 	await openDocument(page, "tests/fixtures/thf/architecture-canonical-full.thf");
 });
 
+test("fits every inspector tab label at the default panel width", async ({ page }) => {
+	const tabs = page.getByTestId("right-panel").locator("button[aria-pressed]");
+	await expect(tabs).toHaveCount(4);
+	await page.evaluate(() => document.fonts.ready);
+	await expect
+		.poll(() =>
+			tabs.evaluateAll((buttons) =>
+				buttons.map((button) => {
+					const label = button.lastElementChild;
+					return Boolean(label && label.clientWidth && label.scrollWidth <= label.clientWidth);
+				}),
+			),
+		)
+		.toEqual([true, true, true, true]);
+});
+
 test("moves and resizes a group outline independently of its members, with undo", async ({
 	page,
 }) => {
@@ -32,6 +48,11 @@ test("moves and resizes a group outline independently of its members, with undo"
 
 	const handle = await group.getByLabel("Resize group").boundingBox();
 	if (!handle) throw new Error("Expected resize handle");
+	const resizeIcon = group.getByLabel("Resize group").locator("..");
+	await page.mouse.move(0, 0);
+	await expect(resizeIcon).toHaveCSS("opacity", "0");
+	await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+	await expect(resizeIcon).toHaveCSS("opacity", "1");
 	await drag(handle.x + handle.width / 2, handle.y + handle.height / 2, 40, 32);
 	await expect
 		.poll(async () => (await group.boundingBox())?.width ?? 0)
@@ -65,10 +86,20 @@ test("keeps flow cards clear of nodes and distinguishes groups from components i
 		})
 		.toBe(true);
 	const minimap = page.locator(".react-flow__minimap");
+	const toggle = page.getByRole("button", { name: "Show minimap" });
+	await expect(minimap).toHaveCount(0);
+	await toggle.click();
+	await expect(toggle).toHaveAttribute("aria-pressed", "true");
 	await expect(
 		minimap.locator('.react-flow__minimap-node[style*="fill: transparent"]'),
 	).toHaveCount(4);
-	await expect(
-		minimap.locator('.react-flow__minimap-node[style*="fill: var(--color-primary)"]'),
-	).toHaveCount(3);
+	await expect(minimap.locator(".react-flow__minimap-node").first()).toHaveCSS(
+		"vector-effect",
+		"non-scaling-stroke",
+	);
+	await expect(minimap.locator('.react-flow__minimap-node[style*="fill: color-mix"]')).toHaveCount(
+		3,
+	);
+	await toggle.click();
+	await expect(minimap).toHaveCount(0);
 });

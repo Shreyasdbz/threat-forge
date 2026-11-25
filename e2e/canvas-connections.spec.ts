@@ -28,6 +28,7 @@ test.describe("Canvas pointer connections", () => {
 	test.beforeEach(async ({ page }) => {
 		await page.goto("/app");
 		await createModel(page);
+		await page.getByRole("button", { name: "Show minimap" }).click();
 	});
 
 	/**
@@ -44,6 +45,8 @@ test.describe("Canvas pointer connections", () => {
 	async function createSeparatedNodes(page: import("@playwright/test").Page) {
 		await addPaletteItem(page, "palette-item-web-server");
 		await addPaletteItem(page, "palette-item-sql-database");
+		await page.locator(".react-flow__controls-zoomout").click();
+		await page.locator(".react-flow__controls-zoomout").click();
 
 		const nodes = page.locator("[data-testid^='node-']");
 		const firstNode = nodes.first();
@@ -58,7 +61,7 @@ test.describe("Canvas pointer connections", () => {
 		);
 		await page.mouse.down();
 		await page.mouse.move(
-			firstBox.x + firstBox.width + 48 + secondBoxBefore.width / 2,
+			firstBox.x + firstBox.width + 80 + secondBoxBefore.width / 2,
 			firstBox.y + secondBoxBefore.height / 2,
 			{ steps: 10 },
 		);

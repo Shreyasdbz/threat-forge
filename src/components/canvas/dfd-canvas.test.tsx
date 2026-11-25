@@ -44,6 +44,7 @@ vi.mock("@xyflow/react", () => ({
 	Background: () => null,
 	BackgroundVariant: { Dots: "dots" },
 	Controls: () => null,
+	ControlButton: () => null,
 	MiniMap: () => null,
 	SelectionMode: { Partial: "partial" },
 	Handle: () => null,

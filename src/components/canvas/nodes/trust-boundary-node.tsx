@@ -30,19 +30,18 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 
 	const fillColor = nodeData.boundaryFillColor as string | undefined;
 	const strokeColor = nodeData.boundaryStrokeColor as string | undefined;
-	const fillOpacity = (nodeData.boundaryFillOpacity as number | undefined) ?? 0.05;
+	const accent = strokeColor ?? fillColor;
+	const fillOpacity = nodeData.boundaryFillOpacity ?? 0.05;
 	const strokeOpacity = (nodeData.boundaryStrokeOpacity as number | undefined) ?? 0.6;
 
 	const customStyle = useMemo(() => {
 		const style: React.CSSProperties = {};
-		if (fillColor) {
-			style.backgroundColor = hexToRgba(fillColor, fillOpacity);
-		}
-		if (strokeColor) {
-			style.borderColor = hexToRgba(strokeColor, strokeOpacity);
+		if (fillColor) style.backgroundColor = hexToRgba(fillColor, fillOpacity * 0.03);
+		if (accent) {
+			style.borderColor = hexToRgba(accent, Math.min(strokeOpacity, 0.6));
 		}
 		return style;
-	}, [fillColor, strokeColor, fillOpacity, strokeOpacity]);
+	}, [accent, fillColor, fillOpacity, strokeOpacity]);
 
 	const hasCustomColors = Boolean(fillColor || strokeColor);
 
@@ -76,11 +75,14 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 	}, [id]);
 
 	return (
-		<>
+		<div className="group size-full">
 			<NodeResizeControl
 				minWidth={200}
 				minHeight={150}
-				className="!bg-transparent !border-none"
+				className={cn(
+					"!bg-transparent !border-none group-hover:opacity-100",
+					!selected && "opacity-0",
+				)}
 				style={{ pointerEvents: "auto" }}
 			>
 				<ResizeIcon />
@@ -147,10 +149,15 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 				{/* Name label — clickable, selects boundary */}
 				<button
 					type="button"
-					className="relative w-full p-2 bg-transparent border-none text-left"
+					className="relative flex w-full items-center gap-2 border-none bg-transparent px-4 py-3 text-left"
 					style={{ pointerEvents: "auto" }}
 					onClick={selectBoundary}
 				>
+					<span
+						aria-hidden="true"
+						className="size-1.5 shrink-0 rounded-full bg-editor-outline"
+						style={{ backgroundColor: accent }}
+					/>
 					{isEditing ? (
 						<input
 							ref={inputRef}
@@ -175,7 +182,7 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 					)}
 				</button>
 			</div>
-		</>
+		</div>
 	);
 }
 

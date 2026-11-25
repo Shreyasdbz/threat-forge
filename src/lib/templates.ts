@@ -40,7 +40,8 @@ export const TEMPLATES: TemplateInfo[] = [
 	},
 ];
 
-const TEMPLATE_SPACING = 1.2;
+const TEMPLATE_SPACING = 1.7;
+const TEMPLATE_BOUNDARY_PADDING = 48;
 
 /** Load a template by ID. Returns a ThreatModel with today's date.
  *  Post-processes flows to assign flow numbers and smart connection handles. */
@@ -54,21 +55,36 @@ export function loadTemplate(id: string): ThreatModel | null {
 	const posMap = new Map<string, { x: number; y: number }>();
 	for (const el of model.elements) {
 		if (!el.position) continue;
-		el.position = { x: el.position.x * TEMPLATE_SPACING, y: el.position.y * TEMPLATE_SPACING };
+		el.position = {
+			x: Math.round(el.position.x * TEMPLATE_SPACING),
+			y: Math.round(el.position.y * TEMPLATE_SPACING),
+		};
 		posMap.set(el.id, el.position);
 	}
 	for (const boundary of model.trust_boundaries) {
-		if (boundary.position) {
-			boundary.position = {
-				x: boundary.position.x * TEMPLATE_SPACING,
-				y: boundary.position.y * TEMPLATE_SPACING,
-			};
-		}
-		if (boundary.size) {
-			boundary.size = {
-				width: boundary.size.width * TEMPLATE_SPACING,
-				height: boundary.size.height * TEMPLATE_SPACING,
-			};
+		const members = model.elements.flatMap((element) =>
+			boundary.contains.includes(element.id) && element.position
+				? [{ element, position: element.position }]
+				: [],
+		);
+		if (members.length === 0) continue;
+		const x = Math.min(...members.map(({ position }) => position.x)) - TEMPLATE_BOUNDARY_PADDING;
+		const y = Math.min(...members.map(({ position }) => position.y)) - TEMPLATE_BOUNDARY_PADDING;
+		boundary.position = { x, y };
+		boundary.size = {
+			width:
+				Math.max(...members.map(({ position }) => position.x)) +
+				DEFAULT_NODE_WIDTH +
+				TEMPLATE_BOUNDARY_PADDING -
+				x,
+			height:
+				Math.max(...members.map(({ position }) => position.y)) +
+				DEFAULT_NODE_HEIGHT +
+				TEMPLATE_BOUNDARY_PADDING -
+				y,
+		};
+		for (const { element, position } of members) {
+			element.position = { x: position.x - x, y: position.y - y };
 		}
 	}
 
