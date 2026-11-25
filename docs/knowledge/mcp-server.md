@@ -103,8 +103,6 @@ Add to your Cursor MCP configuration:
 | `create_document` | Create and activate a new `.thf` with `path`, `title`, and optional `author`. Refuses to overwrite an existing file. |
 | `list_documents`, `search_documents` | List relative document paths; search valid files by relative path or title. Results are capped at 200, report truncation, and skip hidden directories. |
 
-Search reads at most 1 MiB per document and 32 MiB in total. Its `skipped` count
-reports files it could not read or validate within those limits.
 | `open_document` | Activate an existing document by relative `path`; subsequent diagram and threat tools use it. |
 | `set_position`, `move_node`, `resize_node` | Set `x,y`, offset by `dx,dy`, or set `width,height` given a node `id`. Nodes may be elements, trust boundaries, or architecture groups. An element inside a trust boundary uses positions relative to the boundary. |
 | `auto_layout` | Arrange elements in a grid, keeping boundary members together. |
@@ -112,6 +110,20 @@ reports files it could not read or validate within those limits.
 | `undo`, `redo` | Replay active-document edits from this MCP session, only if the file revision still matches. |
 | `analyze_stride` | Preview STRIDE suggestions. Save the latest preview as one edit with `apply: true`, its `preview_id`, and its `revision` as `expected_revision`. |
 | `export_svg`, `export_png`, `screenshot` | Render the same scene. SVG is returned as text, PNG and screenshot as MCP images. Optional `path` writes an artifact inside the workspace, replacing an existing artifact of the same type. Screenshot is a headless diagram capture, not a desktop window capture. |
+
+Search reads at most 1 MiB per document and 32 MiB in total and skips documents
+that use YAML aliases. Its `skipped` count also reports files it could not read or
+validate within those limits.
+
+Exports use a held directory handle and recheck its workspace path before
+committing the rename. If another process can move that directory between the
+final check and the rename, the export can land in the moved directory. Only
+enable workspace writes in directories whose ancestry you control.
+
+If only some STRIDE suggestions are approved, use `batch_transaction` with one
+`add_threat` operation per approved suggestion and the preview's `revision` as
+`expected_revision`. Use `analyze_stride` with `apply: true` only to persist the
+entire preview.
 
 For a batch, use these arguments to preview adding a node and positioning it:
 
