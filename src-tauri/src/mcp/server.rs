@@ -250,6 +250,35 @@ enum Mutation {
 }
 
 impl Mutation {
+    fn apply_prepared(
+        self,
+        model: &mut ThreatModel,
+        layouts: &LegacyLayouts,
+    ) -> Result<serde_json::Value, ErrorData> {
+        let reports_cascade = matches!(&self, Self::DeleteElement(_) | Self::DeleteDataFlow(_));
+        let before = model.clone();
+        let message = self.apply(model, layouts)?;
+        prepare_document(Some(&before), model).map_err(|error| mcp_err(error.user_message()))?;
+        if !reports_cascade {
+            return Ok(message.into());
+        }
+        fn removed<'a>(
+            before: impl Iterator<Item = &'a str>,
+            after: impl Iterator<Item = &'a str>,
+        ) -> Vec<&'a str> {
+            let remaining: std::collections::HashSet<_> = after.collect();
+            before.filter(|id| !remaining.contains(id)).collect()
+        }
+        Ok(serde_json::json!({
+            "message": message,
+            "removed": {
+                "data_flows": removed(before.data_flows.iter().map(|f| f.id.as_str()), model.data_flows.iter().map(|f| f.id.as_str())),
+                "relationships": removed(before.relationships.iter().map(|r| r.id.as_str()), model.relationships.iter().map(|r| r.id.as_str())),
+                "threats": removed(before.threats.iter().map(|t| t.id.as_str()), model.threats.iter().map(|t| t.id.as_str()))
+            }
+        }))
+    }
+
     fn apply(self, model: &mut ThreatModel, layouts: &LegacyLayouts) -> Result<String, ErrorData> {
         match self {
             Self::AddElement(req) => ThreatForgeServer::apply_add_element(model, req),
@@ -508,13 +537,9 @@ impl ThreatForgeServer {
         }
         let mut results = Vec::with_capacity(req.operations.len());
         for (index, mutation) in req.operations.into_iter().enumerate() {
-            let before = model.clone();
             let result = mutation
-                .apply(&mut model, &layouts)
+                .apply_prepared(&mut model, &layouts)
                 .map_err(|error| mcp_err(format!("Operation {}: {}", index + 1, error.message)))?;
-            prepare_document(Some(&before), &mut model).map_err(|error| {
-                mcp_err(format!("Operation {}: {}", index + 1, error.user_message()))
-            })?;
             results.push(result);
         }
         let revision = if req.dry_run {
@@ -956,9 +981,12 @@ impl ThreatForgeServer {
         } else {
             LegacyLayouts::default()
         };
-        let result = mutation.apply(&mut model, &layouts)?;
+        let result = mutation.apply_prepared(&mut model, &layouts)?;
         self.save(&path, &revision, model)?;
-        Ok(text_result(result))
+        match result {
+            serde_json::Value::String(message) => Ok(text_result(message)),
+            details => json_result(details),
+        }
     }
 
     fn apply_add_element(

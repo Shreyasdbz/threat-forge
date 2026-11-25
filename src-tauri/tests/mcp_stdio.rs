@@ -689,3 +689,45 @@ fn stride_apply_rejects_an_edited_document_after_preview() {
     );
     assert_eq!(std::fs::read_to_string(&path).unwrap(), edited);
 }
+
+#[test]
+fn delete_results_report_cascades_in_preview_and_commit() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("model.thf");
+    let original = include_str!("../../tests/fixtures/thf/architecture-canonical-full.thf");
+    std::fs::write(&path, original).unwrap();
+    let mut server = McpServer::spawn(&path);
+    server.start_workspace();
+    let preview = server.tool_json(
+        2,
+        "batch_transaction",
+        json!({
+            "dry_run": true, "operations": [
+                {"tool": "delete_element", "arguments": {"id": "orders-db"}}
+            ]
+        }),
+    );
+    let expected = json!({
+        "data_flows": ["flow-2"], "relationships": ["rel-1", "rel-2"], "threats": ["threat-1"]
+    });
+    assert_eq!(preview["results"][0]["removed"], expected);
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    let committed = server.tool_json(
+        3,
+        "batch_transaction",
+        json!({
+            "expected_revision": preview["revision"], "operations": [
+                {"tool": "delete_element", "arguments": {"id": "orders-db"}}
+            ]
+        }),
+    );
+    assert_eq!(committed["results"], preview["results"]);
+    server.tool(4, "undo", json!({}));
+    let deleted_flow = server.tool_json(5, "delete_data_flow", json!({"id": "flow-2"}));
+    assert_eq!(
+        deleted_flow["removed"],
+        json!({
+            "data_flows": ["flow-2"], "relationships": [], "threats": ["threat-1"]
+        })
+    );
+}

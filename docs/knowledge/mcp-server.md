@@ -163,7 +163,7 @@ Read the active document YAML at `threatforge://active/model` and its SVG at
 |------|-----------|-------------|
 | `add_element` | `element_type`, `name`, `trust_zone?`, `description?`, `technologies?` | Add a new DFD element |
 | `update_element` | `id`, `name?`, `element_type?`, `trust_zone?`, `description?` | Update an element |
-| `delete_element` | `id` | Delete an element (cascades to connected flows) |
+| `delete_element` | `id` | Delete an element and report the [cascade](#cascading-deletes) |
 
 ### Data Flow Operations
 
@@ -225,6 +225,9 @@ When an element is deleted:
 - Relationships connected to that element and threats targeting the element or any removed flow are removed
 
 Deleting a data flow directly also removes threats targeting it.
+Both delete tools return a `message` and the IDs removed from `data_flows`,
+`relationships`, and `threats` under `removed`. The same details appear in each
+delete operation's batch result, including in a dry run.
 
 ## Limitations
 
