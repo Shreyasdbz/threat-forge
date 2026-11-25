@@ -17,7 +17,12 @@
 import type { PreparedCallResult, RegisteredTool } from "@/lib/ai/loop/tool-runtime";
 import { canonicalJson } from "@/lib/ai/loop/tool-runtime";
 import { LEGACY_ACTION_TOOLS } from "@/lib/ai/schemas/actions";
-import { applyAction, describeActionReview, isDestructiveAction } from "@/lib/ai-action-executor";
+import {
+	applyAction,
+	describeActionReview,
+	isDestructiveAction,
+	reviewDeletion,
+} from "@/lib/ai-action-executor";
 import { type AiAction, describeAction } from "@/lib/ai-actions";
 import type { ThreatModel } from "@/types/threat-model";
 
@@ -79,16 +84,18 @@ export const GRAPH_ACTION_TOOLS: readonly RegisteredTool[] = LEGACY_ACTION_TOOLS
 			if (!parsed.ok) return { ok: false, issues: parsed.issues };
 
 			const action: AiAction = parsed.value;
+			const impact = reviewDeletion(action, reviewDocument ?? null);
+			const reviewedImpact = canonicalJson(impact);
 			return {
 				ok: true,
 				call: {
-					summary: describeActionReview(action, reviewDocument ?? null),
+					summary: describeActionReview(action, impact),
 					inputDigest: canonicalJson(action),
 					run: async (ctx) => {
 						if (
 							reviewDocument !== undefined &&
 							isDestructiveAction(action.action) &&
-							ctx.document !== reviewDocument
+							canonicalJson(reviewDeletion(action, ctx.document)) !== reviewedImpact
 						) {
 							return {
 								status: "error",

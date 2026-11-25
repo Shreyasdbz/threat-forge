@@ -26,6 +26,7 @@ import {
 	executeActions,
 	executeSingleAction,
 	isDestructiveAction,
+	reviewDeletion,
 } from "@/lib/ai-action-executor";
 import type { AiAction } from "@/lib/ai-actions";
 import { suggestionToThreat } from "@/lib/ai-utils";
@@ -623,7 +624,7 @@ function ActionPreview({ actions }: { actions: AiAction[] }) {
 				<ActionRow
 					// biome-ignore lint/suspicious/noArrayIndexKey: action index is stable after streaming
 					key={i}
-					summary={describeActionReview(action, model)}
+					summary={describeActionReview(action, reviewDeletion(action, model))}
 					status={actionStatus.get(i) ?? "pending"}
 					onApply={() => handleApplyOne(i)}
 				/>

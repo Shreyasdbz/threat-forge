@@ -18,30 +18,56 @@ export function isDestructiveAction(action: string): boolean {
 	return action.startsWith("delete_");
 }
 
-export function describeActionReview(action: AiAction, model: ThreatModel | null): string {
-	const summary = describeAction(action);
-	if (!model || (action.action !== "delete_element" && action.action !== "delete_data_flow")) {
-		return summary;
+export function reviewDeletion(action: AiAction, model: ThreatModel | null) {
+	if (!model) return null;
+	switch (action.action) {
+		case "delete_element":
+		case "delete_data_flow":
+		case "delete_trust_boundary":
+		case "delete_threat":
+			break;
+		default:
+			return null;
 	}
 	const next = applyAction(model, action);
-	if (!next) return summary;
-	const removed = <T extends { id: string }>(before: T[], after: T[]) => {
-		const remaining = new Set(after.map(({ id }) => id));
-		return before.filter(({ id }) => !remaining.has(id)).map(({ id }) => id);
+	if (!next) return null;
+	const removed = <T>(before: T[], after: T[]) => {
+		const remaining = new Set(after);
+		return before.filter((item) => !remaining.has(item));
 	};
-	const impacts = [
-		[
-			"Data flows also removed",
-			action.action === "delete_element" ? removed(model.data_flows, next.data_flows) : [],
-		],
-		["Relationships removed", removed(model.relationships ?? [], next.relationships ?? [])],
-		["Threats removed", removed(model.threats, next.threats)],
-		[
-			"Membership removed from boundaries",
+	return {
+		elements: removed(model.elements, next.elements),
+		flows: removed(model.data_flows, next.data_flows),
+		relationships: removed(model.relationships ?? [], next.relationships ?? []),
+		threats: removed(model.threats, next.threats),
+		boundaries:
+			action.action === "delete_trust_boundary"
+				? removed(model.trust_boundaries, next.trust_boundaries)
+				: [],
+		membership:
 			action.action === "delete_element"
 				? model.trust_boundaries.filter((b) => b.contains.includes(action.id)).map(({ id }) => id)
 				: [],
+	};
+}
+
+export function describeActionReview(
+	action: AiAction,
+	impact: ReturnType<typeof reviewDeletion>,
+): string {
+	const summary = describeAction(action);
+	if (!impact) return summary;
+	const impacts = [
+		[
+			"Data flows also removed",
+			action.action === "delete_element" ? impact.flows.map(({ id }) => id) : [],
 		],
+		["Relationships removed", impact.relationships.map(({ id }) => id)],
+		[
+			action.action === "delete_threat" ? "Threat" : "Threats removed",
+			impact.threats.map(({ id, title, category }) => `${title} (${category}; ${id})`),
+		],
+		["Membership removed from boundaries", impact.membership],
 	] as const;
 	return [
 		summary,

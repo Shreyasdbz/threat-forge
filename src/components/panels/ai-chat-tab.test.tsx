@@ -495,7 +495,9 @@ describe("AiChatTab tool-loop turn", () => {
 			});
 			const button = mode === "native" ? "Approve" : "Apply this change";
 			expect(screen.getByRole("button", { name: button })).toBeInTheDocument();
-			expect(screen.getByText(/Threats removed: threat-1/)).toBeInTheDocument();
+			expect(
+				screen.getByText(/Threats removed: Threat \(Tampering; threat-1\)/),
+			).toBeInTheDocument();
 			const replacement = { ...original, data_flows: [{ ...flow, name: "Replacement flow" }] };
 			await reloadOnDisk(replacement);
 			expect(screen.queryByRole("button", { name: button })).not.toBeInTheDocument();

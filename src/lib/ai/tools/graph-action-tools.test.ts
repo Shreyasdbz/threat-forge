@@ -64,7 +64,10 @@ it("reviews cascades without removing a boundary that shares the element ID", as
 			{ id: "web-app", name: "Same ID boundary", contains: ["web-app", "api-gw"] },
 		],
 		relationships: [{ id: "rel-1", type: "depends_on", from: "web-app", to: "api-gw" }],
-		threats: [{ ...model.threats[0], flow: "flow-1" }],
+		threats: [
+			{ ...model.threats[0], flow: "flow-1" },
+			{ ...model.threats[0], title: "Preserved duplicate" },
+		],
 	};
 	const tool = GRAPH_ACTION_TOOLS.find((tool) => tool.name === "delete_element");
 	const reviewed = tool?.prepare({ action: "delete_element", id: "web-app" }, document);
@@ -74,7 +77,7 @@ it("reviews cascades without removing a boundary that shares the element ID", as
 			"Delete element: web-app",
 			"Data flows also removed: flow-1",
 			"Relationships removed: rel-1",
-			"Threats removed: threat-1",
+			"Threats removed: Spoof (Spoofing; threat-1)",
 			"Membership removed from boundaries: web-app",
 		].join("\n"),
 	);
@@ -85,11 +88,35 @@ it("reviews cascades without removing a boundary that shares the element ID", as
 		elements: [document.elements[1]],
 		data_flows: [],
 		relationships: [],
-		threats: [],
+		threats: [document.threats[1]],
 		trust_boundaries: [{ ...document.trust_boundaries[0], contains: ["api-gw"] }],
 	});
-	const stale = await reviewed.call.run({ document: { ...document }, signal });
+	const stale = await reviewed.call.run({
+		document: {
+			...document,
+			threats: [...document.threats, { ...document.threats[0], id: "new-threat" }],
+		},
+		signal,
+	});
 	expect(stale.status).toBe("error");
+});
+
+it("allows two independently approved deletions to execute in sequence", async () => {
+	const registry = createGraphToolRegistry();
+	const first = registry
+		.get("delete_trust_boundary")
+		?.prepare(VALID_INPUT.delete_trust_boundary, model);
+	const second = registry
+		.get("delete_element")
+		?.prepare({ action: "delete_element", id: "api-gw" }, model);
+	if (!first?.ok || !second?.ok) throw new Error("Deletes were not prepared");
+	const signal = new AbortController().signal;
+	const afterFirst = await first.call.run({ document: model, signal });
+	if (afterFirst.status !== "ok" || !afterFirst.document) throw new Error("First delete failed");
+	const afterSecond = await second.call.run({ document: afterFirst.document, signal });
+	if (afterSecond.status !== "ok") throw new Error(afterSecond.result);
+	expect(afterSecond.document?.elements.map(({ id }) => id)).toEqual(["web-app"]);
+	expect(afterSecond.document?.trust_boundaries).toEqual([]);
 });
 
 /** One valid input per tool, so every tool can be prepared and run. */
