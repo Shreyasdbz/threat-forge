@@ -31,8 +31,10 @@ import duplicateGroupIdRaw from "../../tests/fixtures/thf/invalid/duplicate-grou
 import duplicateLayerIdRaw from "../../tests/fixtures/thf/invalid/duplicate-layer-id.thf?raw";
 import duplicateRelationshipIdRaw from "../../tests/fixtures/thf/invalid/duplicate-relationship-id.thf?raw";
 import groupIdCollidesWithElementRaw from "../../tests/fixtures/thf/invalid/group-id-collides-with-element.thf?raw";
+import missingElementSizeHeightRaw from "../../tests/fixtures/thf/invalid/missing-element-size-height.thf?raw";
 import missingMetadataRaw from "../../tests/fixtures/thf/invalid/missing-metadata.thf?raw";
 import relationshipIdCollidesWithFlowRaw from "../../tests/fixtures/thf/invalid/relationship-id-collides-with-flow.thf?raw";
+import stringElementSizeWidthRaw from "../../tests/fixtures/thf/invalid/string-element-size-width.thf?raw";
 import truncatedRaw from "../../tests/fixtures/thf/invalid/truncated.thf?raw";
 import unknownElementGroupRaw from "../../tests/fixtures/thf/invalid/unknown-element-group.thf?raw";
 import unknownElementLayerRaw from "../../tests/fixtures/thf/invalid/unknown-element-layer.thf?raw";
@@ -93,6 +95,17 @@ const INVALID_CASES: InvalidCase[] = [
 		// missing-section (a shape-narrowing failure, distinct from a raw parse failure).
 		name: "invalid/missing-metadata.thf",
 		raw: missingMetadataRaw,
+		kind: "missing-section",
+	},
+
+	{
+		name: "invalid/missing-element-size-height.thf",
+		raw: missingElementSizeHeightRaw,
+		kind: "missing-section",
+	},
+	{
+		name: "invalid/string-element-size-width.thf",
+		raw: stringElementSizeWidthRaw,
 		kind: "missing-section",
 	},
 

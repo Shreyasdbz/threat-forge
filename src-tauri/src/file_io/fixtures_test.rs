@@ -438,6 +438,16 @@ fn invalid_fixtures_are_rejected_with_the_expected_error() {
         matches!(missing_metadata, ThreatForgeError::YamlParse { .. }),
         "expected YamlParse, got {missing_metadata:?}"
     );
+    for path in [
+        "invalid/missing-element-size-height.thf",
+        "invalid/string-element-size-width.thf",
+    ] {
+        let error = read_threat_model(&fixture_path(path)).expect_err("invalid element size");
+        assert!(
+            matches!(error, ThreatForgeError::YamlParse { .. }),
+            "{path}: {error:?}"
+        );
+    }
 }
 
 #[test]

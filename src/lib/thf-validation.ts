@@ -100,6 +100,18 @@ export function readThreatModelText(text: string): ThreatModel {
  * Exported so the semantic layer can be exercised directly, independently of YAML parsing.
  */
 export function validateThreatModel(model: ThreatModel): ThreatModel {
+	for (const [index, entry] of model.elements.entries()) {
+		const field = `elements[${index}]`;
+		const { size } = asRecord(entry, field);
+		if (size == null) continue;
+		const dimensions = asRecord(size, `${field}.size`);
+		if (typeof dimensions.width !== "number" || typeof dimensions.height !== "number") {
+			throw new ThfValidationError(
+				"missing-section",
+				`${field}.size must contain numeric width and height.`,
+			);
+		}
+	}
 	validateThreatModelVersion(requireString(model.version, "version"));
 	validateReferences(model);
 	return model;

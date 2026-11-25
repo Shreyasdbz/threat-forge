@@ -343,7 +343,8 @@ Two differences between the platforms are deliberate:
 - **Shape narrowing is skeleton-depth by design.** The browser verifies the version, the metadata
   block, and the entry fields the semantic checks read (an `id` per collection entry, flow and
   relationship endpoints, layer/group membership, group parents, boundary members, threat
-  references). It tolerates unknown fields, matching serde's non-`deny_unknown_fields` behavior, and
+  references). A non-null element `size` must contain numeric `width` and `height`. The browser
+  tolerates unknown fields, matching serde's non-`deny_unknown_fields` behavior, and
   does not re-check every optional scalar's type.
 
 Validation runs only at open, mirroring `read_threat_model`: there is no retroactive validation of

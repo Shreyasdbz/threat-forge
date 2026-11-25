@@ -1,0 +1,11 @@
+version: "1.0"
+metadata:
+  title: "String Element Width"
+  author: "Tester"
+  created: 2026-01-04
+  modified: 2026-01-04
+elements:
+  - id: app
+    type: process
+    name: "Application"
+    size: { width: "200", height: 100 }
