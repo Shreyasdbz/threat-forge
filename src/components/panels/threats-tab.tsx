@@ -75,12 +75,11 @@ export function ThreatsTab() {
 				data-testid="btn-stride-analyze"
 				disabled={!hasElements || isAnalyzing}
 				onClick={() => void analyzeThreats()}
-				className={cn(
-					"flex min-h-8 items-center justify-center gap-2 self-start rounded-editor-control px-3 py-1.5 text-editor-footnote transition-colors duration-120 ease-editor",
+				className={`flex min-h-8 items-center justify-center gap-2 self-start rounded-editor-control px-3 py-1.5 text-editor-footnote transition-colors duration-120 ease-editor ${
 					hasElements
-						? "bg-editor-action text-white hover:brightness-90"
-						: "cursor-not-allowed bg-muted text-muted-foreground",
-				)}
+						? "bg-editor-selection text-foreground hover:bg-editor-hover active:bg-editor-pressed"
+						: "cursor-not-allowed bg-muted text-muted-foreground"
+				}`}
 			>
 				{isAnalyzing ? (
 					<>
@@ -195,9 +194,9 @@ function ThreatCard({
 				) : (
 					<ChevronRight className="mt-0.5 size-4 text-muted-foreground" />
 				)}
-				<div className="flex min-w-0 flex-col gap-1.5">
+				<div className="flex min-w-0 flex-col gap-2">
 					<span className="text-editor-headline">{threat.title}</span>
-					<div className="flex flex-wrap items-center gap-1.5">
+					<div className="flex flex-wrap items-center gap-2">
 						<CategoryBadge category={threat.category} />
 						<SeverityBadge severity={threat.severity} />
 						{threat.mitigation && <MitigationBadge status={threat.mitigation.status} />}
@@ -387,6 +386,8 @@ function FieldGroup({ label, children }: { label: string; children: React.ReactN
 	);
 }
 
+const BADGE = "inline-flex items-center rounded-full px-2 py-0.5 text-editor-caption2";
+
 function SeverityBadge({ severity }: { severity: string }) {
 	const colorMap: Record<string, string> = {
 		critical: "bg-editor-danger/10 text-editor-danger",
@@ -398,10 +399,7 @@ function SeverityBadge({ severity }: { severity: string }) {
 
 	return (
 		<span
-			className={cn(
-				"rounded-editor-control px-1.5 py-0.5 text-editor-caption2 capitalize",
-				colorMap[severity] ?? "bg-editor-fill text-editor-secondary-label",
-			)}
+			className={`${BADGE} capitalize ${colorMap[severity] ?? "bg-editor-fill text-editor-secondary-label"}`}
 		>
 			{severity}
 		</span>
@@ -419,7 +417,7 @@ function CategoryBadge({ category }: { category: StrideCategory }) {
 					: category.charAt(0);
 
 	return (
-		<span className="rounded bg-secondary px-1.5 py-0.5 text-editor-caption2 text-secondary-foreground">
+		<span className={`${BADGE} bg-editor-fill text-editor-secondary-label`} title={category}>
 			{initial}
 		</span>
 	);
@@ -434,11 +432,7 @@ function MitigationBadge({ status }: { status: MitigationStatus }) {
 		transferred: "bg-editor-fill text-editor-secondary-label",
 	};
 
-	return (
-		<span className={cn("rounded px-1.5 py-0.5 text-editor-caption2", colorMap[status])}>
-			{formatMitigationStatus(status)}
-		</span>
-	);
+	return <span className={`${BADGE} ${colorMap[status]}`}>{formatMitigationStatus(status)}</span>;
 }
 
 function formatMitigationStatus(status: MitigationStatus): string {

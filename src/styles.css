@@ -26,9 +26,11 @@
 	--text-editor-headline: 0.8125rem;
 	--text-editor-headline--line-height: 1.25rem;
 	--text-editor-headline--font-weight: 500;
+	--text-editor-headline--letter-spacing: -0.01em;
 	--text-editor-title3: 0.9375rem;
 	--text-editor-title3--line-height: 1.25rem;
 	--text-editor-title3--font-weight: 500;
+	--text-editor-title3--letter-spacing: -0.01em;
 	--text-editor-title2: 1.375rem;
 	--text-editor-title2--line-height: 1.75rem;
 	--text-editor-title2--font-weight: 590;

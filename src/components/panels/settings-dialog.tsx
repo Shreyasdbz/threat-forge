@@ -275,9 +275,7 @@ function AppearanceSection() {
 
 			{/* Canvas settings (merged from Editor) */}
 			<div className="border-t border-border pt-4" />
-			<div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-				Canvas
-			</div>
+			<div className="text-editor-footnote text-editor-secondary-label">Canvas</div>
 
 			<SettingRow label="Grid snap" description="Snap elements to grid when moving on canvas">
 				<ToggleSwitch

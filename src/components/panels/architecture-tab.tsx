@@ -70,7 +70,7 @@ function Section({
 
 	return (
 		<section aria-label={heading} className="space-y-2">
-			<h3 className="flex items-center justify-between text-editor-footnote">
+			<h3 className="flex items-center justify-between text-editor-footnote text-editor-secondary-label">
 				{heading}
 				<span className="text-muted-foreground tabular-nums">{sections.length}</span>
 			</h3>

@@ -47,9 +47,7 @@ export function ThemePicker() {
 	return (
 		<div className="space-y-3">
 			{/* Mode selector */}
-			<div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-				Mode
-			</div>
+			<div className="mb-2 text-editor-footnote text-editor-secondary-label">Mode</div>
 			<div className="mb-3 flex gap-1">
 				{MODE_OPTIONS.map(({ mode, icon, label }) => (
 					<button
@@ -71,7 +69,7 @@ export function ThemePicker() {
 			{/* Dark presets */}
 			<div
 				className={cn(
-					"mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground",
+					"mb-1 text-editor-footnote text-editor-secondary-label",
 					dimDark && "opacity-50",
 				)}
 			>
@@ -99,7 +97,7 @@ export function ThemePicker() {
 			{/* Light presets */}
 			<div
 				className={cn(
-					"mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground",
+					"mb-1 text-editor-footnote text-editor-secondary-label",
 					dimLight && "opacity-50",
 				)}
 			>

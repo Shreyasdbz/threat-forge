@@ -517,7 +517,10 @@ export function DfdCanvas() {
 					size={1}
 					color="var(--editor-canvas-dot)"
 				/>
-				<Controls className="!rounded-editor-control !border !border-editor-line !bg-editor-surface !shadow-none [&>button]:!bg-editor-surface [&>button]:!border-editor-line [&>button]:!text-muted-foreground [&>button:hover]:!bg-editor-hover">
+				<Controls
+					orientation="horizontal"
+					className="m-4! overflow-hidden rounded-editor-control! border! border-editor-outline! bg-editor-surface! shadow-none! [&>button]:size-7! [&>button]:border-editor-line! [&>button]:bg-editor-surface! [&>button]:text-editor-secondary-label! [&>button:focus-visible]:-outline-offset-2! [&>button:hover]:bg-editor-hover!"
+				>
 					<ControlButton
 						aria-label="Show minimap"
 						title={minimapVisible ? "Hide minimap" : "Show minimap"}

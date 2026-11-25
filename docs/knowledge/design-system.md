@@ -27,12 +27,12 @@ communicate layering; do not blur the diagram behind it.
 
 | Role | Size / line | Weight | Tracking | Use |
 | --- | ---: | ---: | ---: | --- |
-| Caption 2 | 11 / 16 | 400 | 0 | Count pills and shortcut glyphs; never instructions |
+| Caption 2 | 11 / 16 | 400 | 0 | Inspector tabs, count pills, badges and shortcut glyphs; never instructions |
 | Caption | 12 / 16 | 400 | 0 | Diagram metadata, status bar, helper text and IDs |
 | Footnote | 12 / 16 | 500 | 0 | Field labels, list section labels, one-line connector labels |
 | Body | 13 / 20 | 400 | 0 | Rows, controls, tooltips, inspector values and descriptions |
-| Headline | 13 / 20 | 500 | 0 | Node titles, current document, inspector section headers |
-| Title 3 | 15 / 20 | 500 | 0 | Panel and dialog titles |
+| Headline | 13 / 20 | 500 | -0.01em | Node titles and current document |
+| Title 3 | 15 / 20 | 500 | -0.01em | Panel and dialog titles |
 | Title 2 | 22 / 28 | 590 | -0.015em | Empty workspace title |
 
 Use sentence case for prose and controls. Use weight to make the next thing to read obvious, not to
@@ -123,8 +123,8 @@ stored `.thf` colors on theme change or export.
 | Sidebar library | Source list, not a card grid. Use category headers and 36 px minimum rows with aligned glyph and single-line label. Use description in a tooltip or details, not a second row. Keep drag/drop and keyboard discovery. |
 | Inspector tabs | Equal-width, regular-weight labels above a single separator; mark selection with a rule. Use two columns when the pane is narrow rather than clipping labels. Arrow keys move focus; Enter or Space selects the tab. |
 | Document tabs | One row, underline or inset selection (not both); preserve close and pin targets, the existing keyboard model, and access to full names. Do not conflate document tabs with inspector segments. |
-| Inspector fields | Inset groups with a headline above, 8 px before the first row and 24 px between groups. Rows share one surface and internal hairlines. Place short label and control on a shared baseline, using stacked rows for long content or narrow panes. Use one compact inline color/opacity row with a named reset. |
-| Text inputs and selects | Use body type, an opaque fill and a clear focus boundary. Labels remain visible while typing; placeholders only provide examples. Align select chevrons to the right, with no second outline. |
+| Inspector fields | Inset groups with a sentence-case footnote above. Rows share one surface and internal hairlines. Align read-only and editable values to the same edge; editable fields gain a fill on hover and focus. Stack long content and group the color, percentage and named reset on one row when space allows. |
+| Text inputs and selects | Use body type and a clear focus boundary. Outside inset inspector rows, use an opaque fill. Labels remain visible while typing; placeholders only provide examples. Align select chevrons to the right, with no second outline. |
 | Buttons | Plain for secondary and toolbar actions; tinted for selection or a secondary call to action; filled accent for the primary action in a decision group. Keep destructive actions labeled, not just colored. |
 | AI and threat panels | Same type and inset rows as the inspector. One panel title, readable Body copy, and Footnote metadata. Use semantic color for approval/error or severity, with words and glyphs as needed; do not turn messages or list items into stacks of decorative cards. |
 | Popovers and dialogs | One raised surface, one heading, at most one primary action. Use grouped rows for settings, hairlines only where structure needs them, and visible keyboard focus. Respect scroll, escape, and existing focus restoration. |

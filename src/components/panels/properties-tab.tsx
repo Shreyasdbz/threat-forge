@@ -11,14 +11,12 @@ import type { DataFlow } from "@/types/threat-model";
 const ROW = "grid min-h-11 grid-cols-[minmax(0,2fr)_minmax(0,3fr)] items-center gap-2 px-3 py-1.5";
 const LABEL = "text-editor-footnote text-editor-secondary-label";
 const INPUT =
-	"min-w-0 w-full rounded-editor-control bg-editor-fill px-2 py-1 text-editor-body text-foreground placeholder:text-editor-tertiary-label";
+	"min-h-7 w-full min-w-0 rounded-editor-control border-0 bg-transparent px-2 py-1 text-left text-editor-body text-foreground placeholder:text-editor-secondary-label hover:bg-editor-hover focus:bg-editor-fill";
 
 function InspectorGroup({ title, children }: { title: string; children: ReactNode }) {
 	return (
-		<section className="space-y-1.5">
-			<h3 className="px-3 text-editor-caption2 uppercase tracking-wide text-editor-secondary-label">
-				{title}
-			</h3>
+		<section className="space-y-2">
+			<h3 className="px-3 text-editor-footnote text-editor-secondary-label">{title}</h3>
 			<div className="divide-y divide-editor-separator rounded-editor-panel bg-editor-surface">
 				{children}
 			</div>
@@ -184,7 +182,7 @@ function EdgeProperties({ flow }: { flow: DataFlow }) {
 							updateDataFlow(flow.id, { authenticated: e.target.checked });
 							syncEdgeData({ authenticated: e.target.checked });
 						}}
-						className="size-4 justify-self-end accent-primary"
+						className="ml-2 size-4 accent-primary"
 					/>
 				</InspectorField>
 			</InspectorGroup>
@@ -671,17 +669,19 @@ function ColorField({
 	onOpacityChange: (opacity: number) => void;
 }) {
 	return (
-		<div className="flex min-h-11 flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-1.5">
+		<div className={ROW}>
 			<span className={LABEL}>{label}</span>
-			<div className="ml-auto flex items-center gap-2">
+			<div className="flex min-w-0 flex-wrap items-center gap-1">
 				<input
 					type="color"
 					aria-label={label}
+					aria-description={color ? undefined : "Default color"}
+					title={color || "Default color"}
 					value={color || "#888888"}
 					onChange={(e) => onColorChange(e.target.value)}
-					className="h-7 w-9 cursor-pointer rounded-editor-control border border-editor-outline bg-editor-fill p-0.5 [&::-moz-color-swatch]:rounded-sm [&::-webkit-color-swatch]:rounded-sm [&::-webkit-color-swatch-wrapper]:p-0"
+					className={`size-7 shrink-0 cursor-pointer rounded-editor-control bg-transparent p-1 hover:bg-editor-hover [&::-moz-color-swatch]:rounded-sm [&::-webkit-color-swatch]:rounded-sm [&::-webkit-color-swatch-wrapper]:p-0 ${color ? "" : "[&::-moz-color-swatch]:bg-transparent! [&::-moz-color-swatch]:border-editor-outline [&::-moz-color-swatch]:border-dashed [&::-webkit-color-swatch]:bg-transparent! [&::-webkit-color-swatch]:border-editor-outline [&::-webkit-color-swatch]:border-dashed"}`}
 				/>
-				<label className="flex items-center gap-1 text-editor-caption text-muted-foreground">
+				<label className="flex shrink-0 items-center rounded-editor-control pr-1 text-editor-caption text-editor-secondary-label hover:bg-editor-hover focus-within:bg-editor-fill">
 					<input
 						type="number"
 						aria-label={`${label} opacity (%)`}
@@ -694,7 +694,7 @@ function ColorField({
 								onOpacityChange(Math.max(0, Math.min(100, e.target.valueAsNumber)) / 100);
 							}
 						}}
-						className="h-7 w-12 rounded-editor-control bg-editor-fill px-1 text-right tabular-nums"
+						className="h-7 w-10 appearance-none rounded-editor-control bg-transparent pl-1 text-right text-foreground tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
 					/>
 					%
 				</label>
@@ -708,9 +708,7 @@ function ColorField({
 					>
 						<RotateCcw className="size-4" aria-hidden="true" />
 					</button>
-				) : (
-					<span className="size-7" />
-				)}
+				) : null}
 			</div>
 		</div>
 	);
@@ -737,7 +735,7 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
 		<dl className={ROW}>
 			<dt className={LABEL}>{label}</dt>
 			<dd
-				className={`min-w-0 text-right wrap-anywhere ${
+				className={`min-w-0 wrap-anywhere px-2 text-left ${
 					label === "ID" ? "break-all font-editor-mono text-editor-caption" : "text-editor-body"
 				}`}
 			>

@@ -27,7 +27,9 @@ test.describe("STRIDE Analysis", () => {
 
 		// Wait for threats to appear (analysis is fast for local STRIDE rules).
 		// Assert at least 1 threat generated (match 1+ digit, not just "0").
-		await expect(page.getByTestId("tab-threats")).toContainText(/[1-9]\d*/);
+		await expect(page.getByTestId("tab-threats")).toHaveAccessibleDescription(
+			/^[1-9]\d* identified$/,
+		);
 
 		const threatCard = page.getByTestId("threat-card").first();
 		await expect(threatCard).toBeVisible();

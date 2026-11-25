@@ -74,7 +74,7 @@ export function ComponentPalette() {
 		<div data-testid="component-palette" className="flex min-h-0 flex-col md:h-full">
 			{/* Generic section */}
 			<div className="shrink-0 px-4 pt-4 pb-2">
-				<h2 className="text-editor-footnote text-muted-foreground">Generic</h2>
+				<h2 className="text-editor-footnote text-editor-secondary-label">Generic</h2>
 			</div>
 			<div className="shrink-0 px-2 pb-2">
 				<div className="flex flex-col gap-1">
@@ -91,7 +91,7 @@ export function ComponentPalette() {
 
 			{/* Library section */}
 			<div className="shrink-0 px-4 pt-4 pb-2">
-				<h2 className="text-editor-footnote text-muted-foreground">Library</h2>
+				<h2 className="text-editor-footnote text-editor-secondary-label">Library</h2>
 			</div>
 
 			{/* Search */}
@@ -156,7 +156,7 @@ export function ComponentPalette() {
 				<div className="flex flex-col gap-3">
 					{groups.map(({ id, label, items }) => (
 						<div key={id}>
-							<h3 className="px-2 pb-1 pt-2 text-editor-caption2 uppercase tracking-wide text-editor-secondary-label">
+							<h3 className="px-2 pb-1 pt-2 text-editor-footnote text-editor-secondary-label">
 								{label}
 							</h3>
 							{items.map((component) => (

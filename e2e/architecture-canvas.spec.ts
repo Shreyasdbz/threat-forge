@@ -81,11 +81,27 @@ test("aligns inspector rows and section headings on the same inset", async ({ pa
 				Number.parseFloat(getComputedStyle(element).paddingLeft),
 		);
 	const fieldLabel = details.getByText("Name", { exact: true });
+	const name = details.getByRole("textbox", { name: "Name", exact: true });
+	const id = details.locator("dd");
 	expect(await x(fieldLabel)).toBe(await x(details.getByRole("heading")));
 	expect(await x(architecture.getByRole("heading"))).toBe(await x(appearance.getByRole("heading")));
-	expect(await x(details.getByRole("textbox", { name: "Name", exact: true }))).toBeGreaterThan(
-		await x(fieldLabel),
-	);
+	expect(await x(name)).toBeGreaterThan(await x(fieldLabel));
+	expect(await x(name)).toBe(await x(id));
+	await expect(name).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+	await name.focus();
+	await expect(name).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+});
+
+test("insets the compact horizontal canvas controls", async ({ page }) => {
+	const controls = page.locator(".react-flow__controls");
+	const canvas = page.locator(".react-flow");
+	await expect(controls).toBeVisible();
+	const controlsBox = await controls.boundingBox();
+	const canvasBox = await canvas.boundingBox();
+	if (!controlsBox || !canvasBox) throw new Error("Canvas controls are not visible");
+	expect(controlsBox.width).toBeGreaterThan(controlsBox.height);
+	expect(controlsBox.x - canvasBox.x).toBeCloseTo(16);
+	expect(canvasBox.y + canvasBox.height - controlsBox.y - controlsBox.height).toBeCloseTo(16);
 });
 
 test("uses the bundled Inter face and equal toolbar icon targets", async ({ page }) => {

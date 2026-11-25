@@ -106,7 +106,7 @@ export function KeyboardShortcutsDialog() {
 						<div className="space-y-6">
 							{groupedShortcuts.map((group) => (
 								<section key={group.category}>
-									<h3 className="mb-2 text-editor-footnote uppercase tracking-wide text-muted-foreground">
+									<h3 className="mb-2 text-editor-footnote text-editor-secondary-label">
 										{CATEGORY_LABELS[group.category]}
 									</h3>
 									<div className="overflow-hidden rounded-md border border-border">
