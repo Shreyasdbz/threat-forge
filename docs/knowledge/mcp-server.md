@@ -124,7 +124,8 @@ For a batch, use these arguments to preview adding a node and positioning it:
 
 Review the results, then repeat without `dry_run` and pass the preview's
 `revision` as `expected_revision`. MCP revisions are opaque and bound to the
-canonical document path and file contents. A failed operation leaves the file unchanged.
+canonical document path and file contents. Dry-run revisions also cover the legacy
+sidecar layout used by relative moves. A failed operation leaves the file unchanged.
 The undo journal is session-local, with up to 20 edits per document for the 16 most
 recently edited documents. It does not undo external edits or remove workspace files
 created with `create_document`.

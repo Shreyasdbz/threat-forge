@@ -1,10 +1,9 @@
-use crate::file_io::merge_layout_into_model;
+use crate::file_io::LegacyLayouts;
 use crate::models::{Position, Size, ThreatModel};
 use crate::scene::{
     node_position, COLUMN_GAP, CONTAINER_INSET, ELEMENT_HEIGHT, ELEMENT_WIDTH, ROW_GAP,
 };
 use std::collections::HashSet;
-use std::path::Path;
 
 pub(super) const MAX_COORD: f64 = 100_000.0;
 
@@ -44,7 +43,7 @@ pub(super) fn position(model: &mut ThreatModel, id: &str, x: f64, y: f64) -> Res
 
 pub(super) fn move_node(
     model: &mut ThreatModel,
-    path: &Path,
+    layouts: &LegacyLayouts,
     id: &str,
     dx: f64,
     dy: f64,
@@ -53,7 +52,7 @@ pub(super) fn move_node(
         Some(position) => position,
         None => {
             let mut resolved = model.clone();
-            merge_layout_into_model(&mut resolved, path);
+            layouts.merge_into(&mut resolved);
             node_position(&resolved, id)?
         }
     };

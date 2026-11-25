@@ -1,5 +1,5 @@
 use crate::errors::ThreatForgeError;
-use crate::models::{DiagramLayout, Position, Size, ThreatModel, Viewport};
+use crate::models::{DiagramLayout, Position, Size, ThreatModel};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -36,61 +36,78 @@ pub fn read_layout(path: &Path) -> Result<DiagramLayout, ThreatForgeError> {
 /// reads the sidecar JSON, and merges positions into inline model fields.
 /// Failures are non-fatal — missing layout files are silently skipped.
 pub fn merge_layout_into_model(model: &mut ThreatModel, model_path: &Path) {
-    let model_dir = match model_path.parent() {
-        Some(dir) => dir,
-        None => return,
-    };
+    LegacyLayouts::read(model, model_path).merge_into(model);
+}
 
-    for diagram in &mut model.diagrams {
-        // Only migrate if there's a layout_file but no inline viewport yet
-        let layout_file = match (&diagram.layout_file, &diagram.viewport) {
-            (Some(lf), None) => lf.clone(),
-            _ => continue,
+#[derive(Default, serde::Serialize)]
+pub(crate) struct LegacyLayouts(Vec<(usize, Option<DiagramLayout>)>);
+
+impl LegacyLayouts {
+    pub fn read(model: &ThreatModel, model_path: &Path) -> Self {
+        let Some(model_dir) = model_path.parent() else {
+            return Self::default();
         };
+        Self(
+            model
+                .diagrams
+                .iter()
+                .enumerate()
+                .filter_map(|(index, diagram)| {
+                    let (Some(layout_file), None) = (&diagram.layout_file, &diagram.viewport)
+                    else {
+                        return None;
+                    };
+                    let layout = super::resolve_sidecar(model_dir, Path::new(layout_file))
+                        .ok()
+                        .and_then(|path| read_layout(&path).ok());
+                    Some((index, layout))
+                })
+                .collect(),
+        )
+    }
 
-        let Ok(layout_path) = super::resolve_sidecar(model_dir, Path::new(&layout_file)) else {
-            continue;
-        };
-        let layout = match read_layout(&layout_path) {
-            Ok(l) => l,
-            Err(_) => continue, // Non-fatal: layout file may not exist
-        };
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 
-        // Build lookup from node ID to position data
-        let positions: HashMap<&str, _> = layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+    pub fn merge_into(&self, model: &mut ThreatModel) {
+        for (index, layout) in &self.0 {
+            let Some(layout) = layout else { continue };
+            let diagram = &mut model.diagrams[*index];
 
-        // Merge positions into elements
-        for element in &mut model.elements {
-            if let Some(np) = positions.get(element.id.as_str()) {
-                if element.position.is_none() {
-                    element.position = Some(Position { x: np.x, y: np.y });
-                }
-            }
-        }
+            // Build lookup from node ID to position data
+            let positions: HashMap<&str, _> =
+                layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
-        // Merge positions and sizes into trust boundaries
-        for boundary in &mut model.trust_boundaries {
-            if let Some(np) = positions.get(boundary.id.as_str()) {
-                if boundary.position.is_none() {
-                    boundary.position = Some(Position { x: np.x, y: np.y });
-                }
-                if boundary.size.is_none() {
-                    if let (Some(w), Some(h)) = (np.width, np.height) {
-                        boundary.size = Some(Size {
-                            width: w,
-                            height: h,
-                        });
+            // Merge positions into elements
+            for element in &mut model.elements {
+                if let Some(np) = positions.get(element.id.as_str()) {
+                    if element.position.is_none() {
+                        element.position = Some(Position { x: np.x, y: np.y });
                     }
                 }
             }
-        }
 
-        // Set diagram viewport from layout
-        diagram.viewport = Some(Viewport {
-            x: layout.viewport.x,
-            y: layout.viewport.y,
-            zoom: layout.viewport.zoom,
-        });
+            // Merge positions and sizes into trust boundaries
+            for boundary in &mut model.trust_boundaries {
+                if let Some(np) = positions.get(boundary.id.as_str()) {
+                    if boundary.position.is_none() {
+                        boundary.position = Some(Position { x: np.x, y: np.y });
+                    }
+                    if boundary.size.is_none() {
+                        if let (Some(w), Some(h)) = (np.width, np.height) {
+                            boundary.size = Some(Size {
+                                width: w,
+                                height: h,
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Set diagram viewport from layout
+            diagram.viewport = Some(layout.viewport.clone());
+        }
     }
 }
 
@@ -329,6 +346,7 @@ fn validate_references(model: &ThreatModel) -> Result<(), ThreatForgeError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::Viewport;
     use std::io::Write;
     use tempfile::{NamedTempFile, TempDir};
 

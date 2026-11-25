@@ -5,7 +5,9 @@
 use super::journal::Journal;
 use super::layout;
 use super::workspace::{Workspace, MAX_RESULTS};
-use crate::file_io::{merge_layout_into_model, prepare_document, resolve_target, DocumentSnapshot};
+use crate::file_io::{
+    merge_layout_into_model, prepare_document, resolve_target, DocumentSnapshot, LegacyLayouts,
+};
 use crate::scene::Scene;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use std::borrow::Cow;
@@ -36,6 +38,18 @@ fn document_revision(path: &Path, content_revision: &str) -> String {
     hash.update([0]);
     hash.update(content_revision);
     format!("{:x}", hash.finalize())
+}
+
+fn preview_revision(document_revision: &str, layouts: &LegacyLayouts) -> Result<String, ErrorData> {
+    if layouts.is_empty() {
+        return Ok(document_revision.to_owned());
+    }
+    let layout_bytes = serde_json::to_vec(layouts)
+        .map_err(|_| mcp_err("Could not fingerprint the diagram layout."))?;
+    let mut hash = Sha256::new();
+    hash.update(document_revision);
+    hash.update(layout_bytes);
+    Ok(format!("preview:{:x}", hash.finalize()))
 }
 
 const WORKFLOW_PROMPTS: [(&str, &str, &str); 2] = [
@@ -229,7 +243,7 @@ enum Mutation {
 }
 
 impl Mutation {
-    fn apply(self, model: &mut ThreatModel, path: &Path) -> Result<String, ErrorData> {
+    fn apply(self, model: &mut ThreatModel, layouts: &LegacyLayouts) -> Result<String, ErrorData> {
         match self {
             Self::AddElement(req) => ThreatForgeServer::apply_add_element(model, req),
             Self::UpdateElement(req) => ThreatForgeServer::apply_update_element(model, req),
@@ -247,7 +261,7 @@ impl Mutation {
                 Ok(format!("Positioned node: {}", req.id))
             }
             Self::MoveNode(req) => {
-                layout::move_node(model, path, &req.id, req.dx, req.dy).map_err(mcp_err)?;
+                layout::move_node(model, layouts, &req.id, req.dx, req.dy).map_err(mcp_err)?;
                 Ok(format!("Moved node: {}", req.id))
             }
             Self::ResizeNode(req) => {
@@ -472,9 +486,12 @@ impl ThreatForgeServer {
                 ..
             },
         ) = self.read()?;
+        let layouts = LegacyLayouts::read(&model, &path);
+        let document_token = document_revision(&path, &revision);
+        let preview_token = preview_revision(&document_token, &layouts)?;
         if req
             .expected_revision
-            .is_some_and(|expected| expected != document_revision(&path, &revision))
+            .is_some_and(|expected| expected != document_token && expected != preview_token)
         {
             return Err(mcp_err(
                 crate::errors::ThreatForgeError::DocumentConflict.user_message(),
@@ -484,7 +501,7 @@ impl ThreatForgeServer {
         for (index, mutation) in req.operations.into_iter().enumerate() {
             let before = model.clone();
             let result = mutation
-                .apply(&mut model, &path)
+                .apply(&mut model, &layouts)
                 .map_err(|error| mcp_err(format!("Operation {}: {}", index + 1, error.message)))?;
             prepare_document(Some(&before), &mut model).map_err(|error| {
                 mcp_err(format!("Operation {}: {}", index + 1, error.user_message()))
@@ -492,12 +509,12 @@ impl ThreatForgeServer {
             results.push(result);
         }
         let revision = if req.dry_run {
-            revision
+            preview_token
         } else {
-            self.save(&path, &revision, model)?
+            document_revision(&path, &self.save(&path, &revision, model)?)
         };
         json_result(serde_json::json!({
-            "dry_run": req.dry_run, "revision": document_revision(&path, &revision), "results": results
+            "dry_run": req.dry_run, "revision": revision, "results": results
         }))
     }
 
@@ -888,7 +905,12 @@ impl ThreatForgeServer {
                 ..
             },
         ) = self.read()?;
-        let result = mutation.apply(&mut model, &path)?;
+        let layouts = if matches!(&mutation, Mutation::MoveNode(_)) {
+            LegacyLayouts::read(&model, &path)
+        } else {
+            LegacyLayouts::default()
+        };
+        let result = mutation.apply(&mut model, &layouts)?;
         self.save(&path, &revision, model)?;
         Ok(text_result(result))
     }

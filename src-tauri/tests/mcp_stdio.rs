@@ -588,3 +588,71 @@ fn workspace_relative_move_does_not_require_a_renderable_model() {
     assert_eq!(saved["elements"][0]["position"]["x"].as_f64(), Some(58.0));
     assert_eq!(saved["elements"][0]["position"]["y"].as_f64(), Some(28.0));
 }
+
+#[test]
+fn workspace_move_preview_rejects_changed_sidecar_positions() {
+    let dir = tempfile::tempdir().unwrap();
+    let model = MODEL_THF
+        .replace(
+            "elements: []",
+            "elements:\n- id: api\n  type: process\n  name: API",
+        )
+        .replace(
+            "  name: Level 0 DFD",
+            "  name: Level 0 DFD\n  layout_file: layout.json",
+        );
+    let path = dir.path().join("work.thf");
+    std::fs::write(&path, &model).unwrap();
+    let write_sidecar = |x| {
+        std::fs::write(
+            dir.path().join("layout.json"),
+            json!({
+                "diagram_id": "main-dfd", "viewport": {"x": 0, "y": 0, "zoom": 1},
+                "nodes": [{"id": "api", "x": x, "y": 240}]
+            })
+            .to_string(),
+        )
+        .unwrap();
+    };
+    write_sidecar(120);
+    let mut server = McpServer::spawn_workspace(dir.path());
+    server.start_workspace();
+    server.tool(2, "open_document", json!({ "path": "work.thf" }));
+    let operations = json!([
+        { "tool": "move_node", "arguments": { "id": "api", "dx": 10, "dy": -20 } }
+    ]);
+    let preview = server.tool_json(
+        3,
+        "batch_transaction",
+        json!({ "dry_run": true, "operations": operations }),
+    );
+    write_sidecar(300);
+    let response = server.request_raw(
+        4,
+        "tools/call",
+        json!({
+            "name": "batch_transaction", "arguments": {
+                "operations": operations, "expected_revision": preview["revision"]
+            }
+        }),
+    );
+    assert!(
+        response.to_string().contains("changed on disk"),
+        "{response}"
+    );
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), model);
+    let updated = server.tool_json(
+        5,
+        "batch_transaction",
+        json!({ "dry_run": true, "operations": operations }),
+    );
+    server.tool(
+        6,
+        "batch_transaction",
+        json!({ "operations": operations, "expected_revision": updated["revision"] }),
+    );
+    assert_eq!(
+        server.tool_json(7, "get_model", json!({}))["elements"][0]["position"],
+        json!({"x": 310.0, "y": 220.0})
+    );
+}
