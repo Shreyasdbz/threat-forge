@@ -206,7 +206,9 @@ test("opens the canvas context menu at the pointer outside layout containment", 
 		element.addEventListener(
 			"contextmenu",
 			(event) => {
-				element.dataset.testMenuPosition = JSON.stringify([event.clientX, event.clientY]);
+				if (event instanceof MouseEvent) {
+					element.dataset.testMenuPosition = JSON.stringify([event.clientX, event.clientY]);
+				}
 			},
 			{ once: true },
 		);
