@@ -1,5 +1,6 @@
 import { sanitizeDisplayText } from "@/lib/document-display-title";
 import type { DocumentPersistenceState, WorkspaceUnavailableReason } from "@/lib/persistence/types";
+import { isTauri } from "@/lib/platform";
 import { useDocumentRegistry } from "@/stores/document-registry";
 import { useHistoryStore } from "@/stores/history-store";
 import { useKeyResidueStore } from "@/stores/key-residue-store";
@@ -128,6 +129,8 @@ export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promi
 		persistenceState,
 	);
 	const displayFilePath = filePath ? sanitizeDisplayText(filePath) : null;
+	const missingSidecar =
+		!isTauri() && model?.diagrams.some((diagram) => diagram.layout_file && !diagram.viewport);
 
 	function renderSaveStatus() {
 		if (isDirty) {
@@ -145,6 +148,14 @@ export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promi
 			{model ? (
 				<>
 					{!localPersistence && <span data-testid="file-save-status">{renderSaveStatus()}</span>}
+					{missingSidecar && (
+						<>
+							{!localPersistence && <Separator />}
+							<span role="status" title="Open and save in the desktop app to migrate the layout.">
+								Layout sidecar not loaded
+							</span>
+						</>
+					)}
 					{fileSync && (
 						<>
 							{!localPersistence && <Separator />}
@@ -183,7 +194,9 @@ export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promi
 			    about before the user starts working, not after. */}
 			{localPersistence && (
 				<>
-					{(!model || fileSync || pastLength > 0 || futureLength > 0) && <Separator />}
+					{(!model || missingSidecar || fileSync || pastLength > 0 || futureLength > 0) && (
+						<Separator />
+					)}
 					<span
 						data-testid="local-persistence-status"
 						className={localPersistence.attention ? "text-destructive" : undefined}

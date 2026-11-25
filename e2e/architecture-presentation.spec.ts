@@ -2,6 +2,15 @@ import { readFile } from "node:fs/promises";
 import { expect, test } from "./fixtures";
 import { openDocument } from "./support/interactions";
 
+test("warns when the browser cannot read a legacy layout sidecar", async ({ page }) => {
+	await page.goto("/app");
+	await openDocument(page, "tests/fixtures/thf/legacy-sidecar/model.thf");
+	await expect(page.getByTestId("status-bar").getByText("Layout sidecar not loaded")).toBeVisible();
+	await openDocument(page, "tests/fixtures/thf/architecture-canonical-full.thf");
+	await expect(page.getByTestId("rf__edge-flow-1")).toBeVisible();
+	await expect(page.getByText("Layout sidecar not loaded")).toHaveCount(0);
+});
+
 test("browses architecture memberships, then presents and exports the shared diagram", async ({
 	page,
 }) => {

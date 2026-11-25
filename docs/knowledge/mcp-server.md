@@ -143,6 +143,12 @@ unsaved diagrams include the active canvas layout. SVG embeds a deterministic In
 the visible text, including the layout tables and glyph dependencies needed to shape it.
 PNG uses bundled static Inter faces, with DejaVu Sans for missing glyphs.
 
+Byte-for-byte browser/MCP parity applies to the same saved inline-layout document.
+The browser's single-file picker cannot load legacy JSON layout sidecars and shows
+**Layout sidecar not loaded** rather than silently claiming parity. Open and save
+the model in the desktop app with its original sidecar present to migrate its
+positions, sizes and viewport inline before exporting it in the browser.
+
 After changing the Rust scene or its model, regenerate the browser asset with
 `bash scripts/build-scene-wasm.sh` (Rust target `wasm32-unknown-unknown` and
 `wasm-bindgen-cli 0.2.114`). Keep the generated assets with the renderer changes.

@@ -58,7 +58,8 @@ canvas. Gate: an external edit never silently replaces a dirty document.
 
 Polish the canvas and inspector, surface architecture layers and groups, add
 presentation mode, and provide UI SVG/PNG export from the same scene as MCP.
-Gate: the same document produces matching artifacts from the editor and MCP.
+Gate: the same saved inline-layout document produces matching artifacts from the
+editor and MCP. Legacy JSON layout sidecars must first be migrated in the desktop app.
 
 ## C5 — Interoperability and release
 
