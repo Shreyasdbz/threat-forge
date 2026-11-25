@@ -14,19 +14,23 @@
 	--text-editor-caption2: 0.6875rem;
 	--text-editor-caption2--line-height: 1rem;
 	--text-editor-caption2--font-weight: 400;
+	--text-editor-caption2--letter-spacing: -0.005em;
 	--text-editor-caption: 0.75rem;
 	--text-editor-caption--line-height: 1rem;
 	--text-editor-caption--font-weight: 400;
+	--text-editor-caption--letter-spacing: -0.005em;
 	--text-editor-footnote: 0.75rem;
 	--text-editor-footnote--line-height: 1rem;
 	--text-editor-footnote--font-weight: 500;
+	--text-editor-footnote--letter-spacing: -0.005em;
 	--text-editor-body: 0.8125rem;
 	--text-editor-body--line-height: 1.25rem;
 	--text-editor-body--font-weight: 400;
+	--text-editor-body--letter-spacing: -0.005em;
 	--text-editor-headline: 0.8125rem;
 	--text-editor-headline--line-height: 1.25rem;
 	--text-editor-headline--font-weight: 500;
-	--text-editor-headline--letter-spacing: -0.01em;
+	--text-editor-headline--letter-spacing: -0.005em;
 	--text-editor-title3: 0.9375rem;
 	--text-editor-title3--line-height: 1.25rem;
 	--text-editor-title3--font-weight: 500;
@@ -161,6 +165,17 @@ html[data-theme-preset]:not([data-theme-preset="midnight"], [data-theme-preset="
 	--font-sans: var(--font-editor);
 	--font-mono: var(--font-editor-mono);
 	font-feature-settings: "cv11";
+}
+
+.editor-workspace
+	:is(
+		.text-editor-caption2,
+		.text-editor-caption,
+		.text-editor-footnote,
+		.text-editor-body,
+		.text-editor-headline
+	) {
+	text-rendering: geometricPrecision;
 }
 
 .editor-workspace .tabular-nums {

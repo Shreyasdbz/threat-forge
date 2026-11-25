@@ -51,7 +51,7 @@ export function RightPanel() {
 				onBlur={(event) => {
 					if (!event.currentTarget.contains(event.relatedTarget)) setFocused(null);
 				}}
-				className="mx-2 grid shrink-0 grid-cols-2 border-b border-editor-separator pt-1 @min-[19rem]/inspector:grid-cols-4"
+				className="mx-2 grid shrink-0 grid-cols-2 border-b border-editor-separator pt-1 @min-[19rem]/inspector:flex @min-[19rem]/inspector:justify-between"
 			>
 				{tabs.map(({ id, label }, index) => (
 					<button
@@ -70,7 +70,7 @@ export function RightPanel() {
 						onClick={() => setTab(id)}
 						onKeyDown={(event) => moveFocus(event, index)}
 						className={cn(
-							"min-h-8 min-w-0 break-words rounded-t-editor-control border-b-2 px-0.5 py-2 transition-colors duration-120 ease-editor",
+							"min-h-8 min-w-0 break-words rounded-t-editor-control border-b-2 px-2 py-2 transition-colors duration-120 ease-editor",
 							selected === id
 								? "border-editor-accent text-foreground"
 								: "border-transparent text-editor-secondary-label hover:text-foreground",

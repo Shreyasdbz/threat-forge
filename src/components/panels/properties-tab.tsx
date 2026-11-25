@@ -1,6 +1,14 @@
 import { MarkerType } from "@xyflow/react";
-import { ArrowLeftRight, Box, MousePointer2, RotateCcw } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useId, useLayoutEffect, useState } from "react";
+import { ArrowLeftRight, Box, ChevronDown, MousePointer2, RotateCcw } from "lucide-react";
+import {
+	type ComponentProps,
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useId,
+	useLayoutEffect,
+	useState,
+} from "react";
 import { getComponent, listCategories, listComponents } from "@/lib/registry/registry";
 import { type DfdEdge, type DfdEdgeData, useCanvasStore } from "@/stores/canvas-store";
 import { useActiveStores } from "@/stores/document-stores";
@@ -31,6 +39,18 @@ function InspectorField({ label, children }: { label: string; children: ReactNod
 			<span className={LABEL}>{label}</span>
 			{children}
 		</label>
+	);
+}
+
+function InspectorSelect({ className = "", ...props }: ComponentProps<"select">) {
+	return (
+		<span className="relative min-w-0">
+			<select {...props} className={`${INPUT} appearance-none pr-7 ${className}`} />
+			<ChevronDown
+				aria-hidden="true"
+				className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-editor-secondary-label"
+			/>
+		</span>
 	);
 }
 
@@ -308,10 +328,9 @@ function ElementProperties({ elementId }: { elementId: string }) {
 				{/* Type dropdown — hidden for text annotations */}
 				{!isTextAnnotation && (
 					<InspectorField label="Type">
-						<select
+						<InspectorSelect
 							value={element.type}
 							onChange={(e) => handleTypeChange(e.target.value)}
-							className={INPUT}
 						>
 							<option value="generic">Generic</option>
 							{componentsByCategory.map((group) => (
@@ -323,7 +342,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 									))}
 								</optgroup>
 							))}
-						</select>
+						</InspectorSelect>
 					</InspectorField>
 				)}
 
@@ -332,10 +351,9 @@ function ElementProperties({ elementId }: { elementId: string }) {
 				{/* Sub-type dropdown (conditional, not for text) */}
 				{!isTextAnnotation && subtypes.length > 0 && (
 					<InspectorField label="Sub Type">
-						<select
+						<InspectorSelect
 							value={element.subtype ?? ""}
 							onChange={(e) => handleSubtypeChange(e.target.value)}
-							className={INPUT}
 						>
 							<option value="">None</option>
 							{subtypes.map((st) => (
@@ -343,7 +361,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 									{st.label}
 								</option>
 							))}
-						</select>
+						</InspectorSelect>
 					</InspectorField>
 				)}
 
@@ -380,12 +398,11 @@ function ElementProperties({ elementId }: { elementId: string }) {
 				<InspectorGroup title="Architecture">
 					{(["layer", "group"] as const).map((field) => (
 						<InspectorField key={field} label={field === "layer" ? "Layer" : "Group"}>
-							<select
+							<InspectorSelect
 								value={element[field] ?? ""}
 								onChange={(event) =>
 									updateElement(element.id, { [field]: event.target.value || undefined })
 								}
-								className={INPUT}
 							>
 								<option value="">Unassigned</option>
 								{(field === "layer" ? model?.layers : model?.groups)?.map((option) => (
@@ -393,7 +410,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 										{option.name}
 									</option>
 								))}
-							</select>
+							</InspectorSelect>
 						</InspectorField>
 					))}
 					<CommaSeparatedField
@@ -430,21 +447,21 @@ function ElementProperties({ elementId }: { elementId: string }) {
 					/>
 
 					<InspectorField label="Font Size">
-						<select
+						<InspectorSelect
 							value={element.font_size ?? 14}
 							onChange={(e) => {
 								const size = Number.parseInt(e.target.value, 10);
 								updateElement(element.id, { font_size: size });
 								syncElementNodeData({ fontSize: size });
 							}}
-							className={`${INPUT} tabular-nums`}
+							className="tabular-nums"
 						>
 							{FONT_SIZE_OPTIONS.map((size) => (
 								<option key={size} value={size}>
 									{size}px
 								</option>
 							))}
-						</select>
+						</InspectorSelect>
 					</InspectorField>
 
 					<div className={ROW}>
@@ -668,19 +685,33 @@ function ColorField({
 	onColorChange: (color: string) => void;
 	onOpacityChange: (opacity: number) => void;
 }) {
+	const hex = color?.match(/^#([\da-f]{3}|[\da-f]{6})$/i)?.[1];
+	const pickerColor =
+		hex?.length === 3
+			? `#${[...hex].map((digit) => digit.repeat(2)).join("")}`
+			: hex
+				? `#${hex}`
+				: "#888888";
 	return (
 		<div className={ROW}>
 			<span className={LABEL}>{label}</span>
 			<div className="flex min-w-0 flex-wrap items-center gap-1">
-				<input
-					type="color"
-					aria-label={label}
-					aria-description={color ? undefined : "Default color"}
-					title={color || "Default color"}
-					value={color || "#888888"}
-					onChange={(e) => onColorChange(e.target.value)}
-					className={`size-7 shrink-0 cursor-pointer rounded-editor-control bg-transparent p-1 hover:bg-editor-hover [&::-moz-color-swatch]:rounded-sm [&::-webkit-color-swatch]:rounded-sm [&::-webkit-color-swatch-wrapper]:p-0 ${color ? "" : "[&::-moz-color-swatch]:bg-transparent! [&::-moz-color-swatch]:border-editor-outline [&::-moz-color-swatch]:border-dashed [&::-webkit-color-swatch]:bg-transparent! [&::-webkit-color-swatch]:border-editor-outline [&::-webkit-color-swatch]:border-dashed"}`}
-				/>
+				<span className="relative grid size-7 shrink-0 place-items-center rounded-editor-control hover:bg-editor-hover has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-editor-accent">
+					<span
+						aria-hidden="true"
+						style={{ backgroundColor: hex ? color : undefined }}
+						className={`size-5 rounded-sm border border-editor-outline ${color ? "" : "bg-linear-to-br from-transparent from-45% via-editor-secondary-label via-50% to-transparent to-55%"}`}
+					/>
+					<input
+						type="color"
+						aria-label={label}
+						aria-description={color ? undefined : "Default color"}
+						title={color || "Default color"}
+						value={pickerColor}
+						onChange={(e) => onColorChange(e.target.value)}
+						className="absolute inset-0 size-full cursor-pointer opacity-0"
+					/>
+				</span>
 				<label className="flex shrink-0 items-center rounded-editor-control pr-1 text-editor-caption text-editor-secondary-label hover:bg-editor-hover focus-within:bg-editor-fill">
 					<input
 						type="number"

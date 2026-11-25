@@ -129,7 +129,7 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 					</div>
 				)}
 				{(nodeData.trustZone || nodeData.technologies.length > 0) && (
-					<div className="mt-1 truncate text-editor-caption text-muted-foreground [font-kerning:normal] [font-optical-sizing:auto] [text-rendering:geometricPrecision] tracking-normal">
+					<div className="mt-1 truncate text-editor-caption text-muted-foreground [font-kerning:normal] [font-optical-sizing:auto]">
 						{[nodeData.trustZone, nodeData.technologies.join(" · ")].filter(Boolean).join(" / ")}
 					</div>
 				)}

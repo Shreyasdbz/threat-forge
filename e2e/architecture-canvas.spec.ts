@@ -30,6 +30,15 @@ test("fits every inspector tab label at the default panel width", async ({ page 
 			),
 		)
 		.toEqual([true, true, true, true]);
+	const gaps = await tabs.evaluateAll((buttons) =>
+		buttons.slice(1).map((button, index) => {
+			const label = button.firstElementChild;
+			const previousLabel = buttons[index].firstElementChild;
+			if (!label || !previousLabel) throw new Error("Inspector tab label missing");
+			return label.getBoundingClientRect().left - previousLabel.getBoundingClientRect().right;
+		}),
+	);
+	expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThan(1);
 });
 
 test("renders the neutral dot grid at a consistent diagram-space scale", async ({ page }) => {
@@ -46,12 +55,30 @@ test("renders the neutral dot grid at a consistent diagram-space scale", async (
 	await expect(dot).toHaveCSS("fill", "rgb(100, 112, 129)");
 });
 
-test("uses Inter's optical metrics and kerning for canvas captions", async ({ page }) => {
+test("uses Inter's optical metrics and kerning for canvas captions and small editor text", async ({
+	page,
+}) => {
 	const caption = page.getByTestId("node-api-gateway").getByText("dmz / nginx", { exact: true });
 	await expect(caption).toHaveCSS("font-kerning", "normal");
 	await expect(caption).toHaveCSS("font-optical-sizing", "auto");
-	await expect(caption).toHaveCSS("letter-spacing", "normal");
+	await expect(caption).toHaveCSS("letter-spacing", "-0.06px");
 	await expect(caption).toHaveCSS("text-rendering", /geometricprecision/i);
+	await page.getByTestId("node-web-app").click();
+	const samples = [
+		page.getByText("Trust Zone", { exact: true }),
+		page.getByText("Fill Color", { exact: true }),
+		page.getByText("Corporate Network", { exact: true }),
+		page.getByTestId("canvas-count-badge").getByText("Components", { exact: true }),
+		page.getByText("Saved locally", { exact: true }),
+	];
+	for (const sample of samples) {
+		await expect(sample).toHaveCSS("letter-spacing", "-0.06px");
+		await expect(sample).toHaveCSS("text-rendering", /geometricprecision/i);
+	}
+	await expect(page.getByRole("tab", { name: "AI", exact: true }).locator("span")).toHaveCSS(
+		"letter-spacing",
+		"-0.055px",
+	);
 });
 
 test("aligns inspector rows and section headings on the same inset", async ({ page }) => {
@@ -83,13 +110,42 @@ test("aligns inspector rows and section headings on the same inset", async ({ pa
 	const fieldLabel = details.getByText("Name", { exact: true });
 	const name = details.getByRole("textbox", { name: "Name", exact: true });
 	const id = details.locator("dd");
+	const type = details.getByRole("combobox", { name: "Type" });
 	expect(await x(fieldLabel)).toBe(await x(details.getByRole("heading")));
 	expect(await x(architecture.getByRole("heading"))).toBe(await x(appearance.getByRole("heading")));
 	expect(await x(name)).toBeGreaterThan(await x(fieldLabel));
 	expect(await x(name)).toBe(await x(id));
+	expect(await x(type)).toBe(await x(id));
+	await expect(type).toHaveCSS("appearance", "none");
+	const chevron = type.locator("..").locator("svg");
+	await expect(chevron).toBeVisible();
+	expect(await x(chevron)).toBeGreaterThan(await x(type));
 	await expect(name).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 	await name.focus();
 	await expect(name).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+});
+
+test("previews configured appearance colors and keeps default opacity aligned", async ({
+	page,
+}) => {
+	await page.getByTestId("node-api-gateway").click();
+	const panel = page.getByTestId("right-panel");
+	const fill = panel.getByLabel("Fill Color", { exact: true });
+	const stroke = panel.getByLabel("Stroke Color", { exact: true });
+	const swatch = (picker: Locator) => picker.locator("..").locator('[aria-hidden="true"]');
+	await expect(swatch(fill)).toHaveCSS("background-color", "rgb(59, 130, 246)");
+	await expect(swatch(stroke)).toHaveCSS("background-color", "rgb(30, 64, 175)");
+	const fillOpacity = panel.getByRole("spinbutton", { name: "Fill Color opacity (%)" });
+	const strokeOpacity = panel.getByRole("spinbutton", { name: "Stroke Color opacity (%)" });
+	await expect(fillOpacity).toHaveValue("15");
+	await expect(strokeOpacity).toHaveValue("90");
+	await panel.getByRole("button", { name: "Reset fill color to default" }).click();
+	await expect(fill).toHaveAttribute("aria-description", "Default color");
+	await expect(swatch(fill)).toHaveCSS("background-image", /linear-gradient/);
+	expect((await fillOpacity.boundingBox())?.x).toBe((await strokeOpacity.boundingBox())?.x);
+	await fill.fill("#198765");
+	await expect(swatch(fill)).toHaveCSS("background-color", "rgb(25, 135, 101)");
+	await expect(swatch(fill)).toHaveCSS("background-image", "none");
 });
 
 test("insets the compact horizontal canvas controls", async ({ page }) => {

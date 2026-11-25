@@ -13,8 +13,8 @@ communicate layering; do not blur the diagram behind it.
   Bundle [Inter 4.1](https://github.com/rsms/inter/releases/tag/v4.1) under the SIL Open Font License.
   Use its upright variable WOFF2 for the editor, embed a per-diagram variable TrueType subset in
   SVG, and use its static 400/500/600 TTF faces for resvg. Do not fetch fonts from a CDN or ship an
-  Apple font. Canvas captions use Inter's small-size optical metrics and normal kerning without
-  added tracking.
+  Apple font. Small editor text uses fractional glyph advances and slight negative tracking.
+  Canvas captions also use Inter's small-size optical metrics and normal kerning.
   Apply Inter's `cv11` to editor text and its open digits (`ss01`) and tabular width (`tnum`)
   to numeric readouts. The landing page keeps its separate typography.
 - IDs, code, and paths when precision matters:
@@ -27,11 +27,11 @@ communicate layering; do not blur the diagram behind it.
 
 | Role | Size / line | Weight | Tracking | Use |
 | --- | ---: | ---: | ---: | --- |
-| Caption 2 | 11 / 16 | 400 | 0 | Inspector tabs, count pills, badges and shortcut glyphs; never instructions |
-| Caption | 12 / 16 | 400 | 0 | Diagram metadata, status bar, helper text and IDs |
-| Footnote | 12 / 16 | 500 | 0 | Field labels, list section labels, one-line connector labels |
-| Body | 13 / 20 | 400 | 0 | Rows, controls, tooltips, inspector values and descriptions |
-| Headline | 13 / 20 | 500 | -0.01em | Node titles and current document |
+| Caption 2 | 11 / 16 | 400 | -0.005em | Inspector tabs, count pills, badges and shortcut glyphs; never instructions |
+| Caption | 12 / 16 | 400 | -0.005em | Diagram metadata, status bar, helper text and IDs |
+| Footnote | 12 / 16 | 500 | -0.005em | Field labels, list section labels, one-line connector labels |
+| Body | 13 / 20 | 400 | -0.005em | Rows, controls, tooltips, inspector values and descriptions |
+| Headline | 13 / 20 | 500 | -0.005em | Node titles and current document |
 | Title 3 | 15 / 20 | 500 | -0.01em | Panel and dialog titles |
 | Title 2 | 22 / 28 | 590 | -0.015em | Empty workspace title |
 

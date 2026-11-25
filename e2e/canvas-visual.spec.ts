@@ -141,6 +141,12 @@ for (const colorScheme of ["light", "dark"] as const) {
 		const inspector = page.getByTestId("right-panel");
 		await expect(inspector.getByRole("heading", { name: "Web Application" })).toBeVisible();
 		await expect(inspector).toHaveScreenshot(`inspector-properties-${colorScheme}.png`);
+		await page.getByTestId("node-api-gateway").click();
+		const appearance = inspector.locator("section").filter({
+			has: page.getByRole("heading", { name: "Appearance", exact: true }),
+		});
+		await expect(appearance.getByLabel("Fill Color", { exact: true })).toHaveValue("#3b82f6");
+		await expect(appearance).toHaveScreenshot(`inspector-appearance-${colorScheme}.png`);
 	});
 
 	test(`architecture canvas and minimap match the ${colorScheme} baseline`, async ({ page }) => {
