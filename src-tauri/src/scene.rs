@@ -92,6 +92,7 @@ struct Edge<'a> {
     dashed: bool,
     loops: bool,
     lane: usize,
+    offset: (f64, f64),
 }
 
 struct Geometry {
@@ -310,7 +311,7 @@ impl<'a> Scene<'a> {
             });
         }
         let mut lanes = HashMap::new();
-        let mut edge = |from: &'a str, to: &'a str, name, dashed| {
+        let mut edge = |from: &'a str, to: &'a str, name, dashed, offset: Option<&Position>| {
             let from_rect = *rects.get(from)?;
             let to_rect = *rects.get(to)?;
             let lane = lanes.entry((from, to)).or_insert(0);
@@ -323,6 +324,12 @@ impl<'a> Scene<'a> {
                 dashed,
                 loops: from == to,
                 lane: index,
+                offset: offset.map_or((0.0, 0.0), |p| {
+                    (
+                        bounded(p.x, 0.0, -100_000.0, 100_000.0),
+                        bounded(p.y, 0.0, -100_000.0, 100_000.0),
+                    )
+                }),
             })
         };
         let mut edges: Vec<_> = model
@@ -338,6 +345,7 @@ impl<'a> Scene<'a> {
                         &f.name
                     },
                     false,
+                    f.label_offset.as_ref(),
                 )
             })
             .collect();
@@ -347,6 +355,7 @@ impl<'a> Scene<'a> {
                 &r.to,
                 r.name.as_deref().unwrap_or(&r.relationship_type),
                 true,
+                r.label_offset.as_ref(),
             )
         }));
         Ok(Self {
@@ -374,19 +383,25 @@ impl<'a> Scene<'a> {
             right = right.max(r.x + r.width + 64.0);
             bottom = bottom.max(r.y + r.height + 64.0);
         }
-        let (width, height) = (right - x, bottom - y);
-        let scale = (f64::from(MAX_SIDE) / width.max(height)).min(1.0);
         let title = xml_text(rendered_chars(self.title, 240));
         let mut shapes = SvgShapes::default();
         for node in &self.containers {
             node.draw(&mut shapes);
         }
         for edge in &self.edges {
-            edge.draw(&mut shapes);
+            let (label_x, label_y) = edge.draw(&mut shapes);
+            if edge.offset != (0.0, 0.0) {
+                x = x.min(label_x - 64.0);
+                y = y.min(label_y - 32.0);
+                right = right.max(label_x + 64.0);
+                bottom = bottom.max(label_y + 32.0);
+            }
         }
         for node in &self.nodes {
             node.draw(&mut shapes);
         }
+        let (width, height) = (right - x, bottom - y);
+        let scale = (f64::from(MAX_SIDE) / width.max(height)).min(1.0);
         let mut styles = String::new();
         let font = if embed_font && !shapes.characters.is_empty() {
             Some(inter_subset(&shapes.characters)?)
@@ -493,13 +508,13 @@ impl Node<'_> {
 }
 
 impl Edge<'_> {
-    fn draw(&self, shapes: &mut SvgShapes) {
+    fn draw(&self, shapes: &mut SvgShapes) -> (f64, f64) {
         let (x, y) = self.from.toward(self.to.center());
         let (to_x, to_y) = self.to.toward(self.from.center());
         let mid_x = (x + to_x) / 2.0;
         let mid_y = (y + to_y) / 2.0;
         let offset = self.lane as f64 * 36.0;
-        let (path, label_x, label_y, anchor) = if self.loops {
+        let (mut path, mut label_x, mut label_y, mut anchor) = if self.loops {
             let (cx, _) = self.from.center();
             let top = self.from.y;
             (
@@ -538,6 +553,20 @@ impl Edge<'_> {
                 "middle",
             )
         };
+        if self.offset != (0.0, 0.0) {
+            label_x += self.offset.0;
+            label_y += self.offset.1;
+            anchor = "middle";
+            let (x, y, to_x, to_y) = if self.loops {
+                let (cx, _) = self.from.center();
+                (cx - 16.0, self.from.y, cx + 16.0, self.from.y)
+            } else {
+                (x, y, to_x, to_y)
+            };
+            let control_x = 2.0 * label_x - (x + to_x) / 2.0;
+            let control_y = 2.0 * label_y - (y + to_y) / 2.0;
+            path = format!("M{x:.2} {y:.2} Q{control_x:.2} {control_y:.2} {to_x:.2} {to_y:.2}");
+        }
         let label = shapes.text(self.name, 80);
         let dash = if self.dashed {
             r#" stroke-dasharray="6 4""#
@@ -548,6 +577,7 @@ impl Edge<'_> {
             shapes.markup,
             r##"<path d="{path}" fill="none" stroke="#606973" stroke-width="1.25" marker-end="url(#arrow)"{dash}/><text x="{label_x:.2}" y="{label_y:.2}" text-anchor="{anchor}" font-size="13" font-weight="500" fill="#505863">{label}</text>"##
         );
+        (label_x, label_y)
     }
 }
 
@@ -633,6 +663,37 @@ fn png(svg: &str) -> Result<Vec<u8>, &'static str> {
 mod tests {
     use super::*;
     use read_fonts::TableProvider;
+
+    #[test]
+    fn flow_label_offset_moves_the_text_and_routes_through_its_position() {
+        let mut edge = Edge {
+            from: Rect {
+                x: 0.0,
+                y: 0.0,
+                width: 20.0,
+                height: 20.0,
+            },
+            to: Rect {
+                x: 100.0,
+                y: 0.0,
+                width: 20.0,
+                height: 20.0,
+            },
+            name: "Order",
+            dashed: false,
+            loops: false,
+            lane: 0,
+            offset: (0.0, 0.0),
+        };
+        assert_eq!(edge.draw(&mut SvgShapes::default()), (60.0, 2.0));
+        edge.offset = (12.0, 20.0);
+        let mut shapes = SvgShapes::default();
+        assert_eq!(edge.draw(&mut shapes), (72.0, 22.0));
+        assert!(shapes
+            .markup
+            .contains("M20.00 10.00 Q84.00 34.00 100.00 10.00"));
+        assert!(shapes.markup.contains("<text x=\"72.00\" y=\"22.00\""));
+    }
 
     #[test]
     fn subset_keeps_rendered_characters_and_layout() {
