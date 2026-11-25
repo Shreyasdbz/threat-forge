@@ -139,7 +139,7 @@ describe("StatusBar local persistence indicator", () => {
 		expect(screen.getByTestId("status-bar")).toHaveTextContent("Saved");
 	});
 
-	it("shows a saved-locally state without disturbing the file save status", () => {
+	it("shows a single save state when the browser copy is saved", () => {
 		openDocument();
 		setActiveDocumentPersistence({ status: "saved", lastPersistedAt: "2026-07-21T00:00:00.000Z" });
 
@@ -149,7 +149,16 @@ describe("StatusBar local persistence indicator", () => {
 		expect(indicator).toHaveTextContent("Saved locally");
 		// A routine save is not announced to assistive technology on every edit burst.
 		expect(screen.getByTestId("local-persistence-alert")).toBeEmptyDOMElement();
-		expect(screen.getByTestId("status-bar")).toHaveTextContent("Saved");
+		expect(screen.queryByTestId("file-save-status")).not.toBeInTheDocument();
+	});
+
+	it("never shows Saved next to an in-progress local write", () => {
+		openDocument();
+		setActiveDocumentPersistence({ status: "writing", lastPersistedAt: null });
+		render(<StatusBar />);
+
+		expect(screen.getByTestId("local-persistence-status")).toHaveTextContent("Saving locally...");
+		expect(screen.queryByTestId("file-save-status")).not.toBeInTheDocument();
 	});
 
 	it("coalesces repeated write failures into one announced indicator", () => {

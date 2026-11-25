@@ -144,10 +144,10 @@ export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promi
 		>
 			{model ? (
 				<>
-					<span>{renderSaveStatus()}</span>
+					{!localPersistence && <span data-testid="file-save-status">{renderSaveStatus()}</span>}
 					{fileSync && (
 						<>
-							<Separator />
+							{!localPersistence && <Separator />}
 							<span role="status">
 								{fileSync === "updated"
 									? "Reloaded external changes"
@@ -168,7 +168,7 @@ export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promi
 					)}
 					{(pastLength > 0 || futureLength > 0) && (
 						<>
-							<Separator />
+							{(!localPersistence || fileSync) && <Separator />}
 							<span className="tabular-nums">
 								Undo: {pastLength} / Redo: {futureLength}
 							</span>
@@ -183,11 +183,15 @@ export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promi
 			    about before the user starts working, not after. */}
 			{localPersistence && (
 				<>
-					<Separator />
+					{(!model || fileSync || pastLength > 0 || futureLength > 0) && <Separator />}
 					<span
 						data-testid="local-persistence-status"
 						className={localPersistence.attention ? "text-destructive" : undefined}
-						title={localPersistence.detail}
+						title={
+							model && isDirty && filePath
+								? `${localPersistence.detail} Changes have not been saved to the .thf file.`
+								: localPersistence.detail
+						}
 					>
 						{localPersistence.text}
 					</span>

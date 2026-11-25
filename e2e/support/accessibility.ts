@@ -96,7 +96,7 @@ export interface AccessibilityException {
  *   recorded on its tracking issue rather than resolved here. Tracked by #220.
  */
 export const KNOWN_ACCESSIBILITY_EXCEPTIONS: readonly AccessibilityException[] = [
-	{ ruleId: "aria-required-children", target: ".overscroll-x-contain", issue: 220 },
+	{ ruleId: "aria-required-children", target: "#open-document-tabs", issue: 220 },
 ];
 
 /** True impact levels this gate ever acts on; `moderate`/`minor`/`null` are out of scope. */

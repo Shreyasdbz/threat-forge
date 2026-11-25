@@ -115,7 +115,7 @@ function EdgeProperties({ flow }: { flow: DataFlow }) {
 						updateDataFlow(flow.id, { flow_number: val });
 						syncEdgeData({ flowNumber: val });
 					}}
-					className="w-full rounded border border-border bg-background px-2 py-1 text-xs placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
+					className="w-full rounded-editor-control border border-editor-line bg-editor-surface px-2 py-1.5 text-editor-body placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
 				/>
 			</label>
 
@@ -286,7 +286,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 					<select
 						value={element.type}
 						onChange={(e) => handleTypeChange(e.target.value)}
-						className="w-full rounded border border-border bg-background px-2 py-1 text-xs focus:border-primary focus:outline-none"
+						className="w-full rounded-editor-control border border-editor-line bg-editor-surface px-2 py-1.5 text-editor-body focus:border-primary focus:outline-none"
 					>
 						<option value="generic">Generic</option>
 						{componentsByCategory.map((group) => (
@@ -313,7 +313,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 					<select
 						value={element.subtype ?? ""}
 						onChange={(e) => handleSubtypeChange(e.target.value)}
-						className="w-full rounded border border-border bg-background px-2 py-1 text-xs focus:border-primary focus:outline-none"
+						className="w-full rounded-editor-control border border-editor-line bg-editor-surface px-2 py-1.5 text-editor-body focus:border-primary focus:outline-none"
 					>
 						<option value="">None</option>
 						{subtypes.map((st) => (
@@ -355,7 +355,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 			/>
 
 			{!isTextAnnotation && (
-				<fieldset className="grid grid-cols-2 gap-3 border-t border-editor-line pt-3">
+				<fieldset className="mt-3 grid grid-cols-2 gap-3 border-t border-editor-line pt-3">
 					<legend className="pr-2 text-editor-small font-semibold">Architecture</legend>
 					{(["layer", "group"] as const).map((field) => (
 						<label key={field} className="min-w-0 text-xs text-muted-foreground">
@@ -378,7 +378,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 					))}
 					<button
 						type="button"
-						className="col-span-2 justify-self-start text-xs text-primary underline underline-offset-2"
+						className="col-span-2 -ml-2 justify-self-start rounded-editor-control px-2 py-1 text-editor-small text-muted-foreground hover:bg-editor-hover hover:text-foreground"
 						onClick={() => setTab("architecture")}
 					>
 						Browse layers and groups
@@ -426,7 +426,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 								updateElement(element.id, { font_size: size });
 								syncElementNodeData({ fontSize: size });
 							}}
-							className="w-full rounded border border-border bg-background px-2 py-1 text-xs focus:border-primary focus:outline-none"
+							className="w-full rounded-editor-control border border-editor-line bg-editor-surface px-2 py-1.5 text-editor-body focus:border-primary focus:outline-none"
 						>
 							{FONT_SIZE_OPTIONS.map((size) => (
 								<option key={size} value={size}>
@@ -656,40 +656,42 @@ function ColorField({
 	onOpacityChange: (opacity: number) => void;
 }) {
 	return (
-		<div>
-			<span className="mb-1 block text-editor-small font-semibold text-muted-foreground">
+		<div className="flex flex-wrap items-center gap-2">
+			<span className="min-w-20 flex-1 text-editor-small font-semibold text-muted-foreground">
 				{label}
 			</span>
-			<div className="flex items-center gap-2">
+			<input
+				type="color"
+				aria-label={label}
+				value={color || "#888888"}
+				onChange={(e) => onColorChange(e.target.value)}
+				className="size-6 cursor-pointer rounded-editor-control border border-editor-line bg-transparent p-0"
+			/>
+			<label className="flex items-center gap-1 text-editor-small text-muted-foreground">
 				<input
-					type="color"
-					value={color || "#888888"}
-					onChange={(e) => onColorChange(e.target.value)}
-					className="h-7 w-7 shrink-0 cursor-pointer rounded border border-border bg-transparent p-0"
+					type="number"
+					aria-label={`${label} opacity (%)`}
+					min={0}
+					max={100}
+					step={5}
+					value={Math.round(opacity * 100)}
+					onChange={(e) => {
+						if (Number.isFinite(e.target.valueAsNumber)) {
+							onOpacityChange(Math.max(0, Math.min(100, e.target.valueAsNumber)) / 100);
+						}
+					}}
+					className="w-12 rounded-editor-control border border-editor-line bg-editor-surface px-1 py-1 text-right tabular-nums"
 				/>
-				<div className="flex flex-1 items-center gap-1.5">
-					<span className="text-[10px] text-muted-foreground">Opacity</span>
-					<input
-						type="range"
-						min="0"
-						max="1"
-						step="0.05"
-						value={opacity}
-						onChange={(e) => onOpacityChange(Number.parseFloat(e.target.value))}
-						className="h-1 flex-1 accent-primary"
-					/>
-					<span className="w-7 text-right text-[10px] text-muted-foreground">
-						{Math.round(opacity * 100)}%
-					</span>
-				</div>
-			</div>
+				%
+			</label>
 			{color && (
 				<button
 					type="button"
 					onClick={() => onColorChange("")}
-					className="mt-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+					aria-label={`Reset ${label.toLowerCase()} to default`}
+					className="rounded-editor-control px-1 py-1 text-editor-small text-muted-foreground hover:bg-editor-hover"
 				>
-					Reset to default
+					Reset
 				</button>
 			)}
 		</div>
@@ -742,7 +744,7 @@ function EditableField({
 				value={value}
 				placeholder={placeholder}
 				onChange={(e) => onChange(e.target.value)}
-				className="w-full rounded border border-border bg-background px-2 py-1 text-xs placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
+				className="w-full rounded-editor-control border border-editor-line bg-editor-surface px-2 py-1.5 text-editor-body placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
 			/>
 		</label>
 	);
@@ -769,7 +771,7 @@ function EditableTextarea({
 				placeholder={placeholder}
 				onChange={(e) => onChange(e.target.value)}
 				rows={3}
-				className="w-full resize-none rounded border border-border bg-background px-2 py-1 text-xs placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
+				className="w-full resize-none rounded-editor-control border border-editor-line bg-editor-surface px-2 py-1.5 text-editor-body placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
 			/>
 		</label>
 	);
@@ -826,7 +828,7 @@ function CommaSeparatedField({
 				onKeyDown={(e) => {
 					if (e.key === "Enter") commitValue();
 				}}
-				className="w-full rounded border border-border bg-background px-2 py-1 text-xs placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
+				className="w-full rounded-editor-control border border-editor-line bg-editor-surface px-2 py-1.5 text-editor-body placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
 			/>
 		</label>
 	);

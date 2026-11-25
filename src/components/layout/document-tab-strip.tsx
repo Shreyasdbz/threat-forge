@@ -388,6 +388,7 @@ export function DocumentTabStrip() {
 			{tabs.length > 0 && (
 				<div
 					ref={tablistRef}
+					id="open-document-tabs"
 					role="tablist"
 					aria-label="Open documents"
 					aria-orientation="horizontal"
