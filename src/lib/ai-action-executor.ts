@@ -55,34 +55,43 @@ export function describeActionReview(
 	action: AiAction,
 	impact: ReturnType<typeof reviewDeletion>,
 ): string {
-	const singleLine = (text: string) => text.replace(/[\s\p{Cc}\p{Bidi_Control}]+/gu, " ").trim();
-	const summary = isDestructiveAction(action.action)
-		? singleLine(describeAction(action))
-		: describeAction(action);
+	switch (action.action) {
+		case "delete_element":
+		case "delete_data_flow":
+		case "delete_trust_boundary":
+		case "delete_threat":
+			break;
+		default:
+			return describeAction(action);
+	}
+	const quote = (text: string) =>
+		JSON.stringify(text).replace(
+			/[\p{Cc}\p{Bidi_Control}\u2028\u2029]/gu,
+			(char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+		);
+	const summary = describeAction({ ...action, id: quote(action.id) });
 	if (!impact) return summary;
 	const impacts = [
 		[
 			"Data flows also removed",
-			action.action === "delete_element" ? impact.flows.map(({ id }) => id) : [],
+			action.action === "delete_element" ? impact.flows.map(({ id }) => quote(id)) : [],
 		],
-		["Relationships removed", impact.relationships.map(({ id }) => id)],
+		["Relationships removed", impact.relationships.map(({ id }) => quote(id))],
 		[
 			action.action === "delete_threat" ? "Threat" : "Threats removed",
 			impact.threats.map(
-				({ id, title, category }) =>
-					`${singleLine(title)} (${singleLine(category)}; ${singleLine(id)})`,
+				({ id, title, category }) => `${quote(title)} (${quote(category)}; ${quote(id)})`,
 			),
 		],
-		["Membership removed from boundaries", impact.membership],
+		["Membership removed from boundaries", impact.membership.map(quote)],
 	] as const;
 	return [
 		summary,
 		...impacts
 			.filter(([, ids]) => ids.length > 0)
-			.map(([label, ids]) => `${label}: ${ids.map(singleLine).join(", ")}`),
+			.map(([label, ids]) => `${label}: ${ids.join(", ")}`),
 	].join("\n");
 }
-
 /** Sort actions so dependencies resolve first: adds before updates/deletes, elements before flows. */
 export function sortActionsByDependency(actions: AiAction[]): AiAction[] {
 	const priority = (a: AiAction): number => {

@@ -74,11 +74,11 @@ it("reviews cascades without removing a boundary that shares the element ID", as
 	if (!reviewed?.ok) throw new Error("Delete was not prepared");
 	expect(reviewed.call.summary).toBe(
 		[
-			"Delete element: web-app",
-			"Data flows also removed: flow-1",
-			"Relationships removed: rel-1",
-			"Threats removed: Spoof (Spoofing; threat-1)",
-			"Membership removed from boundaries: web-app",
+			'Delete element: "web-app"',
+			'Data flows also removed: "flow-1"',
+			'Relationships removed: "rel-1"',
+			'Threats removed: "Spoof" ("Spoofing"; "threat-1")',
+			'Membership removed from boundaries: "web-app"',
 		].join("\n"),
 	);
 	const signal = new AbortController().signal;
@@ -119,18 +119,29 @@ it("allows two independently approved deletions to execute in sequence", async (
 	expect(afterSecond.document?.trust_boundaries).toEqual([]);
 });
 
-it("keeps untrusted threat titles on the same line as the deletion disclosure", () => {
+it("quotes and escapes untrusted threat titles and identifiers without collapsing spaces", () => {
 	const document: ThreatModel = {
 		...model,
-		threats: [{ ...model.threats[0], title: "Spoof\r\n\t\u202eApproved\u2029by owner" }],
+		threats: [
+			{
+				...model.threats[0],
+				id: "api  gateway",
+				title: 'Spoof\r\n\t\u202e"Approved"\u2029by  owner',
+			},
+			{ ...model.threats[0], id: "api gateway" },
+		],
 	};
-	const reviewed = createGraphToolRegistry()
-		.get("delete_threat")
-		?.prepare({ action: "delete_threat", id: "threat-1" }, document);
-	if (!reviewed?.ok) throw new Error("Delete was not prepared");
-	expect(reviewed.call.summary.split("\n").slice(1)).toEqual([
-		"Threat: Spoof Approved by owner (Spoofing; threat-1)",
+	const tool = createGraphToolRegistry().get("delete_threat");
+	const doubleSpace = tool?.prepare({ action: "delete_threat", id: "api  gateway" }, document);
+	const singleSpace = tool?.prepare({ action: "delete_threat", id: "api gateway" }, document);
+	if (!doubleSpace?.ok || !singleSpace?.ok) throw new Error("Deletes were not prepared");
+	expect(doubleSpace.call.summary.split("\n")).toEqual([
+		'Delete threat: "api  gateway"',
+		'Threat: "Spoof\\r\\n\\t\\u202e\\"Approved\\"\\u2029by  owner" ("Spoofing"; "api  gateway")',
 	]);
+	expect(singleSpace.call.summary).toBe(
+		'Delete threat: "api gateway"\nThreat: "Spoof" ("Spoofing"; "api gateway")',
+	);
 });
 
 /** One valid input per tool, so every tool can be prepared and run. */

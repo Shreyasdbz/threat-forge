@@ -405,7 +405,7 @@ describe("AiChatTab fenced action rendering", () => {
 		// The fenced block is parsed through the legacy boundary and rendered as an
 		// applicable action, while the fence itself is stripped from the shown text.
 		expect(screen.getByText("Suggested changes (1):")).toBeInTheDocument();
-		expect(screen.getByText("Delete element: old-service")).toBeInTheDocument();
+		expect(screen.getByText('Delete element: "old-service"')).toBeInTheDocument();
 		expect(screen.queryByText(/```actions/)).not.toBeInTheDocument();
 	});
 });
@@ -496,7 +496,7 @@ describe("AiChatTab tool-loop turn", () => {
 			const button = mode === "native" ? "Approve" : "Apply this change";
 			expect(screen.getByRole("button", { name: button })).toBeInTheDocument();
 			expect(
-				screen.getByText(/Threats removed: Threat \(Tampering; threat-1\)/),
+				screen.getByText('Threats removed: "Threat" ("Tampering"; "threat-1")', { exact: false }),
 			).toBeInTheDocument();
 			const replacement = { ...original, data_flows: [{ ...flow, name: "Replacement flow" }] };
 			await reloadOnDisk(replacement);
@@ -535,7 +535,7 @@ describe("AiChatTab tool-loop turn", () => {
 		// The turn offered the twelve native tools, so the injected fence is inert.
 		expect(useAiTurnStore.getState().turn?.toolSet.list().length).toBeGreaterThan(0);
 		expect(screen.queryByText(/Suggested changes/)).not.toBeInTheDocument();
-		expect(screen.queryByText("Delete element: old-service")).not.toBeInTheDocument();
+		expect(screen.queryByText('Delete element: "old-service"')).not.toBeInTheDocument();
 	});
 
 	it("shows the Stop button and an approval card while a turn awaits review", async () => {
