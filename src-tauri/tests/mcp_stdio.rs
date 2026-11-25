@@ -785,3 +785,26 @@ fn failed_undo_on_untouched_documents_does_not_evict_history() {
     server.tool(37, "undo", json!({}));
     assert_eq!(std::fs::read_to_string(original).unwrap(), MODEL_THF);
 }
+
+#[test]
+fn search_reports_oversized_documents_and_enforces_a_total_budget() {
+    let dir = tempfile::tempdir().unwrap();
+    let large = format!("{MODEL_THF}\n#{}", "x".repeat(1024 * 1024));
+    std::fs::write(dir.path().join("oversized.thf"), large).unwrap();
+    let full_budget_entry = format!(
+        "{MODEL_THF}\n#{}",
+        "x".repeat(1024 * 1024 - MODEL_THF.len() - 2)
+    );
+    for index in 0..33 {
+        std::fs::write(
+            dir.path().join(format!("z-{index:02}.thf")),
+            &full_budget_entry,
+        )
+        .unwrap();
+    }
+    let mut server = McpServer::spawn_workspace(dir.path());
+    server.start_workspace();
+    let results = server.tool_json(2, "search_documents", json!({"query":"MCP Fixture"}));
+    assert_eq!(results["documents"].as_array().unwrap().len(), 32);
+    assert_eq!(results["skipped"], 2);
+}

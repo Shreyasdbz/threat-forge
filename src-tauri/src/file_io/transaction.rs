@@ -223,6 +223,35 @@ impl WriteTarget {
         parse_document(&self.path, &bytes)
     }
 
+    pub(crate) fn read_document_for_search(
+        &self,
+        budget: &mut u64,
+        max_file_bytes: u64,
+    ) -> Option<DocumentSnapshot> {
+        let limit = max_file_bytes.min(*budget);
+        if limit == 0 {
+            return None;
+        }
+        let file = self
+            .dir
+            .open_with(
+                self.name(),
+                OpenOptions::new().read(true).follow(FollowSymlinks::No),
+            )
+            .ok()?;
+        let metadata = file.metadata().ok()?;
+        if !metadata.is_file() || metadata.len() > limit {
+            return None;
+        }
+        let mut bytes = Vec::new();
+        let read = file.take(limit).read_to_end(&mut bytes);
+        *budget -= bytes.len() as u64;
+        if read.is_err() || bytes.len() as u64 != metadata.len() {
+            return None;
+        }
+        parse_document(&self.path, &bytes).ok()
+    }
+
     pub fn write_document(
         &self,
         expected: Option<&str>,

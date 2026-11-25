@@ -102,6 +102,9 @@ Add to your Cursor MCP configuration:
 |---|---|
 | `create_document` | Create and activate a new `.thf` with `path`, `title`, and optional `author`. Refuses to overwrite an existing file. |
 | `list_documents`, `search_documents` | List relative document paths; search valid files by relative path or title. Results are capped at 200, report truncation, and skip hidden directories. |
+
+Search reads at most 1 MiB per document and 32 MiB in total. Its `skipped` count
+reports files it could not read or validate within those limits.
 | `open_document` | Activate an existing document by relative `path`; subsequent diagram and threat tools use it. |
 | `set_position`, `move_node`, `resize_node` | Set `x,y`, offset by `dx,dy`, or set `width,height` given a node `id`. Nodes may be elements, trust boundaries, or architecture groups. An element inside a trust boundary uses positions relative to the boundary. |
 | `auto_layout` | Arrange elements in a grid, keeping boundary members together. |

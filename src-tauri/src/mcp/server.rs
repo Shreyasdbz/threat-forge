@@ -31,6 +31,8 @@ use crate::models::{
 const JSONRPC_INTERNAL_ERROR: i32 = -32603;
 const MODEL_RESOURCE: &str = "threatforge://active/model";
 const DIAGRAM_RESOURCE: &str = "threatforge://active/diagram";
+const SEARCH_FILE_BYTES: u64 = 1024 * 1024;
+const SEARCH_TOTAL_BYTES: u64 = 32 * SEARCH_FILE_BYTES;
 
 fn document_revision(path: &Path, content_revision: &str) -> String {
     let mut hash = Sha256::new();
@@ -717,17 +719,18 @@ impl ThreatForgeServer {
         let workspace = self.workspace()?;
         let query = req.query.to_lowercase();
         let mut documents = Vec::new();
+        let mut budget = SEARCH_TOTAL_BYTES;
+        let mut skipped = 0;
         for path in workspace.documents().map_err(mcp_err)? {
-            let relative = workspace.relative(&path).map_err(mcp_err)?;
-            let path = workspace
-                .resolve(Path::new(&relative), "thf")
-                .map_err(mcp_err)?;
-            let Ok(snapshot) = workspace
+            let Some(snapshot) = workspace
                 .write_target(&path)
-                .and_then(|target| target.read_document().map_err(|error| error.user_message()))
+                .ok()
+                .and_then(|target| target.read_document_for_search(&mut budget, SEARCH_FILE_BYTES))
             else {
+                skipped += 1;
                 continue;
             };
+            let relative = workspace.relative(&path).map_err(mcp_err)?;
             let title = snapshot.model.metadata.title;
             if relative.to_lowercase().contains(&query) || title.to_lowercase().contains(&query) {
                 documents.push(WorkspaceDocument {
@@ -742,7 +745,9 @@ impl ThreatForgeServer {
         }
         let truncated = documents.len() > MAX_RESULTS;
         documents.truncate(MAX_RESULTS);
-        json_result(serde_json::json!({ "documents": documents, "truncated": truncated }))
+        json_result(
+            serde_json::json!({ "documents": documents, "truncated": truncated, "skipped": skipped }),
+        )
     }
 
     #[tool(
