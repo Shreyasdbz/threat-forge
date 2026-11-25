@@ -68,6 +68,11 @@ function describeLocalPersistence(
 
 	switch (state?.status) {
 		case "pending":
+			return {
+				text: "Changes pending",
+				detail: "This document has changes queued for local storage.",
+				attention: false,
+			};
 		case "writing":
 			return {
 				text: "Saving locally...",

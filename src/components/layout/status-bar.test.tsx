@@ -161,6 +161,18 @@ describe("StatusBar local persistence indicator", () => {
 		expect(screen.queryByTestId("file-save-status")).not.toBeInTheDocument();
 	});
 
+	it("distinguishes queued changes from an active write and saved state", () => {
+		openDocument();
+		setActiveDocumentPersistence({ status: "pending", lastPersistedAt: null });
+		render(<StatusBar />);
+		const indicator = screen.getByTestId("local-persistence-status");
+		expect(indicator).toHaveTextContent("Changes pending");
+		act(() => setActiveDocumentPersistence({ status: "writing", lastPersistedAt: null }));
+		expect(indicator).toHaveTextContent("Saving locally...");
+		act(() => setActiveDocumentPersistence({ status: "saved", lastPersistedAt: "2026-01-01" }));
+		expect(indicator).toHaveTextContent("Saved locally");
+	});
+
 	it("coalesces repeated write failures into one announced indicator", () => {
 		openDocument();
 		render(<StatusBar />);

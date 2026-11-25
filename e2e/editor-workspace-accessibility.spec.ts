@@ -15,6 +15,7 @@ for (const colorScheme of ["light", "dark"] as const) {
 				await assertNoSeriousAccessibilityViolations(page);
 			});
 			await openDocument(page, fixture);
+			await expect(page.getByTestId("local-persistence-status")).toHaveText("Saved locally");
 			await page.getByTestId("node-web-app").click();
 			await expect(page.getByRole("heading", { name: "Web Application" })).toBeVisible();
 

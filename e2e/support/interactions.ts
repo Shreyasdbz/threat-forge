@@ -196,10 +196,10 @@ export async function restoreWorkspace(page: Page): Promise<void> {
 }
 
 /**
- * Wait for the observable local-save state to settle on the just-made edit: "Saving locally..."
- * then "Saved locally", in that order. Promoted verbatim from `browser-restore.spec.ts`.
+ * Wait for the observable local-save state to settle on the just-made edit: "Changes pending"
+ * (or an active write) then "Saved locally", in that order.
  *
- * Every content change synchronously flips the indicator to "Saving locally..." (the hook calls
+ * Every content change synchronously flips the indicator to "Changes pending" (the hook calls
  * `markInFlight(..., "pending")` inside the store subscription, before the 1s debounce fires), so
  * asserting that state first guarantees the caller is tracking *this* edit's write rather than a
  * stale "Saved locally" left by an earlier one. Only then does it wait for the commit. No sleeps.
@@ -215,7 +215,7 @@ export async function restoreWorkspace(page: Page): Promise<void> {
 export async function waitForLocalSave(page: Page): Promise<void> {
 	await test.step("waitForLocalSave: wait for this edit's local save to commit", async () => {
 		const status = page.getByTestId("local-persistence-status");
-		await expect(status).toHaveText("Saving locally...");
+		await expect(status).toHaveText(/^(Changes pending|Saving locally\.\.\.)$/);
 		await expect(status).toHaveText("Saved locally", { timeout: 15000 });
 	});
 }
