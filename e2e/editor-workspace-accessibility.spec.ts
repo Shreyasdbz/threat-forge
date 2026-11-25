@@ -84,3 +84,19 @@ test("reflows editor chrome at a 200% zoom-equivalent viewport", async ({ page }
 	await expect(page.getByRole("main")).toHaveCSS("min-height", "320px");
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(720);
 });
+
+test("scrolls the focused inspector without moving the selected canvas node", async ({ page }) => {
+	await page.setViewportSize({ width: 1440, height: 500 });
+	await page.goto("/app");
+	await openDocument(page, fixture);
+	const node = page.getByTestId("node-web-app");
+	await node.click();
+	const nodeWrapper = page.locator(".react-flow__node.selected");
+	await expect(nodeWrapper).toHaveCount(1);
+	const position = await nodeWrapper.evaluate((element) => getComputedStyle(element).transform);
+	const panel = page.getByTestId("right-panel").getByRole("tabpanel", { name: "Properties" });
+	await panel.focus();
+	await page.keyboard.press("ArrowDown");
+	await expect.poll(() => panel.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+	await expect(nodeWrapper).toHaveCSS("transform", position);
+});

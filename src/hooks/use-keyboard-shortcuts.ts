@@ -76,6 +76,12 @@ export function useKeyboardShortcuts() {
 					case "ArrowDown":
 					case "ArrowLeft":
 					case "ArrowRight": {
+						if (
+							e.defaultPrevented ||
+							(active !== document.body && !active?.closest(".react-flow"))
+						) {
+							return;
+						}
 						e.preventDefault();
 						const gridSize = 16;
 						const dx = e.key === "ArrowRight" ? gridSize : e.key === "ArrowLeft" ? -gridSize : 0;
