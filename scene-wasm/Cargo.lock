@@ -626,6 +626,7 @@ dependencies = [
 name = "threatforge-scene-wasm"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "chrono",
  "quick-xml",
  "resvg",

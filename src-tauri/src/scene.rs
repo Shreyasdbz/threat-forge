@@ -1,4 +1,5 @@
 use crate::models::{Position, Size, ThreatModel};
+use base64::{engine::general_purpose::STANDARD, Engine};
 use resvg::{tiny_skia, usvg};
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -11,6 +12,12 @@ pub(crate) const ROW_GAP: f64 = 136.0;
 pub(crate) const CONTAINER_INSET: f64 = 48.0;
 const MAX_NODES: usize = 1_000;
 const MAX_SIDE: f32 = 2_048.0;
+const INTER_FAMILY: &str = "Inter";
+
+fn embedded_inter() -> &'static str {
+    static FONT: OnceLock<String> = OnceLock::new();
+    FONT.get_or_init(|| STANDARD.encode(include_bytes!("../../public/fonts/InterVariable.woff2")))
+}
 
 #[derive(Clone, Copy)]
 struct Rect {
@@ -259,11 +266,12 @@ impl<'a> Scene<'a> {
         let title = xml_text(self.title, 240);
         let mut svg = format!(
             r##"<svg xmlns="http://www.w3.org/2000/svg" width="{:.0}" height="{:.0}" viewBox="{x:.2} {y:.2} {width:.2} {height:.2}">
-<title>{title}</title><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path fill="#606973" d="M0 0L10 5L0 10z"/></marker></defs>
+<title>{title}</title><defs><style>@font-face{{font-family:{INTER_FAMILY};src:url(data:font/woff2;base64,{font}) format('woff2');font-weight:100 900;}}</style><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path fill="#606973" d="M0 0L10 5L0 10z"/></marker></defs>
 <rect x="{x:.2}" y="{y:.2}" width="{width:.2}" height="{height:.2}" fill="#f7f8fa"/>
-<g font-family="sans-serif" fill="#16181c">"##,
+<g font-family="{INTER_FAMILY}, sans-serif" fill="#16181c">"##,
             (width * scale).ceil(),
             (height * scale).ceil(),
+            font = embedded_inter(),
         );
         for node in &self.containers {
             node.draw(&mut svg);
@@ -434,8 +442,15 @@ pub(crate) fn png(svg: &str) -> Result<Vec<u8>, &'static str> {
     static FONTS: OnceLock<std::sync::Arc<usvg::fontdb::Database>> = OnceLock::new();
     let fontdb = FONTS.get_or_init(|| {
         let mut db = usvg::fontdb::Database::new();
+        for face in [
+            include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice(),
+            include_bytes!("../assets/fonts/Inter-Medium.ttf").as_slice(),
+            include_bytes!("../assets/fonts/Inter-SemiBold.ttf").as_slice(),
+        ] {
+            db.load_font_data(face.to_vec());
+        }
         db.load_font_data(include_bytes!("../assets/fonts/DejaVuSans.ttf").to_vec());
-        db.set_sans_serif_family("DejaVu Sans");
+        db.set_sans_serif_family(INTER_FAMILY);
         std::sync::Arc::new(db)
     });
     let options = usvg::Options {
