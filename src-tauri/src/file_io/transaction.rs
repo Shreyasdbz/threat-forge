@@ -109,33 +109,32 @@ fn revision(bytes: &[u8]) -> String {
 
 fn alias_free_yaml(bytes: &[u8]) -> bool {
     use std::mem::MaybeUninit;
-    use unsafe_libyaml as yaml;
 
-    let mut parser = MaybeUninit::<yaml::yaml_parser_t>::uninit();
+    let mut parser = MaybeUninit::<unsafe_libyaml::yaml_parser_t>::uninit();
     let parser = parser.as_mut_ptr();
     // SAFETY: The parser stays at this address until deleted. The slice outlives
     // the parser, and every successfully parsed event is deleted before reuse.
     unsafe {
-        if yaml::yaml_parser_initialize(parser).fail {
+        if unsafe_libyaml::yaml_parser_initialize(parser).fail {
             return false;
         }
-        yaml::yaml_parser_set_encoding(parser, yaml::YAML_UTF8_ENCODING);
-        yaml::yaml_parser_set_input_string(parser, bytes.as_ptr(), bytes.len() as u64);
-        let mut event = MaybeUninit::<yaml::yaml_event_t>::uninit();
+        unsafe_libyaml::yaml_parser_set_encoding(parser, unsafe_libyaml::YAML_UTF8_ENCODING);
+        unsafe_libyaml::yaml_parser_set_input_string(parser, bytes.as_ptr(), bytes.len() as u64);
+        let mut event = MaybeUninit::<unsafe_libyaml::yaml_event_t>::uninit();
         let event = event.as_mut_ptr();
         let alias_free = loop {
-            if yaml::yaml_parser_parse(parser, event).fail {
+            if unsafe_libyaml::yaml_parser_parse(parser, event).fail {
                 break false;
             }
             let kind = (*event).type_;
-            yaml::yaml_event_delete(event);
+            unsafe_libyaml::yaml_event_delete(event);
             match kind {
-                yaml::YAML_ALIAS_EVENT => break false,
-                yaml::YAML_STREAM_END_EVENT => break true,
+                unsafe_libyaml::YAML_ALIAS_EVENT => break false,
+                unsafe_libyaml::YAML_STREAM_END_EVENT => break true,
                 _ => {}
             }
         };
-        yaml::yaml_parser_delete(parser);
+        unsafe_libyaml::yaml_parser_delete(parser);
         alias_free
     }
 }
