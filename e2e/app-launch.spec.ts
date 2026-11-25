@@ -40,6 +40,10 @@ test.describe("App Launch", () => {
 		);
 		expect(await readFile(await saved.path(), "utf8")).toContain(`title: ${title}`);
 
+		await expect(page.getByTestId("canvas-count-badge")).toBeHidden();
+		await expect(page.getByTestId("btn-settings-dialog")).toBeInViewport({ ratio: 1 });
+
+		await page.setViewportSize({ width: 1280, height: 700 });
 		await expect(
 			page.getByRole("region", {
 				name: "Canvas summary: 0 components, 0 data flows, 0 identified threats, 0 mitigated threats",
