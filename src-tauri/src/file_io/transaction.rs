@@ -14,6 +14,9 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Component, Path, PathBuf};
 
+const MAX_LAYOUT_FILE_BYTES: u64 = 4 * 1024 * 1024;
+const MAX_LAYOUT_TOTAL_BYTES: u64 = 16 * 1024 * 1024;
+
 pub struct DocumentSnapshot {
     pub model: ThreatModel,
     pub revision: String,
@@ -36,6 +39,15 @@ pub(crate) fn read_document_if_changed(
     expected: &str,
 ) -> Result<Option<DocumentSnapshot>, ThreatForgeError> {
     let snapshot = read_desktop_document(path)?;
+    if snapshot.revision != expected
+        && snapshot
+            .model
+            .diagrams
+            .iter()
+            .any(|diagram| diagram.layout_file.is_some() && diagram.viewport.is_none())
+    {
+        return Err(ThreatForgeError::LegacyLayoutUnavailable);
+    }
     Ok((snapshot.revision != expected).then_some(snapshot))
 }
 
@@ -282,11 +294,17 @@ impl WriteTarget {
     }
 
     pub(crate) fn read_layouts(&self, model: &ThreatModel) -> LegacyLayouts {
-        LegacyLayouts::capture(model, |relative| self.read_sidecar(relative))
+        let mut budget = MAX_LAYOUT_TOTAL_BYTES;
+        LegacyLayouts::capture(model, |relative| self.read_sidecar(relative, &mut budget))
     }
 
-    fn read_sidecar(&self, relative: &Path) -> Option<crate::models::DiagramLayout> {
-        if relative.extension()?.to_str()? != "json" {
+    fn read_sidecar(
+        &self,
+        relative: &Path,
+        budget: &mut u64,
+    ) -> Option<crate::models::DiagramLayout> {
+        let limit = MAX_LAYOUT_FILE_BYTES.min(*budget);
+        if limit == 0 || relative.extension()?.to_str()? != "json" {
             return None;
         }
         let mut components = relative.components().peekable();
@@ -304,7 +322,17 @@ impl WriteTarget {
                         OpenOptions::new().read(true).follow(FollowSymlinks::No),
                     )
                     .ok()?;
-                return serde_json::from_reader(io::BufReader::new(file)).ok();
+                let metadata = file.metadata().ok()?;
+                if !metadata.is_file() || metadata.len() > limit {
+                    return None;
+                }
+                let mut bytes = Vec::new();
+                let read = file.take(limit + 1).read_to_end(&mut bytes);
+                *budget = budget.saturating_sub(bytes.len() as u64);
+                if read.is_err() || bytes.len() as u64 != metadata.len() {
+                    return None;
+                }
+                return serde_json::from_slice(&bytes).ok();
             }
         }
         None
@@ -818,16 +846,19 @@ mod tests {
     fn sidecar_paths_cannot_escape_the_model_directory() {
         let dir = tempfile::tempdir().unwrap();
         let target = WriteTarget::from_path(&dir.path().join("model.thf")).unwrap();
-        assert!(target.read_sidecar(Path::new("../private.json")).is_none());
+        let mut budget = MAX_LAYOUT_TOTAL_BYTES;
         assert!(target
-            .read_sidecar(&dir.path().join("private.json"))
+            .read_sidecar(Path::new("../private.json"), &mut budget)
+            .is_none());
+        assert!(target
+            .read_sidecar(&dir.path().join("private.json"), &mut budget)
             .is_none());
         #[cfg(unix)]
         {
             let outside = tempfile::tempdir().unwrap();
             std::os::unix::fs::symlink(outside.path(), dir.path().join("link")).unwrap();
             assert!(target
-                .read_sidecar(Path::new("link/private.json"))
+                .read_sidecar(Path::new("link/private.json"), &mut budget)
                 .is_none());
         }
     }

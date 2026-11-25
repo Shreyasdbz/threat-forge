@@ -360,4 +360,31 @@ mod tests {
             layout
         );
     }
+
+    #[test]
+    fn desktop_poller_rejects_an_oversized_replacement_layout() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("model.thf");
+        let yaml = include_str!("../../../tests/fixtures/thf/legacy-sidecar/model.thf");
+        let layout = include_str!(
+            "../../../tests/fixtures/thf/legacy-sidecar/.threatforge/layouts/main-dfd.json"
+        );
+        let sidecar = dir.path().join(".threatforge/layouts/main-dfd.json");
+        std::fs::create_dir_all(sidecar.parent().unwrap()).unwrap();
+        std::fs::write(&path, yaml).unwrap();
+        std::fs::write(&sidecar, layout).unwrap();
+        let opened = file_io::read_desktop_document(&path).unwrap();
+        let mut oversized = layout.to_owned();
+        oversized.push_str(&" ".repeat(4 * 1024 * 1024));
+        std::fs::write(&sidecar, oversized).unwrap();
+        assert!(matches!(
+            file_io::read_document_if_changed(&path, &opened.revision),
+            Err(crate::errors::ThreatForgeError::LegacyLayoutUnavailable)
+        ));
+        assert!(matches!(
+            file_io::write_desktop_document(&path, &opened.revision, opened.model),
+            Err(crate::errors::ThreatForgeError::LegacyLayoutUnavailable)
+        ));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), yaml);
+    }
 }

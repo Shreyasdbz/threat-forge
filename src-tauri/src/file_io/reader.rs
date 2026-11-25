@@ -33,7 +33,7 @@ pub(crate) struct LegacyLayouts(Vec<(usize, Option<DiagramLayout>)>);
 impl LegacyLayouts {
     pub(crate) fn capture(
         model: &ThreatModel,
-        read: impl Fn(&Path) -> Option<DiagramLayout>,
+        mut read: impl FnMut(&Path) -> Option<DiagramLayout>,
     ) -> Self {
         Self(
             model
