@@ -754,3 +754,34 @@ fn undo_restores_hand_authored_bytes_and_unknown_fields() {
     server.tool(4, "redo", json!({}));
     assert_eq!(std::fs::read_to_string(&path).unwrap(), edited);
 }
+
+#[test]
+fn failed_undo_on_untouched_documents_does_not_evict_history() {
+    let dir = tempfile::tempdir().unwrap();
+    let original = dir.path().join("edited.thf");
+    std::fs::write(&original, MODEL_THF).unwrap();
+    let mut server = McpServer::spawn_workspace(dir.path());
+    server.start_workspace();
+    server.tool(2, "open_document", json!({"path": "edited.thf"}));
+    server.tool(
+        3,
+        "add_element",
+        json!({"element_type":"process","name":"API"}),
+    );
+    for i in 0..16 {
+        let name = format!("untouched-{i}.thf");
+        std::fs::write(dir.path().join(&name), MODEL_THF).unwrap();
+        server.tool(4 + 2 * i, "open_document", json!({"path": name}));
+        let result = server.request_raw(
+            5 + 2 * i,
+            "tools/call",
+            json!({
+                "name":"undo", "arguments":{}
+            }),
+        );
+        assert!(result.to_string().contains("No edit to undo."));
+    }
+    server.tool(36, "open_document", json!({"path":"edited.thf"}));
+    server.tool(37, "undo", json!({}));
+    assert_eq!(std::fs::read_to_string(original).unwrap(), MODEL_THF);
+}

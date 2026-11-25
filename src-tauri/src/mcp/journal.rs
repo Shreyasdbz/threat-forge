@@ -58,17 +58,22 @@ impl Journal {
     }
 
     pub fn replay(&mut self, target: &WriteTarget, redo: bool) -> Result<String, String> {
-        let history = self.history(target.path());
+        let no_edit = if redo {
+            "No edit to redo."
+        } else {
+            "No edit to undo."
+        };
+        let (_, history) = self
+            .documents
+            .iter_mut()
+            .find(|(path, _)| path == target.path())
+            .ok_or(no_edit)?;
         let edit = if redo {
             history.redo.last()
         } else {
             history.undo.back()
         }
-        .ok_or(if redo {
-            "No edit to redo."
-        } else {
-            "No edit to undo."
-        })?;
+        .ok_or(no_edit)?;
         let yaml = if redo { &edit.after } else { &edit.before };
         let revision = target
             .restore_document(&history.revision, yaml)
@@ -79,6 +84,7 @@ impl Journal {
         } else {
             history.redo.extend(history.undo.pop_back());
         }
+        self.history(target.path());
         Ok(revision)
     }
 
