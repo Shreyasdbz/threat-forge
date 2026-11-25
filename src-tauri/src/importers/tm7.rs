@@ -174,6 +174,7 @@ pub fn parse_tm7(xml: &str) -> Result<ThreatModel, Tm7Error> {
                     x: elem.left,
                     y: elem.top,
                 }),
+                size: None,
                 fill_color: None,
                 stroke_color: None,
                 fill_opacity: None,

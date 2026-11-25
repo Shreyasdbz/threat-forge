@@ -112,6 +112,19 @@ describe("canvas-store", () => {
 		expect(useCanvasStore.getState().edges).toHaveLength(0);
 	});
 
+	it("projects explicit element dimensions without resizing legacy elements", () => {
+		const model = createTestModel();
+		model.elements[0].size = { width: 200, height: 90 };
+		useModelStore.getState().setModel(model, null);
+		useCanvasStore.getState().syncFromModel();
+
+		const { nodes } = useCanvasStore.getState();
+		const resized = nodes.find((node) => node.id === "process-1");
+		expect(resized).toMatchObject({ width: 200, height: 90, style: { width: 200, height: 90 } });
+		const legacy = nodes.find((node) => node.id === "data-store-1");
+		expect(legacy?.width).toBeUndefined();
+	});
+
 	it("adds a new element to canvas and model", () => {
 		useModelStore.getState().setModel(createTestModel(), null);
 		useCanvasStore.getState().syncFromModel();

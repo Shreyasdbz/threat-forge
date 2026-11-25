@@ -18,6 +18,8 @@ export function buildLayoutFromModel(model: ThreatModel): DiagramLayout | null {
 				id: e.id,
 				x: e.position?.x ?? 0,
 				y: e.position?.y ?? 0,
+				width: e.size?.width,
+				height: e.size?.height,
 			})),
 		...model.trust_boundaries
 			.filter((b) => b.position)

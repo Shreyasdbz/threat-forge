@@ -2,6 +2,7 @@
 //!
 //! Usage:
 //!   threatforge-mcp <path-to-model.thf>
+//!   threatforge-mcp --workspace <directory>
 //!
 //! External AI tools (Claude Code, VS Code Copilot, Cursor) spawn this
 //! process and communicate via MCP over stdin/stdout.
@@ -15,22 +16,20 @@ use threat_forge_lib::mcp::server::ThreatForgeServer;
 
 #[tokio::main]
 async fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() < 2 {
-        eprintln!("Usage: threatforge-mcp <path-to-model.thf>");
-        std::process::exit(1);
-    }
-    let file_path = PathBuf::from(&args[1]);
-    if !file_path.exists() {
-        eprintln!("File not found: {}", file_path.display());
-        std::process::exit(1);
-    }
-    if file_path.extension().and_then(|e| e.to_str()) != Some("thf") {
-        eprintln!("Expected a .thf file, got: {}", file_path.display());
-        std::process::exit(1);
-    }
-
-    let server = match ThreatForgeServer::new(file_path) {
+    let args: Vec<_> = std::env::args_os().skip(1).collect();
+    let server = match args.as_slice() {
+        [flag, root] if flag == "--workspace" => {
+            ThreatForgeServer::in_workspace(PathBuf::from(root))
+        }
+        [file] if PathBuf::from(file).extension().and_then(|ext| ext.to_str()) == Some("thf") => {
+            ThreatForgeServer::new(PathBuf::from(file))
+        }
+        _ => {
+            eprintln!("Usage: threatforge-mcp <model.thf> | --workspace <directory>");
+            std::process::exit(1);
+        }
+    };
+    let server = match server {
         Ok(s) => s,
         Err(e) => {
             eprintln!("Failed to initialize MCP server: {e}");

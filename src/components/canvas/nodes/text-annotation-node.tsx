@@ -53,6 +53,7 @@ export function TextAnnotationNode({ id, data, selected }: NodeProps) {
 			data-testid={`node-${id}`}
 			className={cn(
 				"group relative cursor-grab px-2 py-1 transition-colors",
+				nodeData.elementSize && "h-full w-full overflow-hidden",
 				selected && "ring-2 ring-tf-signal ring-offset-1 ring-offset-background rounded",
 			)}
 			style={{

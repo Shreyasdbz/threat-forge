@@ -82,6 +82,7 @@ export interface Element {
 	stores?: string[];
 	encryption?: string;
 	position?: Position;
+	size?: Size;
 	fill_color?: string;
 	stroke_color?: string;
 	fill_opacity?: number;

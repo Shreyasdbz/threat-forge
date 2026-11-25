@@ -88,6 +88,9 @@ elements:
   position:
     x: 100.0
     y: 120.0
+  size:
+    width: 200.0
+    height: 90.0
 - id: api-gateway
   type: process
   name: API Gateway

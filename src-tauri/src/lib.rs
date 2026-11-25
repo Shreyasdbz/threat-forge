@@ -6,6 +6,7 @@ mod importers;
 pub mod mcp;
 mod menu;
 pub mod models;
+mod scene;
 mod stride;
 
 use commands::{

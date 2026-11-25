@@ -134,6 +134,7 @@ const maxFilledModel: ThreatModel = {
 			technologies: ["react", "vite"],
 			tags: ["tier-1"],
 			position: { x: 100, y: 120 },
+			size: { width: 200, height: 90 },
 		},
 		{
 			id: "api-gateway",

@@ -141,6 +141,8 @@ pub struct Element {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub position: Option<Position>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<Size>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fill_color: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stroke_color: Option<String>,

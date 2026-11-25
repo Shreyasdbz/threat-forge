@@ -128,10 +128,10 @@ fn write_with_base(
     }
     .map(|bytes| parse_document(&path, bytes))
     .transpose()?;
-    if let Some(prior) = &prior {
-        cascade_removed_references(&prior.model, &mut proposed);
-    }
-    validate_model(&proposed)?;
+    prepare_document(
+        prior.as_ref().map(|snapshot| &snapshot.model),
+        &mut proposed,
+    )?;
 
     let mut value = model_value(&proposed)?;
     if let Some(prior) = prior {
@@ -153,6 +153,16 @@ fn write_with_base(
 
 fn model_value(model: &ThreatModel) -> Result<Value, ThreatForgeError> {
     serde_yaml::to_value(model).map_err(|source| ThreatForgeError::YamlSerialize { source })
+}
+
+pub(crate) fn prepare_document(
+    prior: Option<&ThreatModel>,
+    proposed: &mut ThreatModel,
+) -> Result<(), ThreatForgeError> {
+    if let Some(prior) = prior {
+        cascade_removed_references(prior, proposed);
+    }
+    validate_model(proposed)
 }
 
 impl DocumentSnapshot {

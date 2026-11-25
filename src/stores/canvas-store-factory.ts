@@ -39,6 +39,7 @@ export type DfdNodeData = {
 	elementFillOpacity?: number;
 	/** Element stroke opacity (0-1) */
 	elementStrokeOpacity?: number;
+	elementSize?: Element["size"];
 	/** Font size in pixels (for text annotations) */
 	fontSize?: number;
 	/** Font weight: "normal" | "bold" (for text annotations) */
@@ -160,10 +161,21 @@ function writePositionsToModel(model: ThreatModel, nodes: DfdNode[]): ThreatMode
 
 export function elementToNode(element: Element, position: { x: number; y: number }): DfdNode {
 	const isText = element.type === "text";
+	const size = element.size;
+	const sized =
+		size &&
+		[size.width, size.height].every((dimension) => Number.isFinite(dimension) && dimension > 0)
+			? size
+			: undefined;
 	return {
 		id: element.id,
 		type: isText ? "textAnnotation" : "dfdElement",
 		position,
+		...(sized && {
+			width: sized.width,
+			height: sized.height,
+			style: { width: sized.width, height: sized.height },
+		}),
 		data: {
 			label: element.name,
 			elementType: element.type,
@@ -176,6 +188,7 @@ export function elementToNode(element: Element, position: { x: number; y: number
 			elementStrokeColor: element.stroke_color,
 			elementFillOpacity: element.fill_opacity,
 			elementStrokeOpacity: element.stroke_opacity,
+			...(sized && { elementSize: sized }),
 			fontSize: element.font_size,
 			fontWeight: element.font_weight,
 		},

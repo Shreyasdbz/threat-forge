@@ -150,7 +150,7 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 		return (
 			<div
 				data-testid={`node-${id}`}
-				className="relative"
+				className={cn("relative", nodeData.elementSize && "h-full w-full")}
 				style={{
 					filter:
 						connectedToSelectedEdge && !selected
@@ -181,7 +181,8 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 				{/* Content — positioned above the fill and stroke layers */}
 				<div
 					className={cn(
-						"group relative flex min-w-[140px] items-center justify-center px-8 py-3 transition-colors",
+						"group relative flex items-center justify-center px-8 py-3 transition-colors",
+						nodeData.elementSize ? "h-full w-full overflow-hidden" : "min-w-[140px]",
 					)}
 				>
 					{innerContent}
@@ -194,7 +195,8 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 		<div
 			data-testid={`node-${id}`}
 			className={cn(
-				"group relative flex min-w-[140px] items-center justify-center bg-card px-4 py-3 shadow-md transition-colors",
+				"group relative flex items-center justify-center bg-card px-4 py-3 shadow-md transition-colors",
+				nodeData.elementSize ? "h-full w-full overflow-hidden" : "min-w-[140px]",
 				shapeClass(shape),
 				!hasCustomColors && (selected ? "border-tf-signal shadow-tf-signal/20" : "border-border"),
 				hasCustomColors && selected && "ring-2 ring-tf-signal ring-offset-1 ring-offset-background",
