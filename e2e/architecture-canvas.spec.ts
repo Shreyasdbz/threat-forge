@@ -197,6 +197,30 @@ test("undoes more than twenty repeats of a held arrow in one step", async ({ pag
 	await expect(node).toHaveCSS("transform", initial);
 });
 
+test("opens the canvas context menu at the pointer outside layout containment", async ({
+	page,
+}) => {
+	await page.addStyleTag({ content: '[class~="@container/diagram"] { contain: layout; }' });
+	const node = page.getByTestId("node-api-gateway");
+	await node.evaluate((element) => {
+		element.addEventListener(
+			"contextmenu",
+			(event) => {
+				element.dataset.testMenuPosition = JSON.stringify([event.clientX, event.clientY]);
+			},
+			{ once: true },
+		);
+	});
+	await node.click({ button: "right" });
+	const pointer = await node.getAttribute("data-test-menu-position");
+	const edit = page.getByRole("button", { name: "Edit Properties" });
+	await expect(edit).toBeVisible();
+	const position = await edit.evaluate((button) => button.parentElement?.getBoundingClientRect());
+	expect(JSON.stringify([position?.x, position?.y])).toBe(pointer);
+	await edit.click();
+	await expect(edit).toHaveCount(0);
+});
+
 test("moves and resizes a group outline independently of its members, with undo", async ({
 	page,
 }) => {

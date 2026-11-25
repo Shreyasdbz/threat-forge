@@ -1,5 +1,6 @@
 import { ArrowLeftRight, Copy, Pencil, Shield, Trash2 } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
 interface ContextMenuItem {
@@ -36,7 +37,7 @@ export function CanvasContextMenu({ x, y, items, onClose }: CanvasContextMenuPro
 		};
 	}, [onClose]);
 
-	return (
+	return createPortal(
 		<div
 			ref={menuRef}
 			className="fixed z-50 min-w-40 rounded-editor-panel border border-editor-separator bg-editor-raised py-1 shadow-editor-popover"
@@ -61,7 +62,8 @@ export function CanvasContextMenu({ x, y, items, onClose }: CanvasContextMenuPro
 					{item.label}
 				</button>
 			))}
-		</div>
+		</div>,
+		document.body,
 	);
 }
 
