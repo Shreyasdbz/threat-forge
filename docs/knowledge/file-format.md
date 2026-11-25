@@ -309,6 +309,9 @@ snapshot, even if the original file has since changed. If the chosen destination
 already exists, its revision is checked separately and none of its fields are
 included in the copy.
 
+When a native save removes an element or data flow, it also removes threats targeting that
+element or flow, including threats targeting flows cascaded by element removal.
+
 ### Cross-platform read validation parity
 
 The browser read path applies the same checks as the desktop reader `read_threat_model`
