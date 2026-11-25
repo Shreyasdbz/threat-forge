@@ -254,6 +254,32 @@ test("operates the portaled threat and canvas menus from the keyboard", async ({
 	await expect(page.locator('.react-flow__node[data-id="api-gateway"]')).toBeFocused();
 });
 
+test("right-clicking an inline node label keeps the draft focused and cancellable", async ({
+	page,
+}) => {
+	const node = page.getByTestId("node-web-app");
+	const label = node.getByText("Web Application", { exact: true });
+	await label.dblclick();
+	const draft = node.getByRole("textbox");
+	await draft.fill("Uncommitted label");
+	await draft.evaluate((input) => {
+		window.addEventListener(
+			"contextmenu",
+			(event) => {
+				input.dataset.nativeContextMenu = String(!event.defaultPrevented);
+			},
+			{ once: true },
+		);
+	});
+	await draft.click({ button: "right" });
+	await expect(draft).toBeFocused();
+	await expect(draft).toHaveAttribute("data-native-context-menu", "true");
+	await expect(draft).toHaveValue("Uncommitted label");
+	await expect(page.getByRole("menu", { name: "Context actions" })).toHaveCount(0);
+	await draft.press("Escape");
+	await expect(label).toBeVisible();
+});
+
 test("moves and resizes a group outline independently of its members, with undo", async ({
 	page,
 }) => {

@@ -50,6 +50,14 @@ const defaultEdgeOptions = {
 	},
 };
 
+function shouldKeepNativeContextMenu(target: EventTarget) {
+	return (
+		target instanceof Element &&
+		(target.closest("input, textarea, select") != null ||
+			(target instanceof HTMLElement && target.isContentEditable))
+	);
+}
+
 export function DfdCanvas() {
 	const nodes = useCanvasStore((s) => s.nodes);
 	const edges = useCanvasStore((s) => s.edges);
@@ -392,6 +400,7 @@ export function DfdCanvas() {
 	}, []);
 
 	const onNodeContextMenu = useCallback((event: React.MouseEvent, node: DfdNode) => {
+		if (shouldKeepNativeContextMenu(event.target)) return;
 		event.preventDefault();
 		if (node.data.isBoundary || node.type === "architectureGroup") return;
 		setContextMenu({
@@ -403,6 +412,7 @@ export function DfdCanvas() {
 	}, []);
 
 	const onEdgeContextMenu = useCallback((event: React.MouseEvent, edge: DfdEdge) => {
+		if (shouldKeepNativeContextMenu(event.target)) return;
 		event.preventDefault();
 		setContextMenu({
 			x: event.clientX,
