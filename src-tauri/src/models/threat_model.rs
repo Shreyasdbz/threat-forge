@@ -1,6 +1,5 @@
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 /// Root threat model document — maps to `.thf`
 ///
@@ -401,18 +400,6 @@ pub fn generate_element_id(name: &str) -> String {
         .join("-")
 }
 
-/// Generate a unique threat ID
-pub fn generate_threat_id() -> String {
-    format!(
-        "threat-{}",
-        Uuid::new_v4()
-            .as_simple()
-            .to_string()
-            .get(..8)
-            .unwrap_or("00000000")
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -508,13 +495,6 @@ diagrams:
         assert_eq!(generate_element_id("API Gateway"), "api-gateway");
         assert_eq!(generate_element_id("payment-db"), "payment-db");
         assert_eq!(generate_element_id("  Stripe  API  "), "stripe-api");
-    }
-
-    #[test]
-    fn test_generate_threat_id() {
-        let id = generate_threat_id();
-        assert!(id.starts_with("threat-"));
-        assert_eq!(id.len(), 15); // "threat-" (7) + 8 hex chars
     }
 
     #[test]
