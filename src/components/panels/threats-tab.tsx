@@ -8,7 +8,7 @@ import {
 	Trash2,
 	Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CanvasContextMenu, type ContextMenuItem } from "@/components/canvas/canvas-context-menu";
 import { copyTextToClipboard } from "@/lib/platform";
 import { getComponent } from "@/lib/registry/registry";
@@ -151,7 +151,12 @@ function ThreatCard({
 	const setSelectedElement = useModelStore((s) => s.setSelectedElement);
 	const setRightPanelTab = useUiStore((s) => s.setRightPanelTab);
 	const model = useModelStore((s) => s.model);
-	const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+	const [contextMenu, setContextMenu] = useState<{
+		x: number;
+		y: number;
+		trigger: HTMLButtonElement | null;
+	} | null>(null);
+	const menuTrigger = useRef<HTMLButtonElement>(null);
 
 	const linkedElement = model?.elements.find((e) => e.id === threat.element);
 
@@ -179,13 +184,26 @@ function ThreatCard({
 					return;
 				}
 				event.preventDefault();
-				setContextMenu({ x: event.clientX, y: event.clientY });
+				const button = event.target instanceof Element ? event.target.closest("button") : null;
+				setContextMenu({
+					x: event.clientX,
+					y: event.clientY,
+					trigger: button ?? menuTrigger.current,
+				});
 			}}
 		>
 			{/* Header - clickable to expand/collapse */}
 			<button
+				ref={menuTrigger}
 				type="button"
 				onClick={onSelect}
+				aria-keyshortcuts="Shift+F10 ContextMenu"
+				onKeyDown={(event) => {
+					if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
+					event.preventDefault();
+					const { left, bottom } = event.currentTarget.getBoundingClientRect();
+					setContextMenu({ x: left, y: bottom, trigger: event.currentTarget });
+				}}
 				aria-expanded={isSelected}
 				className="grid w-full grid-cols-[1rem_minmax(0,1fr)] items-start gap-2 rounded-t-editor-panel px-3 py-2.5 text-left hover:bg-editor-hover"
 			>
@@ -228,6 +246,7 @@ function ThreatCard({
 					x={contextMenu.x}
 					y={contextMenu.y}
 					items={contextMenuItems}
+					trigger={contextMenu.trigger}
 					onClose={() => setContextMenu(null)}
 				/>
 			)}

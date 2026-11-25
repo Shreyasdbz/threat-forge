@@ -37,7 +37,7 @@ test.describe("STRIDE Analysis", () => {
 			origin: "http://localhost:3000",
 		});
 		await threatCard.click({ button: "right" });
-		await page.getByRole("button", { name: "Copy as YAML" }).click();
+		await page.getByRole("menuitem", { name: "Copy as YAML" }).click();
 
 		const copied = await page.evaluate(() => navigator.clipboard.readText());
 		expect(copied).toMatch(/^- id: .+\n/);

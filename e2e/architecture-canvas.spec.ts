@@ -215,12 +215,43 @@ test("opens the canvas context menu at the pointer outside layout containment", 
 	});
 	await node.click({ button: "right" });
 	const pointer = await node.getAttribute("data-test-menu-position");
-	const edit = page.getByRole("button", { name: "Edit Properties" });
+	const edit = page.getByRole("menuitem", { name: "Edit Properties" });
 	await expect(edit).toBeVisible();
 	const position = await edit.evaluate((button) => button.parentElement?.getBoundingClientRect());
 	expect(JSON.stringify([position?.x, position?.y])).toBe(pointer);
 	await edit.click();
 	await expect(edit).toHaveCount(0);
+});
+
+test("operates the portaled threat and canvas menus from the keyboard", async ({ page }) => {
+	await page.getByTestId("tab-threats").click();
+	const threat = page.getByTestId("threat-card").first();
+	const trigger = threat.getByRole("button").first();
+	const linkedElement = threat.getByRole("button").nth(1);
+	const copy = page.getByRole("menuitem", { name: "Copy as YAML" });
+	await trigger.focus();
+	await page.keyboard.press("Shift+F10");
+	await expect(copy).toBeFocused();
+	await page.keyboard.press("Escape");
+	await expect(copy).toHaveCount(0);
+	await expect(trigger).toBeFocused();
+	await page.keyboard.press("Shift+F10");
+	await expect(copy).toBeFocused();
+	await page.keyboard.press("Tab");
+	await expect(copy).toHaveCount(0);
+	await expect(linkedElement).toBeFocused();
+
+	await page.getByTestId("node-api-gateway").click({ button: "right" });
+	const edit = page.getByRole("menuitem", { name: "Edit Properties" });
+	const remove = page.getByRole("menuitem", { name: "Delete" });
+	await expect(edit).toBeFocused();
+	await page.keyboard.press("ArrowUp");
+	await expect(remove).toBeFocused();
+	await page.keyboard.press("ArrowDown");
+	await expect(edit).toBeFocused();
+	await page.keyboard.press("Escape");
+	await expect(edit).toHaveCount(0);
+	await expect(page.locator('.react-flow__node[data-id="api-gateway"]')).toBeFocused();
 });
 
 test("moves and resizes a group outline independently of its members, with undo", async ({

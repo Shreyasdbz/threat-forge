@@ -41,7 +41,7 @@ describe("CanvasContextMenu", () => {
 		const onClose = vi.fn();
 		render(<CanvasContextMenu x={0} y={0} items={makeItems()} onClose={onClose} />);
 
-		fireEvent.keyDown(document, { key: "Escape" });
+		fireEvent.keyDown(screen.getByRole("menuitem", { name: "Edit" }), { key: "Escape" });
 
 		expect(onClose).toHaveBeenCalledOnce();
 	});

@@ -111,6 +111,7 @@ export function DfdCanvas() {
 	const [contextMenu, setContextMenu] = useState<{
 		x: number;
 		y: number;
+		trigger: Element;
 		nodeId?: string;
 		edgeId?: string;
 	} | null>(null);
@@ -393,12 +394,22 @@ export function DfdCanvas() {
 	const onNodeContextMenu = useCallback((event: React.MouseEvent, node: DfdNode) => {
 		event.preventDefault();
 		if (node.data.isBoundary || node.type === "architectureGroup") return;
-		setContextMenu({ x: event.clientX, y: event.clientY, nodeId: node.id });
+		setContextMenu({
+			x: event.clientX,
+			y: event.clientY,
+			nodeId: node.id,
+			trigger: event.currentTarget,
+		});
 	}, []);
 
 	const onEdgeContextMenu = useCallback((event: React.MouseEvent, edge: DfdEdge) => {
 		event.preventDefault();
-		setContextMenu({ x: event.clientX, y: event.clientY, edgeId: edge.id });
+		setContextMenu({
+			x: event.clientX,
+			y: event.clientY,
+			edgeId: edge.id,
+			trigger: event.currentTarget,
+		});
 	}, []);
 
 	const contextMenuItems = useMemo(() => {
@@ -565,6 +576,7 @@ export function DfdCanvas() {
 					x={contextMenu.x}
 					y={contextMenu.y}
 					items={contextMenuItems}
+					trigger={contextMenu.trigger}
 					onClose={() => setContextMenu(null)}
 				/>
 			)}
