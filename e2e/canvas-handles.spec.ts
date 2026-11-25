@@ -37,10 +37,8 @@ test.describe("Canvas Connection Handles", () => {
 		const sourceNode = nodes.first();
 		const targetNode = nodes.nth(1);
 
-		// Both palette double-clicks drop their node at the canvas center, so the two nodes
-		// land stacked on top of each other. Drag the second one clear of the first via
-		// ReactFlow's own node-drag gesture so the connection-drag gesture below cannot land
-		// on it by coincidence — that would make the "unhovered" premise false.
+		// Move the second node away from the subsequent pointer path so it cannot
+		// be hovered accidentally during the connection gesture.
 		const targetBoxBefore = await targetNode.boundingBox();
 		if (!targetBoxBefore) throw new Error("target node has no bounding box");
 		await page.mouse.move(

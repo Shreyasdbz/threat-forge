@@ -456,19 +456,6 @@ export function DfdCanvas() {
 	const minimapVisible = useSettingsStore((s) => s.settings.minimapVisible);
 	const [minimapHovered, setMinimapHovered] = useState(false);
 
-	// Subscribe to effective preset so canvas re-renders when theme changes,
-	// picking up the new CSS variable values for ReactFlow sub-components.
-	const effectivePresetId = useUiStore((s) => s.getEffectivePresetId());
-
-	// Read resolved CSS variable values so ReactFlow prop-based colors update on theme change
-	// biome-ignore lint/correctness/useExhaustiveDependencies: effectivePresetId triggers recalculation when theme changes
-	const canvasColors = useMemo(() => {
-		const style = getComputedStyle(document.documentElement);
-		return {
-			dotColor: style.getPropertyValue("--color-muted-foreground").trim() || "oklch(0.35 0 0)",
-		};
-	}, [effectivePresetId]);
-
 	return (
 		<div className="relative h-full w-full">
 			{(groups.length > 0 || layerCount > 0) && (
@@ -521,19 +508,19 @@ export function DfdCanvas() {
 				nodesDraggable={!canvasLocked}
 				nodesConnectable={!canvasLocked}
 				elementsSelectable={!canvasLocked}
-				className="bg-background"
+				className="bg-editor-canvas"
 				proOptions={{ hideAttribution: true }}
 			>
 				<Background
 					variant={BackgroundVariant.Dots}
-					gap={24}
+					gap={32}
 					size={1}
-					color={canvasColors.dotColor}
+					color="var(--color-editor-line)"
 				/>
-				<Controls className="!bg-card !border-border !shadow-md [&>button]:!bg-card [&>button]:!border-border [&>button]:!text-foreground [&>button:hover]:!bg-accent" />
+				<Controls className="!rounded-editor-control !border !border-editor-line !bg-editor-surface !shadow-none [&>button]:!bg-editor-surface [&>button]:!border-editor-line [&>button]:!text-muted-foreground [&>button:hover]:!bg-editor-hover" />
 				{minimapVisible && (
 					<MiniMap
-						className="!bg-card !border !border-border !rounded-md !shadow-sm"
+						className="!bg-editor-surface !border !border-editor-line !rounded-editor-control !shadow-none"
 						nodeColor={(node) =>
 							node.data.isBoundary || node.type === "architectureGroup"
 								? "transparent"
@@ -543,7 +530,7 @@ export function DfdCanvas() {
 							node.type === "architectureGroup" ? "var(--color-primary)" : "var(--color-border)"
 						}
 						nodeStrokeWidth={3}
-						maskColor="color-mix(in srgb, var(--color-background) 45%, transparent)"
+						maskColor="color-mix(in srgb, var(--color-background) 24%, transparent)"
 						maskStrokeColor="var(--color-muted-foreground)"
 						maskStrokeWidth={1}
 						style={{ width: 160, height: 120 }}

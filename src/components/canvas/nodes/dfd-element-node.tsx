@@ -28,14 +28,14 @@ function hexToRgba(hex: string, opacity: number): string {
 function shapeClass(shape: ShapeKind): string {
 	switch (shape) {
 		case "database":
-			return "border-y-2";
+			return "rounded-editor-control border-y";
 		case "rect":
-			return "border-2";
+			return "rounded-editor-control border";
 		case "hexagon":
 			return "";
 		default:
 			// rounded
-			return "rounded-2xl border-2";
+			return "rounded-editor-panel border";
 	}
 }
 
@@ -92,21 +92,23 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 	const hexBorderColor = strokeColor
 		? hexToRgba(strokeColor, strokeOpacity)
 		: selected
-			? "hsl(var(--tf-signal))"
-			: "hsl(var(--border))";
-	const hexFillColor = fillColor ? hexToRgba(fillColor, fillOpacity) : "hsl(var(--card))";
+			? "var(--color-editor-accent)"
+			: "var(--color-editor-outline)";
+	const hexFillColor = fillColor
+		? hexToRgba(fillColor, fillOpacity)
+		: "var(--color-editor-surface)";
 
 	const innerContent = (
 		<>
 			<NodeHandles />
 
-			<div className="text-center">
+			<div className="min-w-0 text-center">
 				{isEditing ? (
 					<input
 						ref={inputRef}
 						defaultValue={nodeData.label}
 						autoFocus
-						className="w-full bg-transparent text-center text-sm font-medium text-foreground outline-none"
+						className="w-full bg-transparent text-center text-editor-body font-semibold text-foreground outline-none"
 						onBlur={(e) => commitLabel(e.target.value)}
 						onKeyDown={(e) => {
 							e.stopPropagation();
@@ -116,23 +118,22 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 					/>
 				) : (
 					<div
-						className="flex items-center justify-center gap-1.5 text-sm font-medium text-foreground cursor-text"
+						className="flex items-center justify-center gap-2 text-editor-body font-semibold text-foreground cursor-text"
 						onDoubleClick={() => setIsEditing(true)}
 					>
 						<IconRenderer icon={resolvedIcon} className="h-4 w-4 shrink-0 text-muted-foreground" />
-						<span>{nodeData.label}</span>
+						<span title={nodeData.label} className="line-clamp-2 wrap-anywhere">
+							{nodeData.label}
+						</span>
 					</div>
 				)}
 				{nodeData.trustZone && (
-					<div className="mt-0.5 text-[10px] text-muted-foreground">{nodeData.trustZone}</div>
+					<div className="text-editor-small text-muted-foreground">{nodeData.trustZone}</div>
 				)}
 				{nodeData.technologies.length > 0 && (
-					<div className="mt-1 flex flex-wrap justify-center gap-0.5">
+					<div className="flex flex-wrap justify-center gap-1">
 						{nodeData.technologies.map((tech) => (
-							<span
-								key={tech}
-								className="rounded bg-secondary px-1 py-px text-[9px] text-muted-foreground"
-							>
+							<span key={tech} className="px-1 text-editor-small text-muted-foreground">
 								{tech}
 							</span>
 						))}
@@ -151,12 +152,6 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 			<div
 				data-testid={`node-${id}`}
 				className={cn("relative", nodeData.elementSize && "h-full w-full")}
-				style={{
-					filter:
-						connectedToSelectedEdge && !selected
-							? "drop-shadow(0 0 6px hsl(var(--tf-signal) / 0.3)) drop-shadow(0 4px 3px rgba(0,0,0,0.07))"
-							: "drop-shadow(0 4px 3px rgba(0,0,0,0.07)) drop-shadow(0 2px 2px rgba(0,0,0,0.06))",
-				}}
 			>
 				{/* Hexagonal fill background */}
 				<div
@@ -174,15 +169,15 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 						points="25,0 75,0 100,50 75,100 25,100 0,50"
 						fill="none"
 						stroke={hexBorderColor}
-						strokeWidth="2"
+						strokeWidth="1.25"
 						vectorEffect="non-scaling-stroke"
 					/>
 				</svg>
 				{/* Content — positioned above the fill and stroke layers */}
 				<div
 					className={cn(
-						"group relative flex items-center justify-center px-8 py-3 transition-colors",
-						nodeData.elementSize ? "h-full w-full overflow-hidden" : "min-w-[140px]",
+						"group relative flex items-center justify-center px-5 py-3 transition-colors",
+						nodeData.elementSize ? "h-full w-full overflow-hidden" : "min-h-[72px] w-[176px]",
 					)}
 				>
 					{innerContent}
@@ -195,10 +190,10 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 		<div
 			data-testid={`node-${id}`}
 			className={cn(
-				"group relative flex items-center justify-center bg-card px-4 py-3 shadow-md transition-colors",
-				nodeData.elementSize ? "h-full w-full overflow-hidden" : "min-w-[140px]",
+				"group relative flex items-center justify-center bg-editor-surface px-3 py-2 transition-colors",
+				nodeData.elementSize ? "h-full w-full overflow-hidden" : "min-h-[72px] w-[176px]",
 				shapeClass(shape),
-				!hasCustomColors && (selected ? "border-tf-signal shadow-tf-signal/20" : "border-border"),
+				!hasCustomColors && (selected ? "border-editor-accent" : "border-editor-outline"),
 				hasCustomColors && selected && "ring-2 ring-tf-signal ring-offset-1 ring-offset-background",
 				connectedToSelectedEdge && !selected && "ring-2 ring-tf-signal/30",
 			)}

@@ -355,13 +355,13 @@ export function DataFlowEdge({
 				markerEnd={markerEnd}
 				data-testid={`edge-${id}`}
 				className={cn(
-					"!stroke-2 transition-colors",
+					"!stroke-[1.25] transition-colors",
 					hasCustomColor
 						? selected
-							? "!stroke-tf-signal"
+							? "!stroke-editor-accent"
 							: ""
 						: selected
-							? "!stroke-tf-signal"
+							? "!stroke-editor-accent"
 							: isHovered
 								? "!stroke-muted-foreground/80"
 								: "!stroke-muted-foreground/50",
@@ -403,34 +403,27 @@ export function DataFlowEdge({
 					<button
 						ref={labelRef}
 						data-testid={`flow-label-${id}`}
+						title={[edgeData?.name, edgeData?.protocol, edgeData?.data?.join(", ")]
+							.filter(Boolean)
+							.join(" · ")}
 						type="button"
 						className={cn(
-							"pointer-events-auto nodrag nopan absolute left-0 top-0 z-10 flex w-max max-w-48 flex-col items-start gap-0.5 break-all rounded border px-1.5 py-1 text-left transition-colors",
+							"pointer-events-auto nodrag nopan absolute left-0 top-0 z-10 flex w-max max-w-48 items-center gap-1.5 rounded-editor-control border px-2 py-1 text-left transition-colors",
 							selected
-								? "border-tf-signal bg-tf-signal/10 text-foreground cursor-grab active:cursor-grabbing"
-								: "border-border bg-card text-muted-foreground hover:border-muted-foreground cursor-pointer",
+								? "border-editor-accent bg-editor-selection text-foreground cursor-grab active:cursor-grabbing"
+								: "border-editor-line bg-editor-surface text-muted-foreground hover:border-muted-foreground cursor-pointer",
 						)}
 						style={{
 							transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
 						}}
 					>
-						{(edgeData?.flowNumber != null || isAuthenticated) && (
-							<div className="flex items-center gap-1">
-								{edgeData?.flowNumber != null && (
-									<span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-muted text-[9px] font-semibold text-muted-foreground">
-										{edgeData.flowNumber}
-									</span>
-								)}
-								{isAuthenticated && <Lock className="h-3 w-3 shrink-0 text-tf-signal" />}
-							</div>
+						{edgeData?.flowNumber != null && (
+							<span className="shrink-0 text-editor-small tabular-nums">{edgeData.flowNumber}</span>
 						)}
-						{edgeData?.name && (
-							<div className="text-[11px] font-medium text-foreground">{edgeData.name}</div>
-						)}
-						{edgeData?.protocol && <div className="text-[9px]">{edgeData.protocol}</div>}
-						{edgeData?.data && edgeData.data.length > 0 && (
-							<div className="text-[9px]">{edgeData.data.join(", ")}</div>
-						)}
+						{isAuthenticated && <Lock className="size-3 shrink-0" aria-label="Authenticated" />}
+						<span className="min-w-0 truncate text-editor-small font-semibold text-foreground">
+							{edgeData?.name || edgeData?.protocol || edgeData?.data?.join(", ")}
+						</span>
 					</button>
 				)}
 				{isEditing && (

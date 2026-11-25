@@ -48,11 +48,11 @@ groups:
   type: cluster
   description: Internal services and stores
   position:
-    x: 420.0
+    x: 488.0
     y: 40.0
   size:
-    width: 420.0
-    height: 360.0
+    width: 380.0
+    height: 464.0
   fill_color: '#22c55e'
   stroke_color: '#15803d'
   fill_opacity: 0.1
@@ -63,11 +63,11 @@ groups:
   parent: backend-cluster
   description: API tier nested inside the backend
   position:
-    x: 440.0
+    x: 520.0
     y: 80.0
   size:
-    width: 200.0
-    height: 160.0
+    width: 264.0
+    height: 176.0
   fill_color: '#f97316'
   stroke_color: '#c2410c'
   fill_opacity: 0.12
@@ -106,7 +106,7 @@ elements:
   - pci
   - tier-1
   position:
-    x: 480.0
+    x: 552.0
     y: 120.0
   fill_color: '#3b82f6'
   stroke_color: '#1e40af'
@@ -131,8 +131,8 @@ elements:
   - order_records
   encryption: AES-256-at-rest
   position:
-    x: 480.0
-    y: 320.0
+    x: 552.0
+    y: 384.0
   fill_color: '#22c55e'
   stroke_color: '#15803d'
   fill_opacity: 0.2
@@ -163,6 +163,8 @@ data_flows:
   data:
   - order_records
   authenticated: true
+  source_handle: bottom
+  target_handle: top
 relationships:
 - id: rel-1
   type: deploys_to
@@ -192,8 +194,8 @@ trust_boundaries:
     x: 20.0
     y: 20.0
   size:
-    width: 840.0
-    height: 400.0
+    width: 872.0
+    height: 512.0
   fill_color: '#22c55e'
   stroke_color: '#15803d'
   fill_opacity: 0.1

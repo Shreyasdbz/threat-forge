@@ -63,10 +63,10 @@ export function KeyboardShortcutsDialog() {
 		>
 			<div
 				data-testid="keyboard-shortcuts-dialog"
-				className="flex h-[620px] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-border bg-background shadow-lg"
+				className="flex h-[620px] max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-3xl flex-col overflow-hidden rounded-editor-panel border border-editor-line bg-editor-surface shadow-editor-dialog"
 				onKeyDown={handleKeyDown}
 			>
-				<div className="flex items-center justify-between border-b border-border px-4 py-3">
+				<div className="flex items-center justify-between border-b border-editor-line px-6 py-4">
 					<div>
 						<h2 className="text-sm font-medium text-foreground">Keyboard Shortcuts</h2>
 						<p className="mt-1 text-xs text-muted-foreground">
@@ -97,7 +97,7 @@ export function KeyboardShortcutsDialog() {
 					</div>
 				</div>
 
-				<div className="flex-1 overflow-y-auto px-4 py-4">
+				<div className="flex-1 overflow-y-auto p-6">
 					{groupedShortcuts.length === 0 ? (
 						<div className="rounded-md border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
 							No shortcuts match your search.

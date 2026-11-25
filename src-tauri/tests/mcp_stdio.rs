@@ -357,7 +357,8 @@ fn workspace_builds_an_architecture_and_exports_svg_and_png_over_stdio() {
     assert!(pixels
         .data()
         .chunks_exact(4)
-        .any(|pixel| pixel == [224, 242, 254, 255]));
+        .any(|pixel| pixel == [255, 255, 255, 255]));
+    assert_eq!(&pixels.data()[..4], &[247, 248, 247, 255]);
     assert_eq!(exported_png["content"][1]["mimeType"], "image/png");
     assert_eq!(
         STANDARD
@@ -424,7 +425,7 @@ fn workspace_batches_are_atomic_and_undo_redo_refuses_external_edits() {
     server.tool(6, "auto_layout", json!({}));
     assert_eq!(
         server.tool_json(7, "get_model", json!({}))["elements"][0]["position"],
-        json!({ "x": 28.0, "y": 44.0 })
+        json!({ "x": 48.0, "y": 48.0 })
     );
     server.tool(8, "undo", json!({}));
     assert!(server.tool_json(9, "get_model", json!({}))["elements"][0]["position"].is_null());
@@ -434,7 +435,7 @@ fn workspace_batches_are_atomic_and_undo_redo_refuses_external_edits() {
     server.tool(12, "redo", json!({}));
     assert_eq!(
         server.tool_json(13, "get_model", json!({}))["elements"][0]["position"]["x"],
-        28.0
+        48.0
     );
     let stale = server.request_raw(14, "tools/call", json!({
         "name": "batch_transaction", "arguments": { "expected_revision": created["revision"], "operations": [

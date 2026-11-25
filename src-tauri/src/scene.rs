@@ -6,6 +6,9 @@ use std::sync::OnceLock;
 
 pub(crate) const ELEMENT_WIDTH: f64 = 176.0;
 pub(crate) const ELEMENT_HEIGHT: f64 = 72.0;
+pub(crate) const COLUMN_GAP: f64 = 136.0;
+pub(crate) const ROW_GAP: f64 = 136.0;
+pub(crate) const CONTAINER_INSET: f64 = 48.0;
 const MAX_NODES: usize = 1_000;
 const MAX_SIDE: f32 = 2_048.0;
 
@@ -108,8 +111,8 @@ impl<'a> Scene<'a> {
                 name: &boundary.name,
                 rect,
                 kind: "boundary",
-                fill: color(boundary.fill_color.as_deref(), "#f0fdf4"),
-                stroke: color(boundary.stroke_color.as_deref(), "#15803d"),
+                fill: color(boundary.fill_color.as_deref(), "none"),
+                stroke: color(boundary.stroke_color.as_deref(), "#a3a5a3"),
                 fill_opacity: opacity(boundary.fill_opacity),
                 stroke_opacity: opacity(boundary.stroke_opacity),
             });
@@ -130,8 +133,8 @@ impl<'a> Scene<'a> {
                 name: &group.name,
                 rect,
                 kind: "group",
-                fill: color(group.fill_color.as_deref(), "#eef2ff"),
-                stroke: color(group.stroke_color.as_deref(), "#6366f1"),
+                fill: color(group.fill_color.as_deref(), "none"),
+                stroke: color(group.stroke_color.as_deref(), "#a3a5a3"),
                 fill_opacity: opacity(group.fill_opacity),
                 stroke_opacity: opacity(group.stroke_opacity),
             });
@@ -153,8 +156,8 @@ impl<'a> Scene<'a> {
                 element.position.as_ref(),
                 element.size.as_ref(),
                 Rect {
-                    x: 28.0 + (local_index % 4) as f64 * 236.0,
-                    y: 44.0 + (local_index / 4) as f64 * 128.0,
+                    x: CONTAINER_INSET + (local_index % 4) as f64 * (ELEMENT_WIDTH + COLUMN_GAP),
+                    y: CONTAINER_INSET + (local_index / 4) as f64 * (ELEMENT_HEIGHT + ROW_GAP),
                     width: ELEMENT_WIDTH,
                     height: ELEMENT_HEIGHT,
                 },
@@ -166,18 +169,18 @@ impl<'a> Scene<'a> {
                 rect.y += parent.y;
             }
             rects.insert(element.id.as_str(), rect);
-            let (kind, fill) = match element.element_type.as_str() {
-                "data_store" => ("data-store", "#fef3c7"),
-                "external_entity" => ("external-entity", "#fce7f3"),
-                "text" => ("annotation", "#ffffff"),
-                _ => ("process", "#e0f2fe"),
+            let kind = match element.element_type.as_str() {
+                "data_store" => "data-store",
+                "external_entity" => "external-entity",
+                "text" => "annotation",
+                _ => "process",
             };
             nodes.push(Node {
                 name: &element.name,
                 rect,
                 kind,
-                fill: color(element.fill_color.as_deref(), fill),
-                stroke: color(element.stroke_color.as_deref(), "#334155"),
+                fill: color(element.fill_color.as_deref(), "#ffffff"),
+                stroke: color(element.stroke_color.as_deref(), "#a3a5a3"),
                 fill_opacity: opacity(element.fill_opacity),
                 stroke_opacity: opacity(element.stroke_opacity),
             });
@@ -234,19 +237,19 @@ impl<'a> Scene<'a> {
         let (mut x, mut y, mut right, mut bottom) = (0.0_f64, 0.0_f64, 320.0_f64, 160.0_f64);
         for node in self.containers.iter().chain(&self.nodes) {
             let r = node.rect;
-            x = x.min(r.x - 48.0);
-            y = y.min(r.y - 68.0);
-            right = right.max(r.x + r.width + 48.0);
-            bottom = bottom.max(r.y + r.height + 48.0);
+            x = x.min(r.x - 64.0);
+            y = y.min(r.y - 80.0);
+            right = right.max(r.x + r.width + 64.0);
+            bottom = bottom.max(r.y + r.height + 64.0);
         }
         let (width, height) = (right - x, bottom - y);
         let scale = (f64::from(MAX_SIDE) / width.max(height)).min(1.0);
         let title = xml_text(self.title, 240);
         let mut svg = format!(
             r##"<svg xmlns="http://www.w3.org/2000/svg" width="{:.0}" height="{:.0}" viewBox="{x:.2} {y:.2} {width:.2} {height:.2}">
-<title>{title}</title><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path fill="#475569" d="M0 0L10 5L0 10z"/></marker></defs>
-<rect x="{x:.2}" y="{y:.2}" width="{width:.2}" height="{height:.2}" fill="#ffffff"/>
-<g font-family="sans-serif" fill="#0f172a">"##,
+<title>{title}</title><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path fill="#656967" d="M0 0L10 5L0 10z"/></marker></defs>
+<rect x="{x:.2}" y="{y:.2}" width="{width:.2}" height="{height:.2}" fill="#f7f8f7"/>
+<g font-family="sans-serif" fill="#202321">"##,
             (width * scale).ceil(),
             (height * scale).ceil(),
         );
@@ -273,30 +276,33 @@ impl Node<'_> {
             height,
         } = self.rect;
         let dash = if self.kind == "boundary" {
-            r#" stroke-dasharray="8 5""#
+            r#" stroke-dasharray="5 5""#
         } else {
             ""
         };
-        let rx = if self.kind == "external-entity" {
-            2
+        let is_container = matches!(self.kind, "boundary" | "group");
+        let rx = if is_container || self.kind == "process" {
+            12
         } else {
-            10
+            6
         };
         let label = xml_text(self.name, (width / 8.0).floor().max(1.0) as usize);
-        let label_y = if matches!(self.kind, "boundary" | "group") {
-            y + 20.0
+        let (label_x, label_y, font_size, anchor, ink) = if is_container {
+            let inset_y = if self.kind == "boundary" { 16.0 } else { 24.0 };
+            (x + 16.0, y + inset_y, 12, "start", "#555a57")
         } else {
-            y + height / 2.0 + 5.0
+            (
+                x + width / 2.0,
+                y + height / 2.0 + 5.0,
+                14,
+                "middle",
+                "#202321",
+            )
         };
         let _ = writeln!(
             svg,
-            r#"<g class="{}"><rect x="{x:.2}" y="{y:.2}" width="{width:.2}" height="{height:.2}" rx="{rx}" fill="{}" fill-opacity="{:.2}" stroke="{}" stroke-opacity="{:.2}"{dash}/><text x="{:.2}" y="{label_y:.2}" font-size="14">{label}</text></g>"#,
-            self.kind,
-            self.fill,
-            self.fill_opacity,
-            self.stroke,
-            self.stroke_opacity,
-            x + 10.0
+            r#"<g class="{}"><rect x="{x:.2}" y="{y:.2}" width="{width:.2}" height="{height:.2}" rx="{rx}" fill="{}" fill-opacity="{:.2}" stroke="{}" stroke-opacity="{:.2}"{dash}/><text x="{label_x:.2}" y="{label_y:.2}" font-size="{font_size}" text-anchor="{anchor}" fill="{ink}">{label}</text></g>"#,
+            self.kind, self.fill, self.fill_opacity, self.stroke, self.stroke_opacity,
         );
     }
 }
@@ -355,7 +361,7 @@ impl Edge<'_> {
         };
         let _ = writeln!(
             svg,
-            r##"<path d="{path}" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"{dash}/><text x="{label_x:.2}" y="{label_y:.2}" text-anchor="{anchor}" font-size="12">{label}</text>"##
+            r##"<path d="{path}" fill="none" stroke="#656967" stroke-width="1.25" marker-end="url(#arrow)"{dash}/><text x="{label_x:.2}" y="{label_y:.2}" text-anchor="{anchor}" font-size="12" fill="#555a57">{label}</text>"##
         );
     }
 }

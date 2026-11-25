@@ -14,7 +14,7 @@ export function RightPanel() {
 	return (
 		<div data-testid="right-panel" className="flex h-full flex-col">
 			{/* Tab bar */}
-			<div className="flex border-b border-border">
+			<div className="flex h-10 shrink-0 items-stretch overflow-x-auto border-b border-editor-line px-1">
 				<TabButton
 					testId="tab-properties"
 					active={tab === "properties"}
@@ -36,7 +36,7 @@ export function RightPanel() {
 				>
 					Threats
 					{model && model.threats.length > 0 && (
-						<span className="ml-1.5 rounded-full bg-secondary px-1.5 text-xs">
+						<span className="ml-1 text-editor-small font-normal text-muted-foreground">
 							{model.threats.length}
 						</span>
 					)}
@@ -47,7 +47,7 @@ export function RightPanel() {
 			</div>
 
 			{/* Tab content */}
-			<div className="flex-1 overflow-y-auto p-3">
+			<div className="flex-1 overflow-y-auto p-4">
 				{tab === "properties" && <PropertiesTab />}
 				{tab === "architecture" && <ArchitectureTab />}
 				{tab === "threats" && <ThreatsTab />}
@@ -75,9 +75,9 @@ function TabButton({
 			aria-pressed={active}
 			onClick={onClick}
 			className={cn(
-				"flex-1 px-1.5 py-2.5 text-xs font-medium transition-colors",
+				"flex-auto whitespace-nowrap border-b-2 border-transparent px-1 text-editor-small font-semibold transition-colors",
 				active
-					? "border-b-2 border-primary text-foreground"
+					? "border-editor-accent text-foreground"
 					: "text-muted-foreground hover:text-foreground",
 			)}
 		>

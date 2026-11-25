@@ -1,5 +1,5 @@
 use crate::models::{Position, Size, ThreatModel};
-use crate::scene::{ELEMENT_HEIGHT, ELEMENT_WIDTH};
+use crate::scene::{COLUMN_GAP, CONTAINER_INSET, ELEMENT_HEIGHT, ELEMENT_WIDTH, ROW_GAP};
 use std::collections::HashSet;
 
 pub(super) const MAX_COORD: f64 = 100_000.0;
@@ -68,8 +68,8 @@ pub(super) fn resize(
 
 fn grid(index: usize, width: f64, height: f64) -> Position {
     Position {
-        x: 28.0 + (index % 4) as f64 * width,
-        y: 44.0 + (index / 4) as f64 * height,
+        x: CONTAINER_INSET + (index % 4) as f64 * width,
+        y: CONTAINER_INSET + (index / 4) as f64 * height,
     }
 }
 
@@ -77,10 +77,13 @@ pub(super) fn arrange(model: &mut ThreatModel) {
     let mut seen = HashSet::new();
     let mut offset_y = 0.0;
     let (width, height) = model.elements.iter().fold(
-        (ELEMENT_WIDTH + 60.0, ELEMENT_HEIGHT + 56.0),
+        (ELEMENT_WIDTH + COLUMN_GAP, ELEMENT_HEIGHT + ROW_GAP),
         |(width, height), node| {
             let size = size_of(node.size.as_ref());
-            (width.max(size.width + 60.0), height.max(size.height + 56.0))
+            (
+                width.max(size.width + COLUMN_GAP),
+                height.max(size.height + ROW_GAP),
+            )
         },
     );
     for boundary in &mut model.trust_boundaries {
@@ -93,13 +96,13 @@ pub(super) fn arrange(model: &mut ThreatModel) {
         }
         let size = Size {
             width: count.clamp(1, 4) as f64 * width,
-            height: count.max(1).div_ceil(4) as f64 * height + 44.0,
+            height: count.max(1).div_ceil(4) as f64 * height,
         };
         boundary.position = Some(Position {
             x: 0.0,
             y: offset_y,
         });
-        offset_y += size.height + 48.0;
+        offset_y += size.height + ROW_GAP;
         boundary.size = Some(size);
     }
     for (index, element) in model

@@ -38,8 +38,8 @@ export function PropertiesTab() {
 	}
 
 	return (
-		<div className="rounded-lg border border-dashed border-border px-4 py-5 text-center">
-			<MousePointer2 className="mx-auto mb-2 size-5 text-muted-foreground" aria-hidden="true" />
+		<div className="px-2 py-8 text-left">
+			<MousePointer2 className="mb-3 size-4 text-muted-foreground" aria-hidden="true" />
 			<h2 className="text-sm font-medium">Nothing selected</h2>
 			<p className="mt-1 text-xs text-muted-foreground">
 				Select an element or connector on the canvas to view its properties.
@@ -102,7 +102,9 @@ function EdgeProperties({ flow }: { flow: DataFlow }) {
 			</button>
 
 			<label className="block">
-				<span className="mb-0.5 block text-[10px] font-medium text-muted-foreground">Flow #</span>
+				<span className="mb-1 block text-editor-small font-semibold text-muted-foreground">
+					Flow #
+				</span>
 				<input
 					type="number"
 					min="1"
@@ -269,16 +271,18 @@ function ElementProperties({ elementId }: { elementId: string }) {
 
 	return (
 		<div className="flex flex-col gap-3">
-			<div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 p-2.5">
+			<div className="flex items-center gap-2 pb-2">
 				<Box className="size-4 shrink-0 text-primary" aria-hidden="true" />
-				<h2 className="min-w-0 break-words text-sm font-semibold">{element.name}</h2>
+				<h2 className="min-w-0 break-words text-editor-heading font-semibold">{element.name}</h2>
 			</div>
 			<ReadOnlyField label="ID" value={element.id} />
 
 			{/* Type dropdown — hidden for text annotations */}
 			{!isTextAnnotation && (
 				<label className="block">
-					<span className="mb-0.5 block text-[10px] font-medium text-muted-foreground">Type</span>
+					<span className="mb-1 block text-editor-small font-semibold text-muted-foreground">
+						Type
+					</span>
 					<select
 						value={element.type}
 						onChange={(e) => handleTypeChange(e.target.value)}
@@ -303,7 +307,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 			{/* Sub-type dropdown (conditional, not for text) */}
 			{!isTextAnnotation && subtypes.length > 0 && (
 				<label className="block">
-					<span className="mb-0.5 block text-[10px] font-medium text-muted-foreground">
+					<span className="mb-1 block text-editor-small font-semibold text-muted-foreground">
 						Sub Type
 					</span>
 					<select
@@ -351,8 +355,8 @@ function ElementProperties({ elementId }: { elementId: string }) {
 			/>
 
 			{!isTextAnnotation && (
-				<fieldset className="grid grid-cols-2 gap-2 rounded-md border border-border p-2">
-					<legend className="px-1 text-xs font-semibold">Architecture</legend>
+				<fieldset className="grid grid-cols-2 gap-3 border-t border-editor-line pt-3">
+					<legend className="pr-2 text-editor-small font-semibold">Architecture</legend>
 					{(["layer", "group"] as const).map((field) => (
 						<label key={field} className="min-w-0 text-xs text-muted-foreground">
 							<span>{field === "layer" ? "Layer" : "Group"}</span>
@@ -412,7 +416,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 					/>
 
 					<label className="block">
-						<span className="mb-0.5 block text-[10px] font-medium text-muted-foreground">
+						<span className="mb-1 block text-editor-small font-semibold text-muted-foreground">
 							Font Size
 						</span>
 						<select
@@ -433,7 +437,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 					</label>
 
 					<div>
-						<span className="mb-0.5 block text-[10px] font-medium text-muted-foreground">
+						<span className="mb-1 block text-editor-small font-semibold text-muted-foreground">
 							Font Weight
 						</span>
 						<div className="flex gap-1">
@@ -653,7 +657,9 @@ function ColorField({
 }) {
 	return (
 		<div>
-			<span className="mb-0.5 block text-[10px] font-medium text-muted-foreground">{label}</span>
+			<span className="mb-1 block text-editor-small font-semibold text-muted-foreground">
+				{label}
+			</span>
 			<div className="flex items-center gap-2">
 				<input
 					type="color"
@@ -728,7 +734,9 @@ function EditableField({
 }) {
 	return (
 		<label className="block">
-			<span className="mb-0.5 block text-[10px] font-medium text-muted-foreground">{label}</span>
+			<span className="mb-1 block text-editor-small font-semibold text-muted-foreground">
+				{label}
+			</span>
 			<input
 				type="text"
 				value={value}
@@ -753,7 +761,9 @@ function EditableTextarea({
 }) {
 	return (
 		<label className="block">
-			<span className="mb-0.5 block text-[10px] font-medium text-muted-foreground">{label}</span>
+			<span className="mb-1 block text-editor-small font-semibold text-muted-foreground">
+				{label}
+			</span>
 			<textarea
 				value={value}
 				placeholder={placeholder}
@@ -800,7 +810,9 @@ function CommaSeparatedField({
 
 	return (
 		<label className="block">
-			<span className="mb-0.5 block text-[10px] font-medium text-muted-foreground">{label}</span>
+			<span className="mb-1 block text-editor-small font-semibold text-muted-foreground">
+				{label}
+			</span>
 			<input
 				type="text"
 				value={rawText}

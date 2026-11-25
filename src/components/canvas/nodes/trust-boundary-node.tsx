@@ -90,15 +90,12 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
           Border strips and label opt back in with pointer-events:auto. */}
 			<div
 				className={cn(
-					"h-full w-full relative rounded-lg border-2 border-dashed transition-colors",
-					!hasCustomColors &&
-						(selected
-							? "border-tf-ember/60 bg-tf-ember/5"
-							: "border-muted-foreground/30 bg-muted/5"),
+					"h-full w-full relative rounded-editor-panel border border-dashed transition-colors",
+					!hasCustomColors && (selected ? "border-editor-accent" : "border-editor-outline"),
 					hasCustomColors &&
 						selected &&
 						"ring-2 ring-tf-signal ring-offset-1 ring-offset-background",
-					isDragOver && isDraggingElement && "border-tf-signal/60 bg-tf-signal/10",
+					isDragOver && isDraggingElement && "border-editor-accent bg-editor-selection",
 				)}
 				style={{
 					pointerEvents: "none",
@@ -159,7 +156,7 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 							ref={inputRef}
 							defaultValue={nodeData.boundaryName ?? nodeData.label}
 							autoFocus
-							className="bg-transparent text-xs font-semibold uppercase tracking-wider text-muted-foreground outline-none"
+							className="bg-transparent text-editor-small font-semibold text-muted-foreground outline-none"
 							onBlur={(e) => commitLabel(e.target.value)}
 							onKeyDown={(e) => {
 								// Stop propagation so Backspace doesn't trigger canvas node deletion
@@ -170,7 +167,7 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 						/>
 					) : (
 						<div
-							className="text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-text"
+							className="text-editor-small font-semibold text-muted-foreground cursor-text"
 							onDoubleClick={() => setIsEditing(true)}
 						>
 							{nodeData.boundaryName ?? nodeData.label}

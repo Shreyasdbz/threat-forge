@@ -1,4 +1,4 @@
-import { getSmartHandlePair } from "@/lib/canvas-utils";
+import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH, getSmartHandlePair } from "@/lib/canvas-utils";
 import type { ThreatModel } from "@/types/threat-model";
 
 export interface TemplateInfo {
@@ -40,9 +40,7 @@ export const TEMPLATES: TemplateInfo[] = [
 	},
 ];
 
-/** Default node dimensions used for smart handle computation */
-const NODE_W = 140;
-const NODE_H = 50;
+const TEMPLATE_SPACING = 1.2;
 
 /** Load a template by ID. Returns a ThreatModel with today's date.
  *  Post-processes flows to assign flow numbers and smart connection handles. */
@@ -53,10 +51,25 @@ export function loadTemplate(id: string): ThreatModel | null {
 	const today = new Date().toISOString().split("T")[0];
 	const model = builder(today);
 
-	// Build a position lookup from elements
 	const posMap = new Map<string, { x: number; y: number }>();
 	for (const el of model.elements) {
-		if (el.position) posMap.set(el.id, el.position);
+		if (!el.position) continue;
+		el.position = { x: el.position.x * TEMPLATE_SPACING, y: el.position.y * TEMPLATE_SPACING };
+		posMap.set(el.id, el.position);
+	}
+	for (const boundary of model.trust_boundaries) {
+		if (boundary.position) {
+			boundary.position = {
+				x: boundary.position.x * TEMPLATE_SPACING,
+				y: boundary.position.y * TEMPLATE_SPACING,
+			};
+		}
+		if (boundary.size) {
+			boundary.size = {
+				width: boundary.size.width * TEMPLATE_SPACING,
+				height: boundary.size.height * TEMPLATE_SPACING,
+			};
+		}
 	}
 
 	// Assign flow_number and smart handles to every flow
@@ -66,8 +79,8 @@ export function loadTemplate(id: string): ThreatModel | null {
 		const tgtPos = posMap.get(flow.to);
 		if (srcPos && tgtPos && !flow.source_handle && !flow.target_handle) {
 			const pair = getSmartHandlePair(
-				{ x: srcPos.x, y: srcPos.y, width: NODE_W, height: NODE_H },
-				{ x: tgtPos.x, y: tgtPos.y, width: NODE_W, height: NODE_H },
+				{ ...srcPos, width: DEFAULT_NODE_WIDTH, height: DEFAULT_NODE_HEIGHT },
+				{ ...tgtPos, width: DEFAULT_NODE_WIDTH, height: DEFAULT_NODE_HEIGHT },
 			);
 			updated.source_handle = pair.sourceHandle;
 			updated.target_handle = pair.targetHandle;

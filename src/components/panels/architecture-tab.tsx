@@ -17,9 +17,9 @@ export function ArchitectureTab() {
 	}
 
 	return (
-		<div className="space-y-5">
-			<div className="rounded-lg border border-border bg-muted/40 p-3">
-				<h2 className="flex items-center gap-2 text-sm font-semibold">
+		<div className="space-y-6">
+			<div className="pb-2">
+				<h2 className="flex items-center gap-2 text-editor-heading font-semibold">
 					<Layers3 className="size-4 text-primary" aria-hidden="true" /> Architecture
 				</h2>
 				<p className="mt-1 text-xs leading-relaxed text-muted-foreground">
@@ -84,20 +84,20 @@ function Section({
 					<article
 						key={section.id}
 						aria-label={section.name}
-						className="rounded-md border border-border px-2.5 py-2"
+						className="border-t border-editor-line py-3"
 					>
-						<h4 className="break-words text-xs font-medium">{section.name}</h4>
+						<h4 className="break-words text-editor-body font-semibold">{section.name}</h4>
 						{parent && <p className="text-xs text-muted-foreground">Inside {parent}</p>}
 						{section.description && (
 							<p className="mt-1 text-xs text-muted-foreground">{section.description}</p>
 						)}
 						{members.length > 0 ? (
-							<ul className="mt-1 space-y-0.5">
+							<ul className="mt-2 space-y-1">
 								{members.map((element) => (
 									<li key={element.id}>
 										<button
 											type="button"
-											className="w-full truncate rounded px-1 py-0.5 text-left text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+											className="w-full truncate rounded-editor-control px-2 py-1 text-left text-editor-small text-muted-foreground hover:bg-accent hover:text-foreground"
 											onClick={() => onInspect(element.id)}
 										>
 											{element.name}

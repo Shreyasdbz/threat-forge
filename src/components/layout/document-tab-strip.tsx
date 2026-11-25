@@ -384,7 +384,7 @@ export function DocumentTabStrip() {
 	);
 
 	return (
-		<div className="flex h-9 shrink-0 items-stretch border-b border-border bg-card">
+		<div className="flex h-10 shrink-0 items-stretch border-b border-editor-line bg-editor-surface px-2">
 			{tabs.length > 0 && (
 				<div
 					ref={tablistRef}

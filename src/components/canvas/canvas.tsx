@@ -57,15 +57,15 @@ function EmptyCanvas() {
 	}, []);
 
 	return (
-		<div data-testid="empty-canvas" className="flex h-full flex-col items-center bg-background">
+		<div data-testid="empty-canvas" className="flex h-full flex-col items-center bg-editor-canvas">
 			{/* Main content — centered with upward bias */}
-			<div className="flex flex-1 flex-col items-center justify-center pb-16 [@media(max-height:850px)]:pb-0">
+			<div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center px-4 pb-12 [@media(max-height:850px)]:pb-0">
 				<img
 					src="/logo_square.png"
 					alt="Threat Forge"
-					className="mb-6 h-20 w-20 drop-shadow-md [@media(max-height:850px)]:mb-3 [@media(max-height:850px)]:h-16 [@media(max-height:850px)]:w-16"
+					className="mb-4 size-12 [@media(max-height:850px)]:mb-3 [@media(max-height:850px)]:size-10"
 				/>
-				<h2 className="text-xl font-semibold tracking-tight">Threat Forge</h2>
+				<h2 className="text-editor-title font-semibold tracking-tight">Threat Forge</h2>
 				<p className="mt-2 max-w-sm text-center text-sm text-muted-foreground">
 					Nothing open. Start a new model, or open one you saved earlier.
 				</p>
@@ -98,7 +98,7 @@ function EmptyCanvas() {
 					>
 						Start from a template
 					</p>
-					<div className="grid grid-cols-3 gap-2">
+					<div className="grid grid-cols-3 gap-3">
 						{TEMPLATES.map((t) => (
 							<TemplateCard key={t.id} template={t} onSelect={openTemplate} />
 						))}
@@ -149,16 +149,6 @@ const TEMPLATE_ICONS: Record<string, LucideIcon> = {
 	"healthcare-system": HeartPulse,
 };
 
-/** Accent colors per template (matching boundary color families) */
-const TEMPLATE_ACCENT: Record<string, string> = {
-	"ecommerce-platform": "text-orange-400",
-	"cloud-microservices": "text-blue-400",
-	"mobile-banking": "text-red-400",
-	"saas-platform": "text-purple-400",
-	"iot-smart-building": "text-emerald-400",
-	"healthcare-system": "text-rose-400",
-};
-
 function TemplateCard({
 	template,
 	onSelect,
@@ -167,16 +157,15 @@ function TemplateCard({
 	onSelect: (id: string) => void;
 }) {
 	const Icon = TEMPLATE_ICONS[template.id] ?? Radio;
-	const accentClass = TEMPLATE_ACCENT[template.id] ?? "text-muted-foreground";
 
 	return (
 		<button
 			type="button"
 			data-testid={`template-${template.id}`}
 			onClick={() => onSelect(template.id)}
-			className="flex flex-col items-start gap-1.5 rounded-lg border border-border p-3 text-left transition-colors hover:bg-accent/50 hover:border-accent"
+			className="flex flex-col items-start gap-1.5 rounded-editor-control border border-editor-line bg-editor-surface p-3 text-left transition-colors hover:bg-editor-hover"
 		>
-			<Icon className={`h-4 w-4 ${accentClass}`} />
+			<Icon className="size-4 text-muted-foreground" />
 			<span className="text-sm font-medium text-foreground">{template.name}</span>
 			<span className="text-xs text-muted-foreground leading-snug">{template.description}</span>
 		</button>

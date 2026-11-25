@@ -911,8 +911,8 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			// Convert elements to nodes
 			const elementNodes: DfdNode[] = model.elements.map((e, i) => {
 				const pos = resolvePosition(e.id, e.position, {
-					x: 100 + (i % 4) * 250,
-					y: 100 + Math.floor(i / 4) * 200,
+					x: 100 + (i % 4) * 312,
+					y: 100 + Math.floor(i / 4) * 208,
 				});
 				const node = elementToNode(e, pos);
 

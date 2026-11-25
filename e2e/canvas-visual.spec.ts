@@ -75,6 +75,8 @@ test.describe("Canvas Visual Regression", () => {
 		await addPaletteItem(page, "palette-item-web-server");
 		await addPaletteItem(page, "palette-item-sql-database");
 		await addPaletteItem(page, "palette-item-generic");
+		await page.locator(".react-flow__controls-fitview").click();
+		await page.locator(".react-flow__controls-zoomout").click();
 		await waitForCanvasSettled(page, 3);
 
 		const canvas = page.locator(".react-flow");
@@ -97,7 +99,12 @@ test.describe("Canvas Visual Regression", () => {
 		await addTrustBoundary(page);
 		await addPaletteItem(page, "palette-item-web-server");
 		await addPaletteItem(page, "palette-item-sql-database");
+		await page.locator(".react-flow__controls-fitview").click();
 		await waitForCanvasSettled(page, 3);
+		const nodes = page.locator("[data-testid^='node-']");
+		const first = await nodes.nth(0).boundingBox();
+		const second = await nodes.nth(1).boundingBox();
+		expect(first && second && second.y >= first.y + first.height).toBe(true);
 
 		const canvas = page.locator(".react-flow");
 		await expect(canvas).toHaveScreenshot("canvas-elements-with-boundary.png", {
@@ -108,6 +115,7 @@ test.describe("Canvas Visual Regression", () => {
 	test("selected element visual state matches baseline", async ({ page }) => {
 		await addPaletteItem(page, "palette-item-web-server");
 		await addPaletteItem(page, "palette-item-sql-database");
+		await page.locator(".react-flow__controls-fitview").click();
 
 		// Select the first node
 		const firstNode = page.locator("[data-testid^='node-']").first();

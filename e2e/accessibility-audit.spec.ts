@@ -350,12 +350,17 @@ test.describe("Accessibility audit", () => {
 			name: "Library components",
 			exact: true,
 		});
-		const categoryTabCount = await palette.getByRole("button").count();
+		const category = palette.getByRole("combobox", { name: "Component category" });
 
 		await page.getByTestId("library-search").click();
-		for (let tab = 0; tab <= categoryTabCount; tab++) {
-			await page.keyboard.press("Tab");
-		}
+		await page.keyboard.press("Tab");
+		await expect(category).toBeFocused();
+		await category.selectOption({ label: "Databases" });
+		await expect(componentList.getByTestId("palette-item-sql-database")).toBeVisible();
+		await expect(componentList.getByTestId("palette-item-web-server")).toBeHidden();
+		await category.selectOption({ label: "All categories" });
+		await expect(componentList.getByTestId("palette-item-web-server")).toBeVisible();
+		await page.keyboard.press("Tab");
 		await expect(componentList).toBeFocused();
 
 		const initialScroll = await componentList.evaluate((element) => ({

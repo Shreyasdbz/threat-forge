@@ -20,7 +20,6 @@ import { useSettingsStore } from "@/stores/settings-store";
 import { useUiStore } from "@/stores/ui-store";
 import type { ThreatModel } from "@/types/threat-model";
 import { GuidePicker } from "../onboarding/guide-picker";
-import { Keytip } from "../ui/keytip";
 import { DiagramPresentation } from "./diagram-presentation";
 
 export function TopMenuBar() {
@@ -68,7 +67,7 @@ export function TopMenuBar() {
 	return (
 		<header
 			data-testid="top-menu-bar"
-			className="flex h-10 shrink-0 items-center border-b border-border bg-card px-3"
+			className="flex h-12 shrink-0 items-center gap-2 border-b border-editor-line bg-editor-surface px-4"
 		>
 			{/* App title / branding */}
 			<div className="flex min-w-0 items-center gap-2">
@@ -100,39 +99,36 @@ export function TopMenuBar() {
 			</div>
 
 			{/* File operations */}
-			<div className="ml-4 flex items-center gap-0.5">
+			<div className="ml-2 flex shrink-0 items-center gap-1">
 				<MenuButton
 					testId="btn-new"
-					icon={<FilePlus className="h-3.5 w-3.5" />}
-					tooltip={`New Model (${modKey}N)`}
-					keytip={keytipsVisible ? `${modKey}N` : undefined}
+					icon={<FilePlus className="size-4" />}
+					tooltip={keytipsVisible ? `New Model (${modKey}N)` : "New Model"}
 					onClick={() => void newModel()}
 				/>
 				<MenuButton
 					testId="btn-open"
-					icon={<FolderOpen className="h-3.5 w-3.5" />}
-					tooltip={`Open Model (${modKey}O)`}
-					keytip={keytipsVisible ? `${modKey}O` : undefined}
+					icon={<FolderOpen className="size-4" />}
+					tooltip={keytipsVisible ? `Open Model (${modKey}O)` : "Open Model"}
 					onClick={() => void openModel()}
 				/>
 				<MenuButton
 					testId="btn-save"
-					icon={<Save className="h-3.5 w-3.5" />}
-					tooltip={`Save (${modKey}S)`}
-					keytip={keytipsVisible ? `${modKey}S` : undefined}
+					icon={<Save className="size-4" />}
+					tooltip={keytipsVisible ? `Save (${modKey}S)` : "Save"}
 					onClick={() => void saveModel()}
 					disabled={!model}
 				/>
 				<MenuButton
 					testId="btn-export"
-					icon={<FileOutput className="h-3.5 w-3.5" />}
+					icon={<FileOutput className="size-4" />}
 					tooltip={`Export HTML (${modKey}${isMac ? "⇧" : "Shift+"}E)`}
 					onClick={() => void exportAsHtml()}
 					disabled={!model}
 				/>
 				<MenuButton
 					testId="btn-present"
-					icon={<Presentation className="h-3.5 w-3.5" />}
+					icon={<Presentation className="size-4" />}
 					tooltip="Present diagram and export SVG or PNG"
 					onClick={() => {
 						if (model)
@@ -144,7 +140,7 @@ export function TopMenuBar() {
 				/>
 				<MenuButton
 					testId="btn-import"
-					icon={<FileUp className="h-3.5 w-3.5" />}
+					icon={<FileUp className="size-4" />}
 					tooltip="Import Microsoft Threat Model (.tm7)"
 					onClick={() => void importModel()}
 				/>
@@ -160,9 +156,9 @@ export function TopMenuBar() {
 				<section
 					aria-label={`Canvas summary: ${countLabel(componentCount, "component")}, ${countLabel(dataFlowCount, "data flow")}, ${countLabel(threatCount, "identified threat")}, ${countLabel(mitigatedThreatCount, "mitigated threat")}`}
 					data-testid="canvas-count-badge"
-					className="flex shrink-0 items-center divide-x divide-border rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11px] text-muted-foreground shadow-sm"
+					className="flex shrink-0 items-center text-editor-small text-muted-foreground"
 				>
-					<dl className="flex items-center divide-x divide-border">
+					<dl className="flex items-center gap-3">
 						<CountItem label="Components" value={componentCount} />
 						<CountItem label="Data flows" value={dataFlowCount} />
 						<CountItem
@@ -175,10 +171,9 @@ export function TopMenuBar() {
 			)}
 
 			{/* Divider */}
-			{model && <div className="mx-1.5 h-4 w-px bg-border" />}
 
 			{/* View toggles */}
-			<div className="flex items-center gap-0.5">
+			<div className="flex shrink-0 items-center gap-1">
 				<MenuButton
 					testId="btn-toggle-left-panel"
 					icon={<LayoutPanelLeft className="h-4 w-4" />}
@@ -194,10 +189,9 @@ export function TopMenuBar() {
 			</div>
 
 			{/* Divider */}
-			<div className="mx-1.5 h-4 w-px bg-border" />
 
 			{/* Settings + Help */}
-			<div className="flex items-center gap-0.5">
+			<div className="flex shrink-0 items-center gap-1">
 				<MenuButton
 					testId="btn-guide-picker"
 					icon={<BookOpen className="h-4 w-4" />}
@@ -220,31 +214,26 @@ function MenuButton({
 	testId,
 	icon,
 	tooltip,
-	keytip,
 	onClick,
 	disabled,
 }: {
 	testId?: string;
 	icon: React.ReactNode;
 	tooltip: string;
-	keytip?: string;
 	onClick: () => void;
 	disabled?: boolean;
 }) {
 	return (
-		<span className="relative">
-			<button
-				type="button"
-				data-testid={testId}
-				onClick={onClick}
-				disabled={disabled}
-				title={tooltip}
-				className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40 disabled:pointer-events-none"
-			>
-				{icon}
-			</button>
-			{keytip && <Keytip shortcut={keytip} />}
-		</span>
+		<button
+			type="button"
+			data-testid={testId}
+			onClick={onClick}
+			disabled={disabled}
+			title={tooltip}
+			className="grid size-8 place-items-center rounded-editor-control text-muted-foreground hover:bg-editor-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+		>
+			{icon}
+		</button>
 	);
 }
 
@@ -258,7 +247,7 @@ function CountItem({
 	title?: string;
 }) {
 	return (
-		<div className="flex gap-1 whitespace-nowrap px-2 first:pl-0 last:pr-0" title={title}>
+		<div className="flex gap-1 whitespace-nowrap" title={title}>
 			<dt>{label}</dt> <dd className="font-semibold tabular-nums text-foreground">{value}</dd>
 		</div>
 	);

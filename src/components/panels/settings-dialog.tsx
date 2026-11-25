@@ -73,11 +73,11 @@ export function SettingsDialog() {
 		>
 			<div
 				data-testid="settings-dialog"
-				className="flex h-[560px] w-full max-w-2xl rounded-lg border border-border bg-background shadow-lg"
+				className="flex h-[560px] max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-2xl rounded-editor-panel border border-editor-line bg-editor-surface shadow-editor-dialog"
 				onKeyDown={handleKeyDown}
 			>
 				{/* Sidebar nav */}
-				<nav className="flex w-44 shrink-0 flex-col border-r border-border p-2">
+				<nav className="flex w-44 shrink-0 flex-col border-r border-editor-line p-4">
 					<div className="mb-3 flex items-center gap-2 px-2 pt-1">
 						<Settings className="h-4 w-4 text-muted-foreground" />
 						<h2 className="text-sm font-medium">Settings</h2>
@@ -105,7 +105,7 @@ export function SettingsDialog() {
 
 				{/* Content */}
 				<div className="flex flex-1 flex-col overflow-hidden">
-					<div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+					<div className="flex items-center justify-between border-b border-editor-line px-6 py-4">
 						<span className="text-sm font-medium">
 							{SECTIONS.find((s) => s.id === section)?.label}
 						</span>
@@ -117,7 +117,7 @@ export function SettingsDialog() {
 							<X className="h-4 w-4" />
 						</button>
 					</div>
-					<div className="flex-1 overflow-y-auto p-4">
+					<div className="flex-1 overflow-y-auto p-6">
 						{section === "general" && <GeneralSection />}
 						{section === "appearance" && <AppearanceSection />}
 						{section === "ai" && <AiSettingsContent />}
@@ -219,7 +219,7 @@ function AppearanceSection() {
 
 	return (
 		<div className="space-y-5">
-			<SettingRow label="Show keytips" description="Display keyboard shortcut badges on controls">
+			<SettingRow label="Show keytips" description="Include shortcuts in toolbar tooltips">
 				<ToggleSwitch
 					checked={settings.keytipsVisible}
 					onChange={(v) => updateSetting("keytipsVisible", v)}

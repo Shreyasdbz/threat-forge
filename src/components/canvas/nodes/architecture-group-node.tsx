@@ -10,9 +10,9 @@ export function ArchitectureGroupNode({ id, data }: NodeProps<DfdNode>) {
 	return (
 		<div
 			data-testid={`group-${data.architectureGroupId}`}
-			className="size-full rounded-lg border border-primary/40 bg-primary/[0.035]"
+			className="size-full rounded-editor-panel border border-editor-outline"
 		>
-			<div className="architecture-group-drag-handle pointer-events-auto absolute left-1 top-5 max-w-[calc(100%-0.5rem)] cursor-grab truncate rounded bg-card px-2 py-0.5 text-xs font-medium text-primary active:cursor-grabbing">
+			<div className="architecture-group-drag-handle pointer-events-auto absolute left-2 top-5 max-w-[calc(100%-1rem)] cursor-grab truncate rounded-editor-control bg-editor-canvas px-2 py-1 text-editor-small font-semibold text-muted-foreground active:cursor-grabbing">
 				{data.label}
 			</div>
 			{!locked && (
@@ -24,7 +24,7 @@ export function ArchitectureGroupNode({ id, data }: NodeProps<DfdNode>) {
 					onResizeEnd={(_event, { width, height }) => resize(id, { width, height })}
 					className="!pointer-events-auto !border-none !bg-transparent"
 				>
-					<MoveDiagonal className="size-4 text-primary" aria-label="Resize group" />
+					<MoveDiagonal className="size-4 text-muted-foreground" aria-label="Resize group" />
 				</NodeResizeControl>
 			)}
 		</div>

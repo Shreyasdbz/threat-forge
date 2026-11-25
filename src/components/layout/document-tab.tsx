@@ -105,10 +105,10 @@ function DocumentTabView({
 			}
 			onDragEnd={draggable ? () => onReorderEnd?.() : undefined}
 			className={cn(
-				"group relative flex h-full shrink-0 items-center border-r border-border",
+				"group relative flex h-full shrink-0 items-center border-b-2 border-transparent",
 				"min-w-[7rem] max-w-[14rem]",
 				pinned && "max-w-[8rem]",
-				selected ? "bg-background" : "bg-card hover:bg-accent/50",
+				selected ? "border-editor-accent" : "hover:bg-editor-hover",
 			)}
 		>
 			{/* biome-ignore lint/a11y/useKeyWithClickEvents: keyboard activation for this tab is owned
@@ -136,7 +136,7 @@ function DocumentTabView({
 					<span
 						data-testid={`dirty-dot-${documentId}`}
 						aria-hidden="true"
-						className="h-2 w-2 shrink-0 rounded-full bg-foreground"
+						className="size-1.5 shrink-0 rounded-full bg-editor-accent"
 					/>
 				)}
 			</div>

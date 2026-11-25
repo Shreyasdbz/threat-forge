@@ -121,7 +121,7 @@ export function AppLayout() {
 		<ReactFlowProvider>
 			<div
 				data-testid="app-layout"
-				className="flex h-full w-full flex-col bg-background text-foreground"
+				className="flex h-full w-full flex-col bg-editor-canvas font-sans text-editor-body text-foreground"
 			>
 				<TopMenuBar />
 				<UpdateBar />
@@ -130,7 +130,7 @@ export function AppLayout() {
 					{/* Left sidebar — Component palette */}
 					{leftPanelOpen && (
 						<aside
-							className="relative shrink-0 border-r border-border bg-card"
+							className="relative shrink-0 border-r border-editor-line bg-editor-surface"
 							style={{ width: leftPanelWidth }}
 						>
 							<ComponentPalette />
@@ -160,7 +160,7 @@ export function AppLayout() {
 					{/* Right panel — Properties / Threats */}
 					{rightPanelOpen && (
 						<aside
-							className="relative shrink-0 border-l border-border bg-card"
+							className="relative shrink-0 border-l border-editor-line bg-editor-surface"
 							style={{ width: rightPanelWidth }}
 						>
 							<ResizeHandle side="left" onResize={handleRightResize} />

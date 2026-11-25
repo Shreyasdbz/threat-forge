@@ -25,6 +25,13 @@ test.describe("Canvas Elements", () => {
 		await addPaletteItem(page, "palette-item-web-server");
 		const nodes = page.locator("[data-testid^='node-']");
 		await expect(nodes).toHaveCount(2);
+		await expect
+			.poll(async () => {
+				const first = await nodes.nth(0).boundingBox();
+				const second = await nodes.nth(1).boundingBox();
+				return first && second ? second.y - (first.y + first.height) : 0;
+			})
+			.toBeGreaterThan(0);
 	});
 
 	test("deletes element with Delete key", async ({ page }) => {

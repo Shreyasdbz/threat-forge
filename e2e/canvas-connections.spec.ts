@@ -31,7 +31,7 @@ test.describe("Canvas pointer connections", () => {
 	});
 
 	/**
-	 * Adds two nodes and drags the second clear of the first so they no longer overlap.
+	 * Adds two nodes and aligns them horizontally for the handle hit tests.
 	 *
 	 * Separates the nodes on a *purely horizontal* axis, away from the bottom-right corner.
 	 * A diagonal separation risks landing the destination node's handle under the MiniMap
@@ -49,23 +49,24 @@ test.describe("Canvas pointer connections", () => {
 		const firstNode = nodes.first();
 		const secondNode = nodes.nth(1);
 
-		// Both palette double-clicks drop their node at the canvas center, so the two nodes
-		// land stacked on top of each other. Drag the second one clear of the first via
-		// ReactFlow's own node-drag gesture (mirrors canvas-handles.spec.ts) so the two
-		// nodes have distinct, non-overlapping handle positions for the connection gesture.
+		const firstBox = await firstNode.boundingBox();
 		const secondBoxBefore = await secondNode.boundingBox();
-		if (!secondBoxBefore) throw new Error("second node has no bounding box");
+		if (!firstBox || !secondBoxBefore) throw new Error("nodes have no bounding boxes");
 		await page.mouse.move(
 			secondBoxBefore.x + secondBoxBefore.width / 2,
 			secondBoxBefore.y + secondBoxBefore.height / 2,
 		);
 		await page.mouse.down();
-		await page.mouse.move(secondBoxBefore.x + 450, secondBoxBefore.y, { steps: 10 });
+		await page.mouse.move(
+			firstBox.x + firstBox.width + 48 + secondBoxBefore.width / 2,
+			firstBox.y + secondBoxBefore.height / 2,
+			{ steps: 10 },
+		);
 		await page.mouse.up();
 
 		const secondBoxAfter = await secondNode.boundingBox();
 		if (!secondBoxAfter) throw new Error("second node has no bounding box after drag");
-		expect(secondBoxAfter.x).toBeGreaterThan(secondBoxBefore.x + 150);
+		expect(secondBoxAfter.x).toBeGreaterThan(firstBox.x + firstBox.width);
 
 		// Sanity-check the two handles this test exercises are clear of the MiniMap panel,
 		// so the gesture below genuinely exercises direct hit-testing rather than the

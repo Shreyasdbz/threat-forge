@@ -140,7 +140,7 @@ export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promi
 	return (
 		<footer
 			data-testid="status-bar"
-			className="flex h-6 shrink-0 items-center border-t border-border bg-card px-3 text-xs text-muted-foreground"
+			className="flex h-8 shrink-0 items-center border-t border-editor-line bg-editor-surface px-4 text-editor-small text-muted-foreground"
 		>
 			{model ? (
 				<>
@@ -241,5 +241,5 @@ export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promi
 }
 
 function Separator() {
-	return <span className="mx-2 text-border">|</span>;
+	return <span aria-hidden="true" className="mx-3 h-3 w-px shrink-0 bg-editor-line" />;
 }
