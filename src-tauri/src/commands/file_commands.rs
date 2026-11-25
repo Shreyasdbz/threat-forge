@@ -1,3 +1,4 @@
+use crate::errors::ThreatForgeError;
 use crate::file_io;
 use crate::models::ThreatModel;
 use crate::scene::Scene;
@@ -94,7 +95,10 @@ pub async fn check_document_update(
 ) -> Result<Option<OpenedDocument>, String> {
     let path = approved.require(&path)?;
     file_io::read_document_if_changed(&path, &revision)
-        .map_err(|error| error.user_message())?
+        .map_err(|error| match error {
+            ThreatForgeError::LegacyLayoutUnavailable => "legacy_layout_unavailable".into(),
+            _ => error.user_message(),
+        })?
         .map(|snapshot| opened_document(path, snapshot))
         .transpose()
 }

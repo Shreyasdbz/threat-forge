@@ -2,6 +2,7 @@ import { act, fireEvent, render, renderHook, screen } from "@testing-library/rea
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TextAnnotationNode } from "@/components/canvas/nodes/text-annotation-node";
+import { StatusBar } from "@/components/layout/status-bar";
 import { PropertiesTab } from "@/components/panels/properties-tab";
 import { useDocumentRegistry } from "@/stores/document-registry";
 import { createDocumentStores, setActiveStores } from "@/stores/document-stores";
@@ -75,6 +76,41 @@ afterEach(() => {
 });
 
 describe("desktop document sync", () => {
+	it("warns on open and refresh when the snapshot lacks its legacy layout", async () => {
+		const stores = open();
+		const legacy = {
+			...model("Original"),
+			diagrams: [{ id: "main", name: "Main", layout_file: "main.layout" }],
+		};
+		stores.model.getState().setModel(legacy, path, "one");
+		mocks.checkDocumentUpdate
+			.mockResolvedValueOnce({ ...update, model: { ...legacy, metadata: update.model.metadata } })
+			.mockRejectedValueOnce("legacy_layout_unavailable");
+		renderHook(() => useDocumentSync());
+		render(createElement(StatusBar));
+		const bar = screen.getByTestId("status-bar");
+		expect(bar).toHaveTextContent(
+			"Layout sidecar not loaded. Restore it and reopen before saving.",
+		);
+		await poll();
+		expect(stores.model.getState().model?.metadata.title).toBe("External");
+		expect(bar).toHaveTextContent("Restore it and reopen before saving.");
+		await poll();
+		expect(stores.model.getState().fileSync).toBe("layout-unavailable");
+		expect(bar).not.toHaveTextContent("Save As");
+	});
+
+	it("offers Save As when the sidecar goes unavailable after the layout was loaded", async () => {
+		open();
+		mocks.checkDocumentUpdate.mockRejectedValueOnce("legacy_layout_unavailable");
+		renderHook(() => useDocumentSync());
+		render(createElement(StatusBar));
+		await poll();
+		expect(screen.getByTestId("status-bar")).toHaveTextContent(
+			"Layout sidecar unavailable on disk. Restore it and reopen, or use Save As to keep the loaded layout.",
+		);
+	});
+
 	it("reloads a clean background document and clears its stale undo history", async () => {
 		const background = open();
 		background.history.getState().pushSnapshot(model("Undo"));

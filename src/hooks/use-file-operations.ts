@@ -4,7 +4,12 @@ import { getFileAdapter } from "@/lib/adapters/get-file-adapter";
 import { documentDisplayTitle } from "@/lib/document-display-title";
 import { generateHtmlReport } from "@/lib/export/export-html";
 import { captureCanvasIntoModel } from "@/lib/model-capture";
-import { buildLayoutFromModel } from "@/lib/model-layout-utils";
+import {
+	buildLayoutFromModel,
+	hasUnloadedLegacyLayout,
+	RESTORE_LEGACY_LAYOUT,
+} from "@/lib/model-layout-utils";
+import { isTauri } from "@/lib/platform";
 import { mergeWorkspaceTabs } from "@/lib/workspace-tabs";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { nextActiveDocumentId, useDocumentRegistry } from "@/stores/document-registry";
@@ -113,6 +118,10 @@ export function useFileOperations() {
 		const target = (id && registry.getDocumentStores(id)?.model) || useModelStore;
 		const { model, filePath, fileRevision: expectedRevision, sourceYaml } = target.getState();
 		if (!model) return false;
+		if (isTauri() && hasUnloadedLegacyLayout(model)) {
+			window.alert(RESTORE_LEGACY_LAYOUT);
+			return false;
+		}
 
 		const identity = getAuthorIdentity();
 		const captured = captureActiveCanvas({

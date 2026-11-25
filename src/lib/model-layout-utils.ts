@@ -1,5 +1,14 @@
 import type { DiagramLayout, ThreatModel } from "@/types/threat-model";
 
+export const RESTORE_LEGACY_LAYOUT =
+	"Layout sidecar not loaded. Restore it and reopen before saving.";
+
+export function hasUnloadedLegacyLayout(model: ThreatModel | null): boolean {
+	return (
+		model?.diagrams.some((diagram) => diagram.layout_file != null && !diagram.viewport) ?? false
+	);
+}
+
 /** Build a DiagramLayout from inline model positions (for setPendingLayout). */
 export function buildLayoutFromModel(model: ThreatModel): DiagramLayout | null {
 	if (model.diagrams.length === 0) return null;

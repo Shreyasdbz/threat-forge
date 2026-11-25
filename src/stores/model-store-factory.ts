@@ -17,7 +17,7 @@ export interface ModelState {
 	filePath: string | null;
 	fileRevision?: string;
 	sourceYaml?: string;
-	fileSync?: "updated" | "conflict" | "unavailable";
+	fileSync?: "updated" | "conflict" | "unavailable" | "layout-unavailable";
 	/** Whether the model has unsaved changes */
 	isDirty: boolean;
 	/** Currently selected element ID */

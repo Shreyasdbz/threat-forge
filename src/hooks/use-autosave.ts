@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useFileOperations } from "@/hooks/use-file-operations";
+import { hasUnloadedLegacyLayout } from "@/lib/model-layout-utils";
+import { isTauri } from "@/lib/platform";
 import { useDocumentRegistry } from "@/stores/document-registry";
 import { useModelStore } from "@/stores/model-store";
 import { useSettingsStore } from "@/stores/settings-store";
@@ -15,6 +17,7 @@ export function useAutosave(): AutosaveStatus {
 	const isDirty = useModelStore((s) => s.isDirty);
 	const filePath = useModelStore((s) => s.filePath);
 	const fileSync = useModelStore((s) => s.fileSync);
+	const layoutNotLoaded = useModelStore((s) => isTauri() && hasUnloadedLegacyLayout(s.model));
 	const enabled = useSettingsStore((s) => s.settings.autosaveEnabled);
 	const intervalSeconds = useSettingsStore((s) => s.settings.autosaveIntervalSeconds);
 	const { saveModel } = useFileOperations();
@@ -35,8 +38,10 @@ export function useAutosave(): AutosaveStatus {
 			!enabled ||
 			!isDirty ||
 			!filePath ||
+			layoutNotLoaded ||
 			fileSync === "conflict" ||
-			fileSync === "unavailable"
+			fileSync === "unavailable" ||
+			fileSync === "layout-unavailable"
 		) {
 			clearTimer();
 			return;
@@ -64,6 +69,7 @@ export function useAutosave(): AutosaveStatus {
 		isDirty,
 		filePath,
 		fileSync,
+		layoutNotLoaded,
 		intervalSeconds,
 		saveModel,
 		clearTimer,

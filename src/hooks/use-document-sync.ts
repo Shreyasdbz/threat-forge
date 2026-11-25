@@ -31,16 +31,16 @@ async function refreshDocument(id: DocumentId, cancelled: () => boolean, discard
 	try {
 		const { checkDocumentUpdate } = await import("@/lib/adapters/tauri-file-adapter");
 		update = await checkDocumentUpdate(filePath, fileRevision);
-	} catch {
+	} catch (error) {
 		const state = current();
-		if (state && state.fileSync !== "unavailable")
-			stores.model.setState({ fileSync: "unavailable" });
+		const fileSync = error === "legacy_layout_unavailable" ? "layout-unavailable" : "unavailable";
+		if (state && state.fileSync !== fileSync) stores.model.setState({ fileSync });
 		return;
 	}
 	const state = current();
 	if (!state) return;
 	if (!update) {
-		if (state.fileSync === "conflict" || state.fileSync === "unavailable") {
+		if (state.fileSync && state.fileSync !== "updated") {
 			stores.model.setState({ fileSync: undefined });
 		}
 		return;

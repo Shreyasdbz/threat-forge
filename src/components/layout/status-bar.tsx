@@ -1,4 +1,5 @@
 import { sanitizeDisplayText } from "@/lib/document-display-title";
+import { hasUnloadedLegacyLayout, RESTORE_LEGACY_LAYOUT } from "@/lib/model-layout-utils";
 import type { DocumentPersistenceState, WorkspaceUnavailableReason } from "@/lib/persistence/types";
 import { isTauri } from "@/lib/platform";
 import { useDocumentRegistry } from "@/stores/document-registry";
@@ -129,12 +130,24 @@ export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promi
 		persistenceState,
 	);
 	const displayFilePath = filePath ? sanitizeDisplayText(filePath) : null;
-	const missingSidecar =
-		!isTauri() && model?.diagrams.some((diagram) => diagram.layout_file && !diagram.viewport);
+	const missingSidecar = hasUnloadedLegacyLayout(model);
+	const desktopMissingSidecar = isTauri() && missingSidecar;
+	const syncNotice =
+		fileSync === "conflict"
+			? desktopMissingSidecar
+				? "File changed on disk."
+				: "File changed on disk. Use Save As to keep your edits."
+			: fileSync === "layout-unavailable" && !desktopMissingSidecar
+				? "Layout sidecar unavailable on disk. Restore it and reopen, or use Save As to keep the loaded layout."
+				: fileSync === "unavailable" && !desktopMissingSidecar
+					? "File unavailable on disk. Use Save As to keep a copy."
+					: fileSync === "updated" && !desktopMissingSidecar
+						? "Reloaded external changes"
+						: null;
 
 	function renderSaveStatus() {
 		if (isDirty) {
-			if (fileSync === "conflict" || fileSync === "unavailable") return "Unsaved changes";
+			if (desktopMissingSidecar || (fileSync && fileSync !== "updated")) return "Unsaved changes";
 			return autosaveEnabled && filePath ? "Autosave pending..." : "Unsaved changes";
 		}
 		return "Saved";
@@ -151,21 +164,22 @@ export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promi
 					{missingSidecar && (
 						<>
 							{!localPersistence && <Separator />}
-							<span role="status" title="Open and save in the desktop app to migrate the layout.">
-								Layout sidecar not loaded
+							<span
+								role="status"
+								title={
+									desktopMissingSidecar
+										? undefined
+										: "Open and save in the desktop app to migrate the layout."
+								}
+							>
+								{desktopMissingSidecar ? RESTORE_LEGACY_LAYOUT : "Layout sidecar not loaded"}
 							</span>
 						</>
 					)}
-					{fileSync && (
+					{syncNotice && (
 						<>
 							{!localPersistence && <Separator />}
-							<span role="status">
-								{fileSync === "updated"
-									? "Reloaded external changes"
-									: fileSync === "conflict"
-										? "File changed on disk. Use Save As to keep your edits."
-										: "File unavailable on disk. Use Save As to keep a copy."}
-							</span>
+							<span role="status">{syncNotice}</span>
 							{fileSync === "conflict" && onReloadExternal && (
 								<button
 									type="button"
