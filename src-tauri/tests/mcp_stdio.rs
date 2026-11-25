@@ -358,7 +358,7 @@ fn workspace_builds_an_architecture_and_exports_svg_and_png_over_stdio() {
         .data()
         .chunks_exact(4)
         .any(|pixel| pixel == [255, 255, 255, 255]));
-    assert_eq!(&pixels.data()[..4], &[247, 248, 247, 255]);
+    assert_eq!(&pixels.data()[..4], &[247, 248, 250, 255]);
     assert_eq!(exported_png["content"][1]["mimeType"], "image/png");
     assert_eq!(
         STANDARD

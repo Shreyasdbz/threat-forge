@@ -259,9 +259,9 @@ impl<'a> Scene<'a> {
         let title = xml_text(self.title, 240);
         let mut svg = format!(
             r##"<svg xmlns="http://www.w3.org/2000/svg" width="{:.0}" height="{:.0}" viewBox="{x:.2} {y:.2} {width:.2} {height:.2}">
-<title>{title}</title><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path fill="#656967" d="M0 0L10 5L0 10z"/></marker></defs>
-<rect x="{x:.2}" y="{y:.2}" width="{width:.2}" height="{height:.2}" fill="#f7f8f7"/>
-<g font-family="sans-serif" fill="#202321">"##,
+<title>{title}</title><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path fill="#606973" d="M0 0L10 5L0 10z"/></marker></defs>
+<rect x="{x:.2}" y="{y:.2}" width="{width:.2}" height="{height:.2}" fill="#f7f8fa"/>
+<g font-family="sans-serif" fill="#16181c">"##,
             (width * scale).ceil(),
             (height * scale).ceil(),
         );
@@ -294,20 +294,21 @@ impl Node<'_> {
         };
         let is_container = matches!(self.kind, "boundary" | "group");
         let rx = if is_container || self.kind == "process" {
-            12
+            10
         } else {
             6
         };
         let label = xml_text(self.name, (width / 8.0).floor().max(1.0) as usize);
-        let (label_x, label_y, font_size, anchor, ink) = if is_container {
-            (x + 30.0, y + 25.0, 12, "start", "#555a57")
+        let (label_x, label_y, font_size, weight, anchor, ink) = if is_container {
+            (x + 30.0, y + 25.0, 13, 500, "start", "#505863")
         } else {
             (
                 x + width / 2.0,
                 y + height / 2.0 + 5.0,
                 14,
+                600,
                 "middle",
-                "#202321",
+                "#16181c",
             )
         };
         let _ = writeln!(
@@ -326,7 +327,7 @@ impl Node<'_> {
         }
         let _ = writeln!(
             svg,
-            r#"<text x="{label_x:.2}" y="{label_y:.2}" font-size="{font_size}" text-anchor="{anchor}" fill="{ink}">{label}</text></g>"#,
+            r#"<text x="{label_x:.2}" y="{label_y:.2}" font-size="{font_size}" font-weight="{weight}" text-anchor="{anchor}" fill="{ink}">{label}</text></g>"#,
         );
     }
 }
@@ -385,7 +386,7 @@ impl Edge<'_> {
         };
         let _ = writeln!(
             svg,
-            r##"<path d="{path}" fill="none" stroke="#656967" stroke-width="1.25" marker-end="url(#arrow)"{dash}/><text x="{label_x:.2}" y="{label_y:.2}" text-anchor="{anchor}" font-size="12" fill="#555a57">{label}</text>"##
+            r##"<path d="{path}" fill="none" stroke="#606973" stroke-width="1.25" marker-end="url(#arrow)"{dash}/><text x="{label_x:.2}" y="{label_y:.2}" text-anchor="{anchor}" font-size="13" font-weight="500" fill="#505863">{label}</text>"##
         );
     }
 }

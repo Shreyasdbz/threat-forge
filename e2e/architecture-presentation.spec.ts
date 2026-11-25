@@ -45,6 +45,8 @@ test("browses architecture memberships, then presents and exports the shared dia
 		if (format === "SVG") {
 			const svg = bytes.toString("utf8");
 			expect(svg).toContain("Web Application");
+			expect(svg).toContain('fill="#f7f8fa"');
+			expect(svg).toContain('font-size="14" font-weight="600"');
 			expect(svg).toContain('fill="none" fill-opacity="0.000" stroke="#15803d"');
 			expect(svg).toContain('fill="#22c55e" fill-opacity="0.003" stroke="#15803d"');
 			const position = (label: string) =>
