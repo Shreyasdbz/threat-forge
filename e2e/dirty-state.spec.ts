@@ -6,8 +6,7 @@ test.describe("Dirty State — New opens a tab, Close still guards", () => {
 		await createModel(page);
 		// Add an element to make the model dirty
 		await addPaletteItem(page, "palette-item-generic");
-		// Verify the status bar shows unsaved changes
-		await expect(page.getByTestId("status-bar")).toContainText("Unsaved changes");
+		await expect(page.getByRole("tab")).toHaveAccessibleName(/unsaved changes/);
 	});
 
 	test("Cmd+N with unsaved changes opens a second tab and prompts nothing (#54)", async ({
@@ -64,7 +63,7 @@ test.describe("Dirty State — New opens a tab, Close still guards", () => {
 		expect(dialogMessage).toContain("unsaved changes");
 		await expect(page.getByRole("tab")).toHaveCount(1);
 		await expect(page.locator("[data-testid^='node-']")).toHaveCount(1);
-		await expect(page.getByTestId("status-bar")).toContainText("Unsaved changes");
+		await expect(page.getByRole("tab")).toHaveAccessibleName(/unsaved changes/);
 	});
 
 	test("Closing a dirty tab and accepting discards it", async ({ page }) => {

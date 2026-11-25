@@ -14,7 +14,10 @@ export function ChatModelSelector({ disabled }: { disabled: boolean }) {
 	const settings = useSettingsStore((s) => s.settings);
 	const updateSetting = useSettingsStore((s) => s.updateSetting);
 	const [open, setOpen] = useState(false);
-	const [menuHeight, setMenuHeight] = useState(384);
+	const [placement, setPlacement] = useState({
+		maxHeight: 384,
+		top: undefined as number | undefined,
+	});
 	const rootRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
 	const menuRef = useRef<HTMLDivElement>(null);
@@ -68,16 +71,27 @@ export function ChatModelSelector({ disabled }: { disabled: boolean }) {
 			surface?.getBoundingClientRect().top ?? 0,
 			surface?.parentElement?.getBoundingClientRect().top ?? 0,
 		);
+		const surfaceBottom = Math.min(
+			window.innerHeight,
+			surface?.parentElement?.getBoundingClientRect().bottom ?? window.innerHeight,
+		);
 		const scale = root.offsetHeight ? bounds.height / root.offsetHeight : 1;
-		// Keep the popup inside the chat surface, accounting for CSS zoom.
-		const height = Math.max(44, (bounds.top - surfaceTop) / scale - 8);
-		if (menuHeight !== height) setMenuHeight(height);
+		const above = (bounds.top - surfaceTop) / scale;
+		const below = (surfaceBottom - bounds.bottom) / scale;
+		const overlay = Math.max(above, below) < 88;
+		const maxHeight = Math.max(
+			0,
+			Math.floor(overlay ? (surfaceBottom - surfaceTop) / scale - 16 : Math.max(above, below) - 8),
+		);
+		const top = overlay ? 8 - above : below > above ? bounds.height / scale + 4 : undefined;
+		if (maxHeight !== placement.maxHeight || top !== placement.top)
+			setPlacement({ maxHeight, top });
 		const choices = Array.from(
 			menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]') ?? [],
 		);
 		focusChoice(choices.find((choice) => choice.getAttribute("aria-checked") === "true"));
 		typeahead.current = { text: "", at: 0 };
-	}, [open, disabled, focusChoice, menuHeight]);
+	}, [open, disabled, focusChoice, placement.maxHeight, placement.top]);
 
 	useEffect(() => {
 		if (disabled) setOpen(false);
@@ -194,8 +208,11 @@ export function ChatModelSelector({ disabled }: { disabled: boolean }) {
 					role="menu"
 					aria-label="Model"
 					onKeyDown={handleMenuKeyDown}
-					style={{ maxHeight: menuHeight }}
-					className="absolute inset-x-0 bottom-full z-50 mb-1 overflow-y-auto overscroll-contain rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md"
+					style={placement}
+					className={cn(
+						"absolute inset-x-0 z-50 overflow-y-auto overscroll-contain rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md",
+						placement.top === undefined && "bottom-full mb-1",
+					)}
 				>
 					{PROVIDERS.map((name) => {
 						const saved = savedModel(name);

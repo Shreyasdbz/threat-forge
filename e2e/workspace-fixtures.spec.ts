@@ -1,4 +1,4 @@
-import { addPaletteItem, expect, test } from "./fixtures";
+import { addPaletteItem, expect, test, waitForCanvasSettled } from "./fixtures";
 import {
 	clickElementByName,
 	connectElements,
@@ -181,6 +181,8 @@ test("shared interaction helpers execute real create, switch, edit, drag, connec
 
 	await addPaletteItem(page, "palette-item-generic");
 	const target = await clickElementByName(page, "Generic");
+	await page.locator(".react-flow__controls-fitview").click();
+	await waitForCanvasSettled(page, 2);
 	await connectElements(page, source, target);
 	await waitForLocalSave(page);
 

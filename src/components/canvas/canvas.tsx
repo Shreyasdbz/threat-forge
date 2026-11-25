@@ -59,7 +59,7 @@ function EmptyCanvas() {
 	return (
 		<div data-testid="empty-canvas" className="flex h-full flex-col items-center bg-editor-canvas">
 			{/* Main content — centered with upward bias */}
-			<div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center px-4 pb-12 [@media(max-height:850px)]:pb-0">
+			<div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center-safe overflow-y-auto px-4 pb-12 [@media(max-height:850px)]:pb-0">
 				<img
 					src="/logo_square.png"
 					alt="Threat Forge"
