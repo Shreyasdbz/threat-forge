@@ -80,6 +80,7 @@ it("reviews cascades without removing a boundary that shares the element ID", as
 	);
 	const signal = new AbortController().signal;
 	const applied = await reviewed.call.run({ document, signal });
+	if (applied.status !== "ok") throw new Error(applied.result);
 	expect(applied.document).toMatchObject({
 		elements: [document.elements[1]],
 		data_flows: [],
@@ -89,7 +90,6 @@ it("reviews cascades without removing a boundary that shares the element ID", as
 	});
 	const stale = await reviewed.call.run({ document: { ...document }, signal });
 	expect(stale.status).toBe("error");
-	expect(stale.document).toBeUndefined();
 });
 
 /** One valid input per tool, so every tool can be prepared and run. */

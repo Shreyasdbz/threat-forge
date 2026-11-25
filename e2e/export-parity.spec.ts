@@ -18,7 +18,7 @@ test("inline-layout browser downloads match MCP SVG and PNG bytes", async ({ pag
 	const lines = createInterface({ input: child.stdout })[Symbol.asyncIterator]();
 	let id = 0;
 	async function request(method: string, params: object) {
-		child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }) + "\n");
+		child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params })}\n`);
 		const line = await lines.next();
 		expect(line.done, `MCP did not reply to ${method}`).toBeFalsy();
 		const response = JSON.parse(line.value);

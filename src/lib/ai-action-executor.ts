@@ -14,7 +14,7 @@ function generateThreatId(): string {
 	return `threat-${hex}`;
 }
 
-export function isDestructiveAction(action: AiAction["action"]): boolean {
+export function isDestructiveAction(action: string): boolean {
 	return action.startsWith("delete_");
 }
 

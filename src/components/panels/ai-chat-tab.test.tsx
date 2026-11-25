@@ -484,7 +484,7 @@ describe("AiChatTab tool-loop turn", () => {
 					settings: { ...state.settings, aiModelAnthropic: "unknown-text-model" },
 				}));
 				streamConversationMock.mockImplementation(
-					textTurn("Proposed change.\n```actions\n" + JSON.stringify([action]) + "\n```"),
+					textTurn(`Proposed change.\n\`\`\`actions\n${JSON.stringify([action])}\n\`\`\``),
 				);
 			}
 			await act(async () => {
