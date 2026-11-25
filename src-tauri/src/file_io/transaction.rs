@@ -1,11 +1,17 @@
 use super::reader::validate_model;
 use crate::errors::ThreatForgeError;
 use crate::models::ThreatModel;
+use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
+use cap_std::{
+    ambient_authority,
+    fs::{Dir, OpenOptions},
+};
 use serde_yaml::{Mapping, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
-use std::fs::{self, OpenOptions};
-use std::io::{self, Write};
+use std::ffi::{OsStr, OsString};
+use std::fs;
+use std::io::{self, Read, Write};
 use std::path::{Component, Path, PathBuf};
 
 pub struct DocumentSnapshot {
@@ -69,7 +75,8 @@ fn revision(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
-pub fn commit_document(
+#[cfg(test)]
+pub(crate) fn commit_document(
     path: &Path,
     expected: Option<&str>,
     proposed: ThreatModel,
@@ -82,7 +89,7 @@ pub fn write_document(
     expected: Option<&str>,
     proposed: ThreatModel,
 ) -> Result<WrittenDocument, ThreatForgeError> {
-    write_with_base(path, expected, proposed, Base::Destination)
+    WriteTarget::from_path(path)?.write_document(expected, proposed)
 }
 
 pub fn copy_document(
@@ -91,7 +98,7 @@ pub fn copy_document(
     proposed: ThreatModel,
     source_yaml: Option<&str>,
 ) -> Result<WrittenDocument, ThreatForgeError> {
-    write_with_base(path, expected, proposed, Base::Source(source_yaml))
+    WriteTarget::from_path(path)?.copy_document(expected, proposed, source_yaml)
 }
 
 enum Base<'a> {
@@ -110,46 +117,186 @@ pub fn destination_revision(path: &Path) -> Result<Option<String>, ThreatForgeEr
     }
 }
 
+pub(crate) struct WriteRoot {
+    path: PathBuf,
+    dir: Dir,
+}
+
+impl WriteRoot {
+    pub fn open(path: &Path) -> Result<Self, ThreatForgeError> {
+        Dir::open_ambient_dir(path, ambient_authority())
+            .map(|dir| Self {
+                path: path.to_owned(),
+                dir,
+            })
+            .map_err(|source| write_error(path, source))
+    }
+
+    pub fn target(&self, path: &Path) -> Result<WriteTarget, ThreatForgeError> {
+        let relative = path
+            .strip_prefix(&self.path)
+            .map_err(|_| ThreatForgeError::UnapprovedPath)?;
+        let parent = relative.parent().ok_or(ThreatForgeError::UnapprovedPath)?;
+        let name = relative
+            .file_name()
+            .ok_or(ThreatForgeError::UnapprovedPath)?
+            .to_owned();
+        let mut dir = self
+            .dir
+            .try_clone()
+            .map_err(|source| write_error(path, source))?;
+        for part in parent.components() {
+            let Component::Normal(name) = part else {
+                return Err(ThreatForgeError::UnapprovedPath);
+            };
+            dir = dir
+                .open_dir_nofollow(name)
+                .map_err(|_| ThreatForgeError::UnapprovedPath)?;
+        }
+        let target = WriteTarget {
+            dir,
+            path: path.to_owned(),
+            name,
+        };
+        target.metadata(target.name())?;
+        Ok(target)
+    }
+}
+
+pub(crate) struct WriteTarget {
+    dir: Dir,
+    path: PathBuf,
+    name: OsString,
+}
+
+impl WriteTarget {
+    fn from_path(path: &Path) -> Result<Self, ThreatForgeError> {
+        let path = resolve_target(path)?;
+        let parent = path.parent().ok_or(ThreatForgeError::UnapprovedPath)?;
+        WriteRoot::open(parent)?.target(&path)
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    fn name(&self) -> &OsStr {
+        &self.name
+    }
+
+    fn metadata(&self, name: &OsStr) -> Result<Option<cap_std::fs::Metadata>, ThreatForgeError> {
+        match self.dir.symlink_metadata(name) {
+            Ok(metadata) if metadata.is_file() => Ok(Some(metadata)),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+            _ => Err(ThreatForgeError::UnapprovedPath),
+        }
+    }
+
+    fn read_bytes(&self) -> io::Result<Vec<u8>> {
+        let mut file = self.dir.open_with(
+            self.name(),
+            OpenOptions::new().read(true).follow(FollowSymlinks::No),
+        )?;
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes)?;
+        Ok(bytes)
+    }
+
+    pub fn read_document(&self) -> Result<DocumentSnapshot, ThreatForgeError> {
+        let bytes = self
+            .read_bytes()
+            .map_err(|source| ThreatForgeError::FileRead {
+                path: self.path.display().to_string(),
+                source,
+            })?;
+        parse_document(&self.path, &bytes)
+    }
+
+    pub fn write_document(
+        &self,
+        expected: Option<&str>,
+        proposed: ThreatModel,
+    ) -> Result<WrittenDocument, ThreatForgeError> {
+        write_with_base(self, expected, proposed, Base::Destination)
+    }
+
+    pub fn copy_document(
+        &self,
+        expected: Option<&str>,
+        proposed: ThreatModel,
+        source_yaml: Option<&str>,
+    ) -> Result<WrittenDocument, ThreatForgeError> {
+        write_with_base(self, expected, proposed, Base::Source(source_yaml))
+    }
+
+    pub fn atomic_write(&self, bytes: &[u8]) -> Result<(), ThreatForgeError> {
+        let existing = self.metadata(self.name())?;
+        let temporary_name = format!(".threatforge-{}.tmp", uuid::Uuid::new_v4());
+        let mut options = OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        cap_std::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        let mut file = self
+            .dir
+            .open_with(&temporary_name, &options)
+            .map_err(|source| write_error(&self.path, source))?;
+        let written = (|| {
+            if let Some(metadata) = existing {
+                file.set_permissions(metadata.permissions())?;
+            }
+            file.write_all(bytes)?;
+            file.sync_all()
+        })();
+        drop(file);
+        let result =
+            written.and_then(|()| self.dir.rename(&temporary_name, &self.dir, self.name()));
+        if result.is_err() {
+            let _ = self.dir.remove_file(&temporary_name);
+        }
+        result.map_err(|source| write_error(&self.path, source))
+    }
+}
+
 fn write_with_base(
-    path: &Path,
+    target: &WriteTarget,
     expected: Option<&str>,
     mut proposed: ThreatModel,
     base: Base<'_>,
 ) -> Result<WrittenDocument, ThreatForgeError> {
-    let path = resolve_target(path)?;
-    let parent = path.parent().ok_or(ThreatForgeError::UnapprovedPath)?;
-    let mut lock_name = path
-        .file_name()
-        .ok_or(ThreatForgeError::UnapprovedPath)?
-        .to_os_string();
+    let path = target.path();
+    let mut lock_name = target.name().to_os_string();
     lock_name.push(".lock");
-    let lock_path = resolve_target(&parent.join(lock_name))?;
-    let lock = OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .read(true)
-        .write(true)
-        .open(lock_path)
-        .map_err(|source| write_error(&path, source))?;
-    lock.lock().map_err(|source| write_error(&path, source))?;
+    target.metadata(&lock_name)?;
+    let lock = target
+        .dir
+        .open_with(
+            &lock_name,
+            OpenOptions::new()
+                .create(true)
+                .truncate(false)
+                .read(true)
+                .write(true)
+                .follow(FollowSymlinks::No),
+        )
+        .map_err(|source| write_error(path, source))?
+        .into_std();
+    lock.lock().map_err(|source| write_error(path, source))?;
 
-    if resolve_target(&path)? != path {
-        return Err(ThreatForgeError::UnapprovedPath);
-    }
-    let destination = match fs::read(&path) {
+    target.metadata(target.name())?;
+    let destination = match target.read_bytes() {
         Ok(bytes) if expected == Some(revision(&bytes).as_str()) => Some(bytes),
         Err(e) if e.kind() == io::ErrorKind::NotFound && expected.is_none() => None,
         Ok(_) => return Err(ThreatForgeError::DocumentConflict),
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
             return Err(ThreatForgeError::DocumentConflict)
         }
-        Err(source) => return Err(write_error(&path, source)),
+        Err(source) => return Err(write_error(path, source)),
     };
     let prior = match base {
         Base::Destination => destination.as_deref(),
         Base::Source(source) => source.map(str::as_bytes),
     }
-    .map(|bytes| parse_document(&path, bytes))
+    .map(|bytes| parse_document(path, bytes))
     .transpose()?;
     prepare_document(
         prior.as_ref().map(|snapshot| &snapshot.model),
@@ -167,7 +314,7 @@ fn write_with_base(
         "# ThreatForge Threat Model\n# Generated by ThreatForge v{}\n{yaml}",
         env!("CARGO_PKG_VERSION"),
     );
-    atomic_write(&path, content.as_bytes())?;
+    target.atomic_write(content.as_bytes())?;
     Ok(WrittenDocument {
         revision: revision(content.as_bytes()),
         yaml: content,

@@ -1,4 +1,4 @@
-use crate::file_io::{copy_document, read_document, write_document};
+use crate::file_io::WriteTarget;
 use crate::models::ThreatModel;
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
@@ -26,19 +26,22 @@ struct Edit {
 impl Journal {
     pub fn commit(
         &mut self,
-        path: &Path,
+        target: &WriteTarget,
         revision: &str,
         model: ThreatModel,
     ) -> Result<String, String> {
-        let before = read_document(path).map_err(|error| error.user_message())?;
+        let before = target
+            .read_document()
+            .map_err(|error| error.user_message())?;
         if before.revision != revision {
             return Err(crate::errors::ThreatForgeError::DocumentConflict.user_message());
         }
         let before = before.source_yaml().map_err(|error| error.user_message())?;
-        let written =
-            write_document(path, Some(revision), model).map_err(|error| error.user_message())?;
+        let written = target
+            .write_document(Some(revision), model)
+            .map_err(|error| error.user_message())?;
         if written.revision != revision {
-            let history = self.history(path);
+            let history = self.history(target.path());
             if history.revision != revision {
                 *history = DocumentHistory::default();
             }
@@ -55,8 +58,8 @@ impl Journal {
         Ok(written.revision)
     }
 
-    pub fn replay(&mut self, path: &Path, redo: bool) -> Result<String, String> {
-        let history = self.history(path);
+    pub fn replay(&mut self, target: &WriteTarget, redo: bool) -> Result<String, String> {
+        let history = self.history(target.path());
         let edit = if redo {
             history.redo.last()
         } else {
@@ -69,7 +72,8 @@ impl Journal {
         })?;
         let yaml = if redo { &edit.after } else { &edit.before };
         let model = serde_yaml::from_str(yaml).map_err(|_| "The journal entry is invalid.")?;
-        let written = copy_document(path, Some(&history.revision), model, Some(yaml))
+        let written = target
+            .copy_document(Some(&history.revision), model, Some(yaml))
             .map_err(|error| error.user_message())?;
         history.revision.clone_from(&written.revision);
         if redo {

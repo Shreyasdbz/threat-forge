@@ -5,10 +5,7 @@
 use super::journal::Journal;
 use super::layout;
 use super::workspace::{Workspace, MAX_RESULTS};
-use crate::file_io::{
-    atomic_write, commit_document, merge_layout_into_model, prepare_document, read_document,
-    resolve_target, DocumentSnapshot,
-};
+use crate::file_io::{merge_layout_into_model, prepare_document, resolve_target, DocumentSnapshot};
 use crate::scene::Scene;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use std::borrow::Cow;
@@ -75,7 +72,8 @@ fn json_result(value: impl Serialize) -> Result<CallToolResult, ErrorData> {
 /// Shared, file-backed threat model state.
 #[derive(Clone)]
 pub struct ThreatForgeServer {
-    workspace: Option<Arc<Workspace>>,
+    write_workspace: Arc<Workspace>,
+    workspace_mode: bool,
     state: Arc<Mutex<Session>>,
     tool_router: ToolRouter<Self>,
 }
@@ -93,9 +91,17 @@ impl ThreatForgeServer {
             .canonicalize()
             .map_err(|_| "Could not resolve the selected model.")?;
         let file_path = resolve_target(&file_path).map_err(|e| e.user_message())?;
-        read_document(&file_path).map_err(|e| e.user_message())?;
+        let parent = file_path
+            .parent()
+            .ok_or("Could not resolve the selected model.")?;
+        let write_workspace = Workspace::new(parent)?;
+        write_workspace
+            .write_target(&file_path)?
+            .read_document()
+            .map_err(|e| e.user_message())?;
         Ok(Self {
-            workspace: None,
+            write_workspace: Arc::new(write_workspace),
+            workspace_mode: false,
             state: Arc::new(Mutex::new(Session {
                 active: Some(file_path),
                 ..Session::default()
@@ -106,16 +112,21 @@ impl ThreatForgeServer {
 
     pub fn in_workspace(root: PathBuf) -> Result<Self, String> {
         Ok(Self {
-            workspace: Some(Arc::new(Workspace::new(&root)?)),
+            write_workspace: Arc::new(Workspace::new(&root)?),
+            workspace_mode: true,
             state: Arc::new(Mutex::new(Session::default())),
             tool_router: Self::tool_router(),
         })
     }
 
     fn workspace(&self) -> Result<&Workspace, ErrorData> {
-        self.workspace
-            .as_deref()
-            .ok_or_else(|| mcp_err("Start the server with --workspace to use workspace tools."))
+        if self.workspace_mode {
+            Ok(&self.write_workspace)
+        } else {
+            Err(mcp_err(
+                "Start the server with --workspace to use workspace tools.",
+            ))
+        }
     }
 
     fn session(&self) -> Result<MutexGuard<'_, Session>, ErrorData> {
@@ -138,17 +149,18 @@ impl ThreatForgeServer {
 
     fn read(&self) -> Result<(PathBuf, DocumentSnapshot), ErrorData> {
         let path = self.active_path()?;
-        let snapshot = read_document(&path).map_err(|error| mcp_err(error.user_message()))?;
+        let target = self.write_workspace.write_target(&path).map_err(mcp_err)?;
+        let snapshot = target
+            .read_document()
+            .map_err(|error| mcp_err(error.user_message()))?;
         Ok((path, snapshot))
     }
 
     fn save(&self, path: &Path, revision: &str, model: ThreatModel) -> Result<String, ErrorData> {
-        if resolve_target(path).ok().as_deref() != Some(path) {
-            return Err(mcp_err("The selected model has moved."));
-        }
+        let target = self.write_workspace.write_target(path).map_err(mcp_err)?;
         self.session()?
             .journal
-            .commit(path, revision, model)
+            .commit(&target, revision, model)
             .map_err(mcp_err)
     }
 
@@ -561,8 +573,12 @@ impl ThreatForgeServer {
         let relative = workspace.relative(&path).map_err(mcp_err)?;
         let model = ThreatModel::new(&req.title, &req.author);
         let mut session = self.session()?;
-        let revision =
-            commit_document(&path, None, model).map_err(|error| mcp_err(error.user_message()))?;
+        let revision = workspace
+            .write_target(&path)
+            .map_err(mcp_err)?
+            .write_document(None, model)
+            .map_err(|error| mcp_err(error.user_message()))?
+            .revision;
         let revision = document_revision(&path, &revision);
         session.active = Some(path);
         json_result(WorkspaceDocument {
@@ -595,7 +611,11 @@ impl ThreatForgeServer {
     ) -> Result<CallToolResult, ErrorData> {
         let workspace = self.workspace()?;
         let path = workspace.resolve(&req.path, "thf").map_err(mcp_err)?;
-        let snapshot = read_document(&path).map_err(|error| mcp_err(error.user_message()))?;
+        let snapshot = workspace
+            .write_target(&path)
+            .map_err(mcp_err)?
+            .read_document()
+            .map_err(|error| mcp_err(error.user_message()))?;
         let relative = workspace.relative(&path).map_err(mcp_err)?;
         let revision = document_revision(&path, &snapshot.revision);
         self.session()?.active = Some(path);
@@ -619,7 +639,10 @@ impl ThreatForgeServer {
             let path = workspace
                 .resolve(Path::new(&relative), "thf")
                 .map_err(mcp_err)?;
-            let Ok(snapshot) = read_document(&path) else {
+            let Ok(snapshot) = workspace
+                .write_target(&path)
+                .and_then(|target| target.read_document().map_err(|error| error.user_message()))
+            else {
                 continue;
             };
             let title = snapshot.model.metadata.title;
@@ -647,10 +670,11 @@ impl ThreatForgeServer {
         Parameters(_): Parameters<GetModelRequest>,
     ) -> Result<CallToolResult, ErrorData> {
         let path = self.active_path()?;
+        let target = self.write_workspace.write_target(&path).map_err(mcp_err)?;
         let revision = self
             .session()?
             .journal
-            .replay(&path, false)
+            .replay(&target, false)
             .map_err(mcp_err)?;
         json_result(serde_json::json!({ "revision": document_revision(&path, &revision) }))
     }
@@ -663,10 +687,11 @@ impl ThreatForgeServer {
         Parameters(_): Parameters<GetModelRequest>,
     ) -> Result<CallToolResult, ErrorData> {
         let path = self.active_path()?;
+        let target = self.write_workspace.write_target(&path).map_err(mcp_err)?;
         let revision = self
             .session()?
             .journal
-            .replay(&path, true)
+            .replay(&target, true)
             .map_err(mcp_err)?;
         json_result(serde_json::json!({ "revision": document_revision(&path, &revision) }))
     }
@@ -821,7 +846,8 @@ impl ThreatForgeServer {
                 let workspace = self.workspace()?;
                 let output = workspace.resolve(&path, extension).map_err(mcp_err)?;
                 let relative = workspace.relative(&output).map_err(mcp_err)?;
-                Ok::<_, ErrorData>((output, relative))
+                let target = workspace.write_target(&output).map_err(mcp_err)?;
+                Ok::<_, ErrorData>((target, relative))
             })
             .transpose()?;
         tokio::task::spawn_blocking(move || {
@@ -840,11 +866,10 @@ impl ThreatForgeServer {
                 png.as_slice()
             };
             let mut content = Vec::new();
-            if let Some((path, relative)) = output {
-                if resolve_target(&path).ok().as_ref() != Some(&path) {
-                    return Err(mcp_err("The selected export location has moved."));
-                }
-                atomic_write(&path, bytes).map_err(|error| mcp_err(error.user_message()))?;
+            if let Some((target, relative)) = output {
+                target
+                    .atomic_write(bytes)
+                    .map_err(|error| mcp_err(error.user_message()))?;
                 content.push(ContentBlock::text(format!("Saved {relative}")));
             }
             content.push(match svg {

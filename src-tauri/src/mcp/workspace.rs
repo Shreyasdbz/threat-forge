@@ -1,4 +1,4 @@
-use crate::file_io::resolve_target;
+use crate::file_io::{resolve_target, WriteRoot, WriteTarget};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
@@ -7,6 +7,7 @@ pub(super) const MAX_RESULTS: usize = 200;
 
 pub(super) struct Workspace {
     root: PathBuf,
+    writes: WriteRoot,
 }
 
 impl Workspace {
@@ -17,7 +18,14 @@ impl Workspace {
         if !root.is_dir() {
             return Err("The workspace root must be a directory.".into());
         }
-        Ok(Self { root })
+        let writes = WriteRoot::open(&root).map_err(|error| error.user_message())?;
+        Ok(Self { root, writes })
+    }
+
+    pub fn write_target(&self, path: &Path) -> Result<WriteTarget, String> {
+        self.writes
+            .target(path)
+            .map_err(|error| error.user_message())
     }
 
     pub fn resolve(&self, relative: &Path, extension: &str) -> Result<PathBuf, String> {
@@ -88,6 +96,38 @@ impl Workspace {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn writes_use_the_opened_directory_when_its_former_path_changes() {
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let folder = root.path().join("diagrams");
+        let original = root.path().join("original");
+        fs::create_dir(&folder).unwrap();
+        let workspace = Workspace::new(root.path()).unwrap();
+        let document = workspace
+            .resolve(Path::new("diagrams/model.thf"), "thf")
+            .unwrap();
+        let exported = workspace
+            .resolve(Path::new("diagrams/model.svg"), "svg")
+            .unwrap();
+        let write_document = workspace.write_target(&document).unwrap();
+        let write_export = workspace.write_target(&exported).unwrap();
+
+        fs::rename(&folder, &original).unwrap();
+        std::os::unix::fs::symlink(outside.path(), &folder).unwrap();
+
+        assert!(workspace.write_target(&document).is_err());
+        write_document
+            .write_document(None, crate::models::ThreatModel::new("Fixture", ""))
+            .unwrap();
+        write_export.atomic_write(b"<svg/>").unwrap();
+        assert!(original.join("model.thf").is_file());
+        assert!(original.join("model.thf.lock").is_file());
+        assert_eq!(fs::read(original.join("model.svg")).unwrap(), b"<svg/>");
+        assert_eq!(fs::read_dir(outside.path()).unwrap().count(), 0);
+    }
 
     #[test]
     fn paths_must_stay_under_the_root_and_have_the_requested_extension() {
