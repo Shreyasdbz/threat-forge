@@ -278,26 +278,25 @@ against a tracking issue**, never silently retried forever.
 flaky row into a silent pass and destroys the only signal that the defect exists. `retries: 2`
 is a bounded safety net whose outcomes are surfaced — it is not a dial.
 
-## Visual specs are skipped on CI
+## Canvas visual differences
 
-`e2e/canvas-visual.spec.ts` opens its `Canvas Visual Regression` describe block with
-`test.skip(!!process.env.CI, ...)`. Only macOS baselines are committed, in
-`e2e/canvas-visual.spec.ts-snapshots/`, and CI runs on ubuntu — font rendering and
-anti-aliasing differ, so every comparison would fail.
+The E2E job compares Linux canvas snapshots inside its pinned Playwright container. The
+browser and system fonts ship in that image; use the same image digest as `ci.yml` to
+reproduce a comparison. A plain host run skips these snapshots to avoid comparing different
+font rasterizers.
 
-What this means in practice:
+With Linux dependencies installed in the checkout, reproduce from the repository root:
 
-- These specs give **no CI signal at all**. They show up only in the `skipped` count.
-- They are a local-macOS safety net. Run them on macOS before merging canvas layout changes.
-- Regenerating a baseline with `--update-snapshots` needs deliberate before/after review, and
-  the reason for the change recorded. Two baselines were legitimately regenerated in #136
-  because closing the mount race changed where second-and-later nodes land.
-- A PR that changes any file under `e2e/canvas-visual.spec.ts-snapshots/` must have its
-  before/after PNGs reviewed as images, not merely accepted on green CI — CI cannot see these
-  files change meaning at all, since it never runs the spec. GitHub's own pull-request "Files
-  changed" view natively renders a side-by-side/diff view for binary PNG changes; a reviewer
-  without macOS access uses that instead of checking out the branch. Record the reason for a
-  baseline change in the PR description, mirroring the `#136` precedent above (issue #66).
+```bash
+docker run --rm --platform linux/amd64 -u "$(id -u):$(id -g)" \
+  -e CI=true -e CANVAS_VISUAL_BASELINES=1 -v "$PWD:/work" -w /work \
+  mcr.microsoft.com/playwright:v1.61.1-jammy@sha256:7b86926fff94374389e8e1f4fdc5c76d050d4a06a7886bb537bf412b20e2b71e \
+  ./node_modules/.bin/playwright test e2e/canvas-visual.spec.ts
+```
+
+Use `--update-snapshots` only for intentional visual changes. Review the expected, actual,
+and diff images before updating a baseline and record the reason. Update the image and
+review baselines together when upgrading Playwright.
 
 ## After an automatic rerun
 

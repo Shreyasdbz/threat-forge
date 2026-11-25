@@ -154,6 +154,9 @@ jobs:
     needs: [test]
     # Temporarily on GitHub-hosted runners; restore self-hosted via #239.
     runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.61.1-jammy@sha256:7b86926fff94374389e8e1f4fdc5c76d050d4a06a7886bb537bf412b20e2b71e
+    env:
+      CANVAS_VISUAL_BASELINES: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -163,9 +166,6 @@ jobs:
           cache: "npm"
 
       - run: npm ci
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
 
       - name: Run E2E tests
         run: npx playwright test

@@ -53,7 +53,7 @@ shrink this list.
 Hierarchy, alignment, overlap, and clipping have no automated check in this suite, by design (see
 "Non-goals" above). Evidence for a human reviewer to judge these comes from:
 
-- `e2e/canvas-visual.spec.ts`'s committed macOS baselines, refreshed and reviewed as images per its
+- `e2e/canvas-visual.spec.ts`'s committed Linux baselines, refreshed and reviewed as images per its
   own header doc comment (baseline ownership, update command, and PR-description review process).
 - `e2e/screenshot-templates.spec.ts`'s attachment-based, CI-skipped template screenshots — a manual
   local visual-validation aid, not a gate.
