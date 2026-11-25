@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useFileOperations } from "@/hooks/use-file-operations";
+import { useDocumentRegistry } from "@/stores/document-registry";
 import { useModelStore } from "@/stores/model-store";
 import { useSettingsStore } from "@/stores/settings-store";
 
@@ -10,6 +11,7 @@ import { useSettingsStore } from "@/stores/settings-store";
  * Reports status via the returned object for status bar display.
  */
 export function useAutosave(): AutosaveStatus {
+	const activeDocumentId = useDocumentRegistry((s) => s.activeDocumentId);
 	const isDirty = useModelStore((s) => s.isDirty);
 	const filePath = useModelStore((s) => s.filePath);
 	const fileSync = useModelStore((s) => s.fileSync);
@@ -42,6 +44,7 @@ export function useAutosave(): AutosaveStatus {
 
 		clearTimer();
 		timerRef.current = setTimeout(() => {
+			if (useDocumentRegistry.getState().activeDocumentId !== activeDocumentId) return;
 			statusRef.current = "saving";
 			void saveModel().then((saved) => {
 				if (!saved) {
@@ -55,7 +58,16 @@ export function useAutosave(): AutosaveStatus {
 		}, intervalSeconds * 1000);
 
 		return clearTimer;
-	}, [enabled, isDirty, filePath, fileSync, intervalSeconds, saveModel, clearTimer]);
+	}, [
+		activeDocumentId,
+		enabled,
+		isDirty,
+		filePath,
+		fileSync,
+		intervalSeconds,
+		saveModel,
+		clearTimer,
+	]);
 
 	// Reset status when dirty changes (user edits after an autosave)
 	useEffect(() => {
