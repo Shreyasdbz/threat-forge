@@ -356,6 +356,7 @@ test.describe("Accessibility audit", () => {
 		await page.keyboard.press("Tab");
 		await expect(category).toBeFocused();
 		await category.selectOption({ label: "Databases" });
+		await expect(componentList.getByRole("heading", { name: "Databases" })).toBeVisible();
 		await expect(componentList.getByTestId("palette-item-sql-database")).toBeVisible();
 		await expect(componentList.getByTestId("palette-item-web-server")).toBeHidden();
 		await category.selectOption({ label: "All categories" });
@@ -374,6 +375,14 @@ test.describe("Accessibility audit", () => {
 		await expect
 			.poll(() => componentList.evaluate((element) => element.scrollTop))
 			.toBeGreaterThan(initialScroll.top);
+
+		await page.keyboard.press("End");
+		const lastItem = componentList.getByTestId(/^palette-item-/).last();
+		await expect(lastItem).toBeInViewport({ ratio: 1 });
+		const lastBounds = await lastItem.boundingBox();
+		const statusBounds = await page.getByTestId("status-bar").boundingBox();
+		if (!lastBounds || !statusBounds) throw new Error("Expected visible library and status bar");
+		expect(lastBounds.y + lastBounds.height).toBeLessThan(statusBounds.y);
 
 		await assertNoSeriousAccessibilityViolations(page);
 	});

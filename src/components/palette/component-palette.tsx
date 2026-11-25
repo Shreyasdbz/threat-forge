@@ -57,14 +57,26 @@ export function ComponentPalette() {
 	}, [searchQuery, activeCategory]);
 
 	const categories = listCategories();
+	const groups = useMemo(() => {
+		const byCategory = new Map<ComponentCategory, ComponentEntry[]>();
+		for (const component of filteredComponents) {
+			const items = byCategory.get(component.category) ?? [];
+			items.push(component);
+			byCategory.set(component.category, items);
+		}
+		return listCategories().flatMap(({ id, label }) => {
+			const items = byCategory.get(id);
+			return items ? [{ id, label, items }] : [];
+		});
+	}, [filteredComponents]);
 
 	return (
-		<div data-testid="component-palette" className="flex h-full flex-col">
+		<div data-testid="component-palette" className="flex h-full min-h-0 flex-col">
 			{/* Generic section */}
-			<div className="px-4 pt-4 pb-2">
+			<div className="shrink-0 px-4 pt-4 pb-2">
 				<h2 className="text-editor-footnote text-muted-foreground">Generic</h2>
 			</div>
-			<div className="px-3 pb-2">
+			<div className="shrink-0 px-3 pb-2">
 				<div className="flex flex-col gap-1">
 					{GENERIC_ITEMS.map((item) => (
 						<GenericPaletteItem
@@ -78,12 +90,12 @@ export function ComponentPalette() {
 			</div>
 
 			{/* Library section */}
-			<div className="px-4 pt-4 pb-2">
+			<div className="shrink-0 px-4 pt-4 pb-2">
 				<h2 className="text-editor-footnote text-muted-foreground">Library</h2>
 			</div>
 
 			{/* Search */}
-			<div className="px-4 pb-2">
+			<div className="shrink-0 px-4 pb-2">
 				<div className="relative">
 					<Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 					<input
@@ -101,7 +113,7 @@ export function ComponentPalette() {
 			</div>
 
 			{!searchQuery && (
-				<div className="px-4 pb-2">
+				<div className="shrink-0 px-4 pb-2">
 					<select
 						aria-label="Component category"
 						value={activeCategory}
@@ -125,7 +137,7 @@ export function ComponentPalette() {
 			{/* Component list */}
 			<section
 				aria-label="Library components"
-				className="flex-1 overflow-y-auto px-3 pb-3"
+				className="min-h-0 flex-1 overflow-y-auto px-3 pb-4"
 				// biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region must be focusable for keyboard access
 				tabIndex={0}
 				onKeyDown={(event) => {
@@ -137,9 +149,16 @@ export function ComponentPalette() {
 					}
 				}}
 			>
-				<div className="flex flex-col gap-0.5">
-					{filteredComponents.map((comp) => (
-						<LibraryPaletteItem key={comp.id} component={comp} />
+				<div className="flex flex-col gap-3">
+					{groups.map(({ id, label, items }) => (
+						<div key={id}>
+							<h3 className="px-2 pb-1 pt-2 text-editor-caption2 uppercase tracking-wide text-editor-secondary-label">
+								{label}
+							</h3>
+							{items.map((component) => (
+								<LibraryPaletteItem key={component.id} component={component} />
+							))}
+						</div>
 					))}
 					{filteredComponents.length === 0 && (
 						<p className="px-2 py-4 text-center text-editor-caption text-muted-foreground">
@@ -242,7 +261,7 @@ function GenericPaletteItem({
 	return (
 		<div
 			data-testid={`palette-item-${type.replace(/_/g, "-")}`}
-			className="flex min-h-8 cursor-grab items-center gap-2 rounded-editor-control px-2 py-1 transition-colors duration-120 ease-editor hover:bg-editor-hover"
+			className="flex min-h-9 cursor-grab items-center gap-2 rounded-editor-control px-2 py-1 transition-colors duration-120 ease-editor hover:bg-editor-hover"
 			draggable
 			onDoubleClick={handleDoubleClick}
 			onDragStart={(e) => {
@@ -299,7 +318,7 @@ function LibraryPaletteItem({ component }: { component: ComponentEntry }) {
 	return (
 		<div
 			data-testid={`palette-item-${component.id.replace(/_/g, "-")}`}
-			className="flex min-h-8 cursor-grab items-center gap-2 rounded-editor-control px-2 py-1 transition-colors duration-120 ease-editor hover:bg-editor-hover"
+			className="flex min-h-9 cursor-grab items-center gap-2 rounded-editor-control px-2 py-1 transition-colors duration-120 ease-editor hover:bg-editor-hover"
 			draggable
 			onDoubleClick={handleDoubleClick}
 			onDragStart={(e) => {

@@ -15,7 +15,7 @@ export function RightPanel() {
 	return (
 		<div data-testid="right-panel" className="flex h-full flex-col">
 			{/* Tab bar */}
-			<div className="mx-3 mt-3 grid shrink-0 grid-cols-4 gap-1 rounded-editor-panel bg-editor-fill p-1">
+			<div className="mx-2 mt-3 grid shrink-0 grid-cols-4 gap-px rounded-editor-panel bg-editor-fill p-1">
 				<TabButton
 					testId="tab-properties"
 					icon={SlidersHorizontal}

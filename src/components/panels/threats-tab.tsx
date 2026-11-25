@@ -78,18 +78,18 @@ export function ThreatsTab() {
 				className={cn(
 					"flex min-h-8 items-center justify-center gap-2 self-start rounded-editor-control px-3 py-1.5 text-editor-footnote transition-colors duration-120 ease-editor",
 					hasElements
-						? "bg-primary text-primary-foreground hover:bg-primary/90"
+						? "bg-editor-action text-white hover:brightness-90"
 						: "cursor-not-allowed bg-muted text-muted-foreground",
 				)}
 			>
 				{isAnalyzing ? (
 					<>
-						<Loader2 className="h-3.5 w-3.5 animate-spin" />
+						<Loader2 className="size-4 animate-spin" />
 						Analyzing...
 					</>
 				) : (
 					<>
-						<Zap className="h-3.5 w-3.5" />
+						<Zap className="size-4" />
 						Run STRIDE Analysis
 					</>
 				)}
@@ -172,8 +172,8 @@ function ThreatCard({
 		<div
 			data-testid="threat-card"
 			className={cn(
-				"rounded-md border text-editor-caption transition-colors",
-				isSelected ? "border-primary bg-primary/5" : "border-border hover:bg-accent",
+				"rounded-editor-panel border border-editor-separator bg-editor-surface text-editor-caption transition-colors",
+				isSelected && "border-editor-accent",
 			)}
 			onContextMenu={(event) => {
 				if (event.target instanceof Element && event.target.closest("input, textarea, select")) {
@@ -184,15 +184,20 @@ function ThreatCard({
 			}}
 		>
 			{/* Header - clickable to expand/collapse */}
-			<button type="button" onClick={onSelect} className="flex w-full items-start gap-2 p-2">
+			<button
+				type="button"
+				onClick={onSelect}
+				aria-expanded={isSelected}
+				className="grid w-full grid-cols-[1rem_minmax(0,1fr)] items-start gap-2 rounded-t-editor-panel px-3 py-2.5 text-left hover:bg-editor-hover"
+			>
 				{isSelected ? (
-					<ChevronDown className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
+					<ChevronDown className="mt-0.5 size-4 text-muted-foreground" />
 				) : (
-					<ChevronRight className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
+					<ChevronRight className="mt-0.5 size-4 text-muted-foreground" />
 				)}
-				<div className="flex flex-1 flex-col items-start gap-1">
-					<span className="font-medium text-left">{threat.title}</span>
-					<div className="flex items-center gap-1.5">
+				<div className="flex min-w-0 flex-col gap-1.5">
+					<span className="text-editor-headline">{threat.title}</span>
+					<div className="flex flex-wrap items-center gap-1.5">
 						<CategoryBadge category={threat.category} />
 						<SeverityBadge severity={threat.severity} />
 						{threat.mitigation && <MitigationBadge status={threat.mitigation.status} />}
@@ -202,14 +207,14 @@ function ThreatCard({
 
 			{/* Linked element link */}
 			{linkedElement && !isSelected && (
-				<div className="border-t border-border/50 px-2 py-1">
+				<div className="border-t border-editor-separator">
 					<button
 						type="button"
 						onClick={() => {
 							setSelectedElement(linkedElement.id);
 							setRightPanelTab("properties");
 						}}
-						className="text-editor-caption2 text-muted-foreground hover:text-primary transition-colors"
+						className="min-h-8 w-full rounded-b-editor-panel pl-9 pr-3 text-left text-editor-caption text-editor-secondary-label hover:bg-editor-hover hover:text-editor-accent"
 					>
 						{linkedElement.name}
 					</button>

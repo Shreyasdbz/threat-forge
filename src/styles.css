@@ -1,7 +1,15 @@
 @import "tailwindcss";
 
+@font-face {
+	font-family: "Inter";
+	src: url("/fonts/InterVariable.woff2") format("woff2");
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: swap;
+}
+
 @theme static {
-	--font-editor: system-ui, -apple-system, "SF Pro Text", Inter, "Segoe UI", sans-serif;
+	--font-editor: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
 	--font-editor-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 	--text-editor-caption2: 0.6875rem;
 	--text-editor-caption2--line-height: 1rem;
@@ -51,6 +59,7 @@
 	--color-editor-selection: var(--editor-selection);
 	--color-editor-accent: var(--editor-accent);
 	--color-editor-on-accent: var(--editor-on-accent);
+	--color-editor-action: var(--editor-action);
 	--color-editor-danger: var(--editor-danger);
 	--color-editor-warning: var(--editor-warning);
 	--color-editor-success: var(--editor-success);
@@ -72,10 +81,11 @@
 	--editor-selection: #243952;
 	--editor-accent: #79b8ff;
 	--editor-on-accent: #111318;
+	--editor-action: #0064d2;
 	--editor-danger: #ff9aa5;
 	--editor-warning: #ffc078;
 	--editor-success: #75d9a2;
-	--editor-canvas-dot: #505a68;
+	--editor-canvas-dot: #647081;
 	--editor-container-ink-mix: 24%;
 }
 
@@ -95,10 +105,11 @@ html.light {
 	--editor-selection: #eaf3ff;
 	--editor-accent: #005cc8;
 	--editor-on-accent: #ffffff;
+	--editor-action: #005cc8;
 	--editor-danger: #b42338;
 	--editor-warning: #944a06;
 	--editor-success: #197248;
-	--editor-canvas-dot: #c4cbd5;
+	--editor-canvas-dot: #aeb9c8;
 	--editor-container-ink-mix: 0%;
 }
 
@@ -148,6 +159,11 @@ html[data-theme-preset]:not([data-theme-preset="midnight"], [data-theme-preset="
 	--color-ring: var(--editor-accent);
 	--font-sans: var(--font-editor);
 	--font-mono: var(--font-editor-mono);
+	font-feature-settings: "cv11";
+}
+
+.editor-workspace .tabular-nums {
+	font-feature-settings: "cv11", "ss01", "tnum";
 }
 
 .editor-workspace :focus-visible {

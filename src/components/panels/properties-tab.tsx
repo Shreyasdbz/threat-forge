@@ -1,11 +1,39 @@
 import { MarkerType } from "@xyflow/react";
-import { ArrowLeftRight, Box, MousePointer2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { ArrowLeftRight, Box, MousePointer2, RotateCcw } from "lucide-react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { getComponent, listCategories, listComponents } from "@/lib/registry/registry";
 import { type DfdEdge, type DfdEdgeData, useCanvasStore } from "@/stores/canvas-store";
 import { useModelStore } from "@/stores/model-store";
 import { useUiStore } from "@/stores/ui-store";
 import type { DataFlow } from "@/types/threat-model";
+
+const ROW = "grid min-h-11 grid-cols-[minmax(0,2fr)_minmax(0,3fr)] items-center gap-2 px-3 py-1.5";
+const LABEL = "text-editor-footnote text-editor-secondary-label";
+const INPUT =
+	"min-w-0 w-full rounded-editor-control bg-editor-fill px-2 py-1 text-editor-body text-foreground placeholder:text-editor-tertiary-label";
+
+function InspectorGroup({ title, children }: { title: string; children: ReactNode }) {
+	return (
+		<section className="space-y-1.5">
+			<h3 className="px-3 text-editor-caption2 uppercase tracking-wide text-editor-secondary-label">
+				{title}
+			</h3>
+			<div className="divide-y divide-editor-separator rounded-editor-panel bg-editor-surface">
+				{children}
+			</div>
+		</section>
+	);
+}
+
+function InspectorField({ label, children }: { label: string; children: ReactNode }) {
+	return (
+		// biome-ignore lint/a11y/noLabelWithoutControl: each caller passes its form control as the label child
+		<label className={ROW}>
+			<span className={LABEL}>{label}</span>
+			{children}
+		</label>
+	);
+}
 
 export function PropertiesTab() {
 	const selectedElementId = useModelStore((s) => s.selectedElementId);
@@ -86,93 +114,95 @@ function EdgeProperties({ flow }: { flow: DataFlow }) {
 
 	return (
 		<div className="flex flex-col gap-3">
-			<ReadOnlyField label="ID" value={flow.id} />
-			<ReadOnlyField
-				label="Direction"
-				value={`${fromElement?.name ?? flow.from} → ${toElement?.name ?? flow.to}`}
-			/>
-
-			<button
-				type="button"
-				onClick={() => reverseEdge(flow.id)}
-				className="flex items-center gap-1.5 self-start rounded border border-border px-2 py-1 text-editor-caption text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-			>
-				<ArrowLeftRight className="h-3 w-3" />
-				Flip Direction
-			</button>
-
-			<label className="block">
-				<span className="mb-1 block text-editor-footnote text-muted-foreground">Flow #</span>
-				<input
-					type="number"
-					min="1"
-					value={flow.flow_number ?? ""}
-					placeholder="Auto"
-					onChange={(e) => {
-						const val = e.target.value ? Number.parseInt(e.target.value, 10) : undefined;
-						updateDataFlow(flow.id, { flow_number: val });
-						syncEdgeData({ flowNumber: val });
-					}}
-					className="w-full rounded-editor-control border border-editor-line bg-editor-surface px-2 py-1.5 text-editor-body placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
+			<InspectorGroup title="Connection">
+				<ReadOnlyField label="ID" value={flow.id} />
+				<ReadOnlyField
+					label="Direction"
+					value={`${fromElement?.name ?? flow.from} → ${toElement?.name ?? flow.to}`}
 				/>
-			</label>
 
-			<EditableField
-				label="Name"
-				value={flow.name}
-				placeholder="e.g. Login Request"
-				onChange={(value) => {
-					updateDataFlow(flow.id, { name: value });
-					syncEdgeData({ name: value });
-				}}
-			/>
+				<button
+					type="button"
+					onClick={() => reverseEdge(flow.id)}
+					className="flex min-h-11 w-full items-center gap-2 rounded-editor-panel px-3 text-editor-footnote text-editor-accent hover:bg-editor-hover"
+				>
+					<ArrowLeftRight className="h-3 w-3" />
+					Flip Direction
+				</button>
 
-			<EditableField
-				label="Protocol"
-				value={flow.protocol}
-				placeholder="e.g. HTTPS, gRPC"
-				onChange={(value) => {
-					updateDataFlow(flow.id, { protocol: value });
-					syncEdgeData({ protocol: value });
-				}}
-			/>
+				<InspectorField label="Flow #">
+					<input
+						type="number"
+						min="1"
+						value={flow.flow_number ?? ""}
+						placeholder="Auto"
+						onChange={(e) => {
+							const val = e.target.value ? Number.parseInt(e.target.value, 10) : undefined;
+							updateDataFlow(flow.id, { flow_number: val });
+							syncEdgeData({ flowNumber: val });
+						}}
+						className={`${INPUT} tabular-nums`}
+					/>
+				</InspectorField>
 
-			<CommaSeparatedField
-				label="Data"
-				items={flow.data}
-				placeholder="Comma-separated data items"
-				onCommit={(data) => {
-					updateDataFlow(flow.id, { data });
-					syncEdgeData({ data });
-				}}
-			/>
-
-			<label className="flex items-center gap-2">
-				<input
-					type="checkbox"
-					checked={flow.authenticated}
-					onChange={(e) => {
-						updateDataFlow(flow.id, { authenticated: e.target.checked });
-						syncEdgeData({ authenticated: e.target.checked });
+				<EditableField
+					label="Name"
+					value={flow.name}
+					placeholder="e.g. Login Request"
+					onChange={(value) => {
+						updateDataFlow(flow.id, { name: value });
+						syncEdgeData({ name: value });
 					}}
-					className="h-3.5 w-3.5 rounded border-border accent-primary"
 				/>
-				<span className="text-editor-caption text-foreground">Authenticated</span>
-			</label>
 
-			<ColorField
-				label="Stroke Color"
-				color={strokeColor}
-				opacity={strokeOpacity}
-				onColorChange={(color) => {
-					syncEdgeColor(color || undefined, strokeOpacity);
-					updateDataFlow(flow.id, { stroke_color: color || undefined });
-				}}
-				onOpacityChange={(opacity) => {
-					syncEdgeColor(strokeColor || undefined, opacity);
-					updateDataFlow(flow.id, { stroke_opacity: opacity });
-				}}
-			/>
+				<EditableField
+					label="Protocol"
+					value={flow.protocol}
+					placeholder="e.g. HTTPS, gRPC"
+					onChange={(value) => {
+						updateDataFlow(flow.id, { protocol: value });
+						syncEdgeData({ protocol: value });
+					}}
+				/>
+
+				<CommaSeparatedField
+					label="Data"
+					items={flow.data}
+					placeholder="Comma-separated data items"
+					onCommit={(data) => {
+						updateDataFlow(flow.id, { data });
+						syncEdgeData({ data });
+					}}
+				/>
+
+				<InspectorField label="Authenticated">
+					<input
+						type="checkbox"
+						checked={flow.authenticated}
+						onChange={(e) => {
+							updateDataFlow(flow.id, { authenticated: e.target.checked });
+							syncEdgeData({ authenticated: e.target.checked });
+						}}
+						className="size-4 justify-self-end accent-primary"
+					/>
+				</InspectorField>
+			</InspectorGroup>
+
+			<InspectorGroup title="Appearance">
+				<ColorField
+					label="Stroke Color"
+					color={strokeColor}
+					opacity={strokeOpacity}
+					onColorChange={(color) => {
+						syncEdgeColor(color || undefined, strokeOpacity);
+						updateDataFlow(flow.id, { stroke_color: color || undefined });
+					}}
+					onOpacityChange={(opacity) => {
+						syncEdgeColor(strokeColor || undefined, opacity);
+						updateDataFlow(flow.id, { stroke_opacity: opacity });
+					}}
+				/>
+			</InspectorGroup>
 
 			{/* Related threats for this flow */}
 			<FlowThreats flowId={flow.id} />
@@ -268,22 +298,21 @@ function ElementProperties({ elementId }: { elementId: string }) {
 	};
 
 	return (
-		<div className="flex flex-col gap-3">
+		<div className="flex flex-col gap-4">
 			<div className="flex items-center gap-2 pb-2">
 				<Box className="size-4 shrink-0 text-primary" aria-hidden="true" />
 				<h2 className="min-w-0 break-words text-editor-title3">{element.name}</h2>
 			</div>
-			<div className="divide-y divide-editor-separator rounded-editor-panel bg-editor-surface [&>*]:px-3 [&>*]:py-2">
+			<InspectorGroup title="Details">
 				<ReadOnlyField label="ID" value={element.id} />
 
 				{/* Type dropdown — hidden for text annotations */}
 				{!isTextAnnotation && (
-					<label className="block">
-						<span className="mb-1 block text-editor-footnote text-muted-foreground">Type</span>
+					<InspectorField label="Type">
 						<select
 							value={element.type}
 							onChange={(e) => handleTypeChange(e.target.value)}
-							className="w-full rounded-editor-control border border-editor-line bg-editor-surface px-2 py-1.5 text-editor-body focus:border-primary focus:outline-none"
+							className={INPUT}
 						>
 							<option value="generic">Generic</option>
 							{componentsByCategory.map((group) => (
@@ -296,19 +325,18 @@ function ElementProperties({ elementId }: { elementId: string }) {
 								</optgroup>
 							))}
 						</select>
-					</label>
+					</InspectorField>
 				)}
 
 				{isTextAnnotation && <ReadOnlyField label="Type" value="Text Annotation" />}
 
 				{/* Sub-type dropdown (conditional, not for text) */}
 				{!isTextAnnotation && subtypes.length > 0 && (
-					<label className="block">
-						<span className="mb-1 block text-editor-footnote text-muted-foreground">Sub Type</span>
+					<InspectorField label="Sub Type">
 						<select
 							value={element.subtype ?? ""}
 							onChange={(e) => handleSubtypeChange(e.target.value)}
-							className="w-full rounded-editor-control border border-editor-line bg-editor-surface px-2 py-1.5 text-editor-body focus:border-primary focus:outline-none"
+							className={INPUT}
 						>
 							<option value="">None</option>
 							{subtypes.map((st) => (
@@ -317,7 +345,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 								</option>
 							))}
 						</select>
-					</label>
+					</InspectorField>
 				)}
 
 				<EditableField
@@ -348,19 +376,17 @@ function ElementProperties({ elementId }: { elementId: string }) {
 					placeholder="Describe this element..."
 					onChange={(value) => updateElement(element.id, { description: value })}
 				/>
-			</div>
+			</InspectorGroup>
 			{!isTextAnnotation && (
-				<fieldset className="mt-3 grid grid-cols-2 gap-3 rounded-editor-panel bg-editor-surface p-3">
-					<legend className="px-1 text-editor-headline">Architecture</legend>
+				<InspectorGroup title="Architecture">
 					{(["layer", "group"] as const).map((field) => (
-						<label key={field} className="min-w-0 text-editor-caption text-muted-foreground">
-							<span>{field === "layer" ? "Layer" : "Group"}</span>
+						<InspectorField key={field} label={field === "layer" ? "Layer" : "Group"}>
 							<select
 								value={element[field] ?? ""}
 								onChange={(event) =>
 									updateElement(element.id, { [field]: event.target.value || undefined })
 								}
-								className="mt-1 w-full rounded border border-border bg-background px-1 py-1 text-foreground"
+								className={INPUT}
 							>
 								<option value="">Unassigned</option>
 								{(field === "layer" ? model?.layers : model?.groups)?.map((option) => (
@@ -369,33 +395,27 @@ function ElementProperties({ elementId }: { elementId: string }) {
 									</option>
 								))}
 							</select>
-						</label>
+						</InspectorField>
 					))}
+					<CommaSeparatedField
+						label="Technologies"
+						items={element.technologies ?? []}
+						placeholder="e.g. nginx, TLS, OAuth"
+						onCommit={(technologies) => updateElement(element.id, { technologies })}
+					/>
 					<button
 						type="button"
-						className="col-span-2 -ml-2 justify-self-start rounded-editor-control px-2 py-1 text-editor-caption text-muted-foreground hover:bg-editor-hover hover:text-foreground"
+						className="min-h-11 w-full rounded-b-editor-panel px-3 text-left text-editor-footnote text-editor-accent hover:bg-editor-hover"
 						onClick={() => setTab("architecture")}
 					>
 						Browse layers and groups
 					</button>
-				</fieldset>
-			)}
-
-			{/* Technologies — not for text annotations */}
-			{!isTextAnnotation && (
-				<CommaSeparatedField
-					label="Technologies"
-					items={element.technologies ?? []}
-					placeholder="e.g. nginx, TLS, OAuth"
-					onCommit={(technologies) => {
-						updateElement(element.id, { technologies });
-					}}
-				/>
+				</InspectorGroup>
 			)}
 
 			{/* Text-specific styling controls */}
 			{isTextAnnotation && (
-				<>
+				<InspectorGroup title="Appearance">
 					<ColorField
 						label="Text Color"
 						color={fillColor}
@@ -410,8 +430,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 						}}
 					/>
 
-					<label className="block">
-						<span className="mb-1 block text-editor-footnote text-muted-foreground">Font Size</span>
+					<InspectorField label="Font Size">
 						<select
 							value={element.font_size ?? 14}
 							onChange={(e) => {
@@ -419,7 +438,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 								updateElement(element.id, { font_size: size });
 								syncElementNodeData({ fontSize: size });
 							}}
-							className="w-full rounded-editor-control border border-editor-line bg-editor-surface px-2 py-1.5 text-editor-body focus:border-primary focus:outline-none"
+							className={`${INPUT} tabular-nums`}
 						>
 							{FONT_SIZE_OPTIONS.map((size) => (
 								<option key={size} value={size}>
@@ -427,12 +446,10 @@ function ElementProperties({ elementId }: { elementId: string }) {
 								</option>
 							))}
 						</select>
-					</label>
+					</InspectorField>
 
-					<div>
-						<span className="mb-1 block text-editor-footnote text-muted-foreground">
-							Font Weight
-						</span>
+					<div className={ROW}>
+						<span className={LABEL}>Font Weight</span>
 						<div className="flex gap-1">
 							{(["normal", "bold"] as const).map((weight) => (
 								<button
@@ -454,13 +471,12 @@ function ElementProperties({ elementId }: { elementId: string }) {
 							))}
 						</div>
 					</div>
-				</>
+				</InspectorGroup>
 			)}
 
 			{/* Fill/Stroke colors — not for text annotations */}
 			{!isTextAnnotation && (
-				<fieldset className="mt-3 divide-y divide-editor-separator rounded-editor-panel bg-editor-surface [&>div]:px-3 [&>div]:py-2">
-					<legend className="px-1 text-editor-headline">Appearance</legend>
+				<InspectorGroup title="Appearance">
 					<ColorField
 						label="Fill Color"
 						color={fillColor}
@@ -488,7 +504,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 							updateElement(element.id, { stroke_opacity: opacity });
 						}}
 					/>
-				</fieldset>
+				</InspectorGroup>
 			)}
 
 			{/* Related threats — not for text annotations */}
@@ -581,57 +597,61 @@ function TrustBoundaryProperties({ boundaryId }: { boundaryId: string }) {
 
 	return (
 		<div className="flex flex-col gap-3">
-			<ReadOnlyField label="ID" value={boundary.id} />
-			<ReadOnlyField label="Type" value="Trust Boundary" />
+			<InspectorGroup title="Boundary">
+				<ReadOnlyField label="ID" value={boundary.id} />
+				<ReadOnlyField label="Type" value="Trust Boundary" />
 
-			<EditableField
-				label="Name"
-				value={boundary.name}
-				placeholder="e.g. Internal Network"
-				onChange={(value) => {
-					updateTrustBoundary(boundary.id, { name: value });
-					syncBoundaryNodeData({ label: value, boundaryName: value });
-				}}
-			/>
+				<EditableField
+					label="Name"
+					value={boundary.name}
+					placeholder="e.g. Internal Network"
+					onChange={(value) => {
+						updateTrustBoundary(boundary.id, { name: value });
+						syncBoundaryNodeData({ label: value, boundaryName: value });
+					}}
+				/>
 
-			<ReadOnlyField
-				label="Contains"
-				value={
-					boundary.contains.length > 0
-						? boundary.contains
-								.map((id) => model?.elements.find((e) => e.id === id)?.name ?? id)
-								.join(", ")
-						: "No elements"
-				}
-			/>
+				<ReadOnlyField
+					label="Contains"
+					value={
+						boundary.contains.length > 0
+							? boundary.contains
+									.map((id) => model?.elements.find((e) => e.id === id)?.name ?? id)
+									.join(", ")
+							: "No elements"
+					}
+				/>
+			</InspectorGroup>
 
-			<ColorField
-				label="Fill Color"
-				color={fillColor}
-				opacity={fillOpacity}
-				onColorChange={(color) => {
-					syncBoundaryNodeData({ boundaryFillColor: color || undefined });
-					updateTrustBoundary(boundary.id, { fill_color: color || undefined });
-				}}
-				onOpacityChange={(opacity) => {
-					syncBoundaryNodeData({ boundaryFillOpacity: opacity });
-					updateTrustBoundary(boundary.id, { fill_opacity: opacity });
-				}}
-			/>
+			<InspectorGroup title="Appearance">
+				<ColorField
+					label="Fill Color"
+					color={fillColor}
+					opacity={fillOpacity}
+					onColorChange={(color) => {
+						syncBoundaryNodeData({ boundaryFillColor: color || undefined });
+						updateTrustBoundary(boundary.id, { fill_color: color || undefined });
+					}}
+					onOpacityChange={(opacity) => {
+						syncBoundaryNodeData({ boundaryFillOpacity: opacity });
+						updateTrustBoundary(boundary.id, { fill_opacity: opacity });
+					}}
+				/>
 
-			<ColorField
-				label="Stroke Color"
-				color={strokeColor}
-				opacity={strokeOpacity}
-				onColorChange={(color) => {
-					syncBoundaryNodeData({ boundaryStrokeColor: color || undefined });
-					updateTrustBoundary(boundary.id, { stroke_color: color || undefined });
-				}}
-				onOpacityChange={(opacity) => {
-					syncBoundaryNodeData({ boundaryStrokeOpacity: opacity });
-					updateTrustBoundary(boundary.id, { stroke_opacity: opacity });
-				}}
-			/>
+				<ColorField
+					label="Stroke Color"
+					color={strokeColor}
+					opacity={strokeOpacity}
+					onColorChange={(color) => {
+						syncBoundaryNodeData({ boundaryStrokeColor: color || undefined });
+						updateTrustBoundary(boundary.id, { stroke_color: color || undefined });
+					}}
+					onOpacityChange={(opacity) => {
+						syncBoundaryNodeData({ boundaryStrokeOpacity: opacity });
+						updateTrustBoundary(boundary.id, { stroke_opacity: opacity });
+					}}
+				/>
+			</InspectorGroup>
 		</div>
 	);
 }
@@ -650,42 +670,47 @@ function ColorField({
 	onOpacityChange: (opacity: number) => void;
 }) {
 	return (
-		<div className="flex flex-wrap items-center gap-2">
-			<span className="min-w-20 flex-1 text-editor-footnote text-muted-foreground">{label}</span>
-			<input
-				type="color"
-				aria-label={label}
-				value={color || "#888888"}
-				onChange={(e) => onColorChange(e.target.value)}
-				className="size-6 cursor-pointer rounded-editor-control border border-editor-line bg-transparent p-0"
-			/>
-			<label className="flex items-center gap-1 text-editor-caption text-muted-foreground">
+		<div className="flex min-h-11 flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-1.5">
+			<span className={LABEL}>{label}</span>
+			<div className="ml-auto flex items-center gap-2">
 				<input
-					type="number"
-					aria-label={`${label} opacity (%)`}
-					min={0}
-					max={100}
-					step={5}
-					value={Math.round(opacity * 100)}
-					onChange={(e) => {
-						if (Number.isFinite(e.target.valueAsNumber)) {
-							onOpacityChange(Math.max(0, Math.min(100, e.target.valueAsNumber)) / 100);
-						}
-					}}
-					className="w-12 rounded-editor-control border border-editor-line bg-editor-surface px-1 py-1 text-right tabular-nums"
+					type="color"
+					aria-label={label}
+					value={color || "#888888"}
+					onChange={(e) => onColorChange(e.target.value)}
+					className="h-7 w-9 cursor-pointer rounded-editor-control border border-editor-outline bg-editor-fill p-0.5 [&::-moz-color-swatch]:rounded-sm [&::-webkit-color-swatch]:rounded-sm [&::-webkit-color-swatch-wrapper]:p-0"
 				/>
-				%
-			</label>
-			{color && (
-				<button
-					type="button"
-					onClick={() => onColorChange("")}
-					aria-label={`Reset ${label.toLowerCase()} to default`}
-					className="rounded-editor-control px-1 py-1 text-editor-caption text-muted-foreground hover:bg-editor-hover"
-				>
-					Reset
-				</button>
-			)}
+				<label className="flex items-center gap-1 text-editor-caption text-muted-foreground">
+					<input
+						type="number"
+						aria-label={`${label} opacity (%)`}
+						min={0}
+						max={100}
+						step={5}
+						value={Math.round(opacity * 100)}
+						onChange={(e) => {
+							if (Number.isFinite(e.target.valueAsNumber)) {
+								onOpacityChange(Math.max(0, Math.min(100, e.target.valueAsNumber)) / 100);
+							}
+						}}
+						className="h-7 w-12 rounded-editor-control bg-editor-fill px-1 text-right tabular-nums"
+					/>
+					%
+				</label>
+				{color ? (
+					<button
+						type="button"
+						onClick={() => onColorChange("")}
+						aria-label={`Reset ${label.toLowerCase()} to default`}
+						title="Reset to default"
+						className="grid size-7 place-items-center rounded-editor-control text-muted-foreground hover:bg-editor-hover"
+					>
+						<RotateCcw className="size-4" aria-hidden="true" />
+					</button>
+				) : (
+					<span className="size-7" />
+				)}
+			</div>
 		</div>
 	);
 }
@@ -708,12 +733,12 @@ function syncNodeTrustZone(elementId: string, trustZone: string) {
 
 function ReadOnlyField({ label, value }: { label: string; value: string }) {
 	return (
-		<dl className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-editor-control bg-editor-surface px-3 py-2">
-			<dt className="text-editor-footnote text-muted-foreground">{label}</dt>
+		<dl className={ROW}>
+			<dt className={LABEL}>{label}</dt>
 			<dd
-				className={
+				className={`min-w-0 text-right wrap-anywhere ${
 					label === "ID" ? "break-all font-editor-mono text-editor-caption" : "text-editor-body"
-				}
+				}`}
 			>
 				{value}
 			</dd>
@@ -733,16 +758,15 @@ function EditableField({
 	onChange: (value: string) => void;
 }) {
 	return (
-		<label className="block">
-			<span className="mb-1 block text-editor-footnote text-muted-foreground">{label}</span>
+		<InspectorField label={label}>
 			<input
 				type="text"
 				value={value}
 				placeholder={placeholder}
 				onChange={(e) => onChange(e.target.value)}
-				className="w-full rounded-editor-control border border-editor-line bg-editor-surface px-2 py-1.5 text-editor-body placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
+				className={INPUT}
 			/>
-		</label>
+		</InspectorField>
 	);
 }
 
@@ -758,14 +782,14 @@ function EditableTextarea({
 	onChange: (value: string) => void;
 }) {
 	return (
-		<label className="block">
-			<span className="mb-1 block text-editor-footnote text-muted-foreground">{label}</span>
+		<label className="grid gap-1.5 px-3 py-2.5">
+			<span className={LABEL}>{label}</span>
 			<textarea
 				value={value}
 				placeholder={placeholder}
 				onChange={(e) => onChange(e.target.value)}
 				rows={3}
-				className="w-full resize-none rounded-editor-control border border-editor-line bg-editor-surface px-2 py-1.5 text-editor-body placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
+				className={`${INPUT} resize-none`}
 			/>
 		</label>
 	);
@@ -805,8 +829,7 @@ function CommaSeparatedField({
 	}, [rawText, onCommit]);
 
 	return (
-		<label className="block">
-			<span className="mb-1 block text-editor-footnote text-muted-foreground">{label}</span>
+		<InspectorField label={label}>
 			<input
 				type="text"
 				value={rawText}
@@ -820,8 +843,8 @@ function CommaSeparatedField({
 				onKeyDown={(e) => {
 					if (e.key === "Enter") commitValue();
 				}}
-				className="w-full rounded-editor-control border border-editor-line bg-editor-surface px-2 py-1.5 text-editor-body placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
+				className={INPUT}
 			/>
-		</label>
+		</InspectorField>
 	);
 }

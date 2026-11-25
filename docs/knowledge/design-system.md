@@ -9,9 +9,12 @@ communicate layering; do not blur the diagram behind it.
 
 ## Typography
 
-- Editor UI: `system-ui, -apple-system, "SF Pro Text", Inter, "Segoe UI", sans-serif`. Use the
-  platform face by default; only add Inter if a bundled, licensed fallback is needed. Do not fetch
-  fonts from a CDN or ship an Apple font. The landing page can keep its separate brand typography.
+- Editor UI: `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif`.
+  Bundle [Inter 4.1](https://github.com/rsms/inter/releases/tag/v4.1) under the SIL Open Font License.
+  Use its upright variable WOFF2 for the editor and self-contained SVG, and the release's static
+  400/500/600 TTF faces for resvg. Do not fetch fonts from a CDN or ship an Apple font.
+  Apply Inter's `cv11` to editor text and its open digits (`ss01`) and tabular width (`tnum`)
+  to numeric readouts. The landing page keeps its separate typography.
 - IDs, code, and paths when precision matters:
   `ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace`.
   Use tabular figures for counts, percentages, and numeric fields; a count does not need monospace.
@@ -57,7 +60,8 @@ fixed background behind all themes.
 | `selection` | `#EAF3FF` | `#243952` | Selected rows and tinted buttons |
 | `accent` / `on-accent` | `#005CC8` / `#FFFFFF` | `#79B8FF` / `#111318` | Links, focus and filled primary actions |
 | `danger` / `warning` / `success` | `#B42338` / `#944A06` / `#197248` | `#FF9AA5` / `#FFC078` / `#75D9A2` | Error/destructive, caution, success |
-| `canvas-dot` | `#C4CBD5` | `#505A68` | Decorative grid only |
+| `action` | `#005CC8` | `#0064D2` | Filled STRIDE action with white text in either theme |
+| `canvas-dot` | `#AEB9C8` | `#647081` | Decorative grid only |
 
 Use [WCAG contrast](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html): 4.5:1 for
 normal text and 3:1 for [required non-text cues](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html), including
@@ -103,8 +107,8 @@ stored `.thf` colors on theme change or export.
   continuous decoration; keep immediate state feedback.
 - Focus: 2 px accent outline, 2 px offset, visible for keyboard focus and not clipped by scroll
   containers. On a filled accent control separate the ring from the fill with a surface gap.
-- Iconography: Lucide only for editor actions. Use CSS boxes of 16 px inline and 20 px in primary
-  toolbar slots, with 1.5 px rendered stroke (Lucide's absolute stroke option); match the weight
+- Iconography: Lucide only for editor actions. Use 16 px icons in equal 32 px toolbar targets
+  and for inline actions, with 1.5 px rendered stroke (Lucide's absolute stroke option); match the weight
   and optical center of adjacent text. Use one metaphor per action across surfaces. Icons beside
   labels are decorative; icon-only controls need an accessible name and a tooltip with shortcuts.
   Diagram component glyphs and product marks are content, not alternate action icon sets.
@@ -113,8 +117,8 @@ stored `.thf` colors on theme change or export.
 
 | Component | Pattern |
 | --- | --- |
-| App shell and toolbar | One quiet 48 px strip. Group document commands, view controls, and settings by task with spacing, not a border around each icon. Keep navigation stable with overflow titles; do not repeat shortcut hints under buttons. |
-| Sidebar library | Source list, not a card grid. Search first, at most two grouping levels, 32 px minimum rows with aligned glyph and single-line label. Use description in a tooltip or details, not a second row. Keep drag/drop and keyboard discovery. |
+| App shell and toolbar | One quiet 48 px strip. Separate command groups with short hairlines, not a border around each icon. Keep navigation stable with overflow titles; do not repeat shortcut hints under buttons. |
+| Sidebar library | Source list, not a card grid. Use category headers and 36 px minimum rows with aligned glyph and single-line label. Use description in a tooltip or details, not a second row. Keep drag/drop and keyboard discovery. |
 | Inspector segments | Equal-width segments in one inset track, selected as a surface or tinted fill. Use consistent text-first labels; add icons only if the whole control uses them. Keep all four labels readable at the default width. Conserve space by moving counts out of the segment when necessary, not clipping labels. Expose selected state to assistive tech. |
 | Document tabs | One row, underline or inset selection (not both); preserve close and pin targets, the existing keyboard model, and access to full names. Do not conflate document tabs with inspector segments. |
 | Inspector fields | Inset groups with a headline above, 8 px before the first row and 24 px between groups. Rows share one surface and internal hairlines. Place short label and control on a shared baseline, using stacked rows for long content or narrow panes. Use one compact inline color/opacity row with a named reset. |

@@ -1,3 +1,4 @@
+import type { Locator } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { openDocument } from "./support/interactions";
 
@@ -30,10 +31,78 @@ test("renders the neutral dot grid at a consistent diagram-space scale", async (
 	await expect(dot).toBeAttached();
 	const diameter = async () => Number(await dot.getAttribute("r")) * 2;
 	const before = await diameter();
-	await expect(dot).toHaveCSS("fill", "rgb(196, 203, 213)");
+	await expect(dot).toHaveCSS("fill", "rgb(174, 185, 200)");
 	await page.locator(".react-flow__controls-zoomin").click();
 	await expect.poll(diameter).toBeGreaterThan(before);
 	expect(Number(await pattern.getAttribute("width")) / (await diameter())).toBeCloseTo(20);
+	await page.emulateMedia({ colorScheme: "dark" });
+	await expect(dot).toHaveCSS("fill", "rgb(100, 112, 129)");
+});
+
+test("aligns inspector rows and section headings on the same inset", async ({ page }) => {
+	await page.getByTestId("node-web-app").click();
+	const panel = page.getByTestId("right-panel");
+	const details = panel
+		.locator("section")
+		.filter({ has: page.getByRole("heading", { name: "Details", exact: true }) });
+	const architecture = panel
+		.locator("section")
+		.filter({ has: page.getByRole("heading", { name: "Architecture", exact: true }) });
+	const appearance = panel
+		.locator("section")
+		.filter({ has: page.getByRole("heading", { name: "Appearance", exact: true }) });
+	await expect(architecture.getByRole("textbox", { name: "Technologies" })).toBeVisible();
+	await expect(appearance.getByLabel("Fill Color", { exact: true })).toHaveAttribute(
+		"type",
+		"color",
+	);
+	await expect(
+		appearance.getByRole("spinbutton", { name: "Stroke Color opacity (%)" }),
+	).toBeVisible();
+	const x = async (locator: Locator) =>
+		locator.evaluate(
+			(element) =>
+				element.getBoundingClientRect().left +
+				Number.parseFloat(getComputedStyle(element).paddingLeft),
+		);
+	const fieldLabel = details.getByText("Name", { exact: true });
+	expect(await x(fieldLabel)).toBe(await x(details.getByRole("heading")));
+	expect(await x(architecture.getByRole("heading"))).toBe(await x(appearance.getByRole("heading")));
+	expect(await x(details.getByRole("textbox", { name: "Name", exact: true }))).toBeGreaterThan(
+		await x(fieldLabel),
+	);
+});
+
+test("uses the bundled Inter face and equal toolbar icon targets", async ({ page }) => {
+	const session = await page.context().newCDPSession(page);
+	try {
+		await page.evaluate(() => document.fonts.ready);
+		await session.send("DOM.enable");
+		await session.send("CSS.enable");
+		const { root } = await session.send("DOM.getDocument");
+		const { nodeId } = await session.send("DOM.querySelector", {
+			nodeId: root.nodeId,
+			selector: '[data-testid="component-palette"] h2',
+		});
+		const { fonts } = await session.send("CSS.getPlatformFontsForNode", { nodeId });
+		expect(fonts.some((font) => /^Inter\b/.test(font.familyName) && font.isCustomFont)).toBe(true);
+	} finally {
+		await session.detach();
+	}
+	const buttons = page
+		.getByRole("banner")
+		.locator("button[data-testid]")
+		.filter({ has: page.locator("svg.lucide") });
+	expect(await buttons.count()).toBe(10);
+	const metrics = await buttons.evaluateAll((items) =>
+		items.map((button) => {
+			const { width, height } = button.getBoundingClientRect();
+			const svg = button.querySelector("svg");
+			const icon = svg?.getBoundingClientRect();
+			return [width, height, icon?.width, icon?.height, Number(svg?.getAttribute("stroke-width"))];
+		}),
+	);
+	expect(metrics).toEqual(Array.from({ length: 10 }, () => [32, 32, 16, 16, 2.25]));
 });
 
 test("moves and resizes a group outline independently of its members, with undo", async ({
