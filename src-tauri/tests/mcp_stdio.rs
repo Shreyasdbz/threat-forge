@@ -485,3 +485,47 @@ fn workspace_relative_moves_use_sidecar_and_scene_fallback_positions() {
         json!({ "x": 402.0, "y": 28.0 })
     );
 }
+
+#[test]
+fn workspace_batch_preview_is_scoped_to_the_selected_document() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("a.thf"), MODEL_THF).unwrap();
+    std::fs::write(dir.path().join("b.thf"), MODEL_THF).unwrap();
+    let mut server = McpServer::spawn_workspace(dir.path());
+    server.start_workspace();
+    let operations = json!([
+        { "tool": "add_element", "arguments": { "element_type": "process", "name": "Service" } }
+    ]);
+    server.tool(2, "open_document", json!({ "path": "a.thf" }));
+    let preview = server.tool_json(
+        3,
+        "batch_transaction",
+        json!({
+            "dry_run": true, "operations": operations
+        }),
+    );
+    let commit = json!({ "operations": operations, "expected_revision": preview["revision"] });
+    server.tool(4, "open_document", json!({ "path": "b.thf" }));
+    let response = server.request_raw(
+        5,
+        "tools/call",
+        json!({
+            "name": "batch_transaction", "arguments": commit
+        }),
+    );
+    assert!(
+        response.to_string().contains("changed on disk"),
+        "{response}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("b.thf")).unwrap(),
+        MODEL_THF
+    );
+
+    server.tool(6, "open_document", json!({ "path": "a.thf" }));
+    server.tool(7, "batch_transaction", commit);
+    assert_eq!(
+        server.tool_json(8, "get_model", json!({}))["elements"][0]["id"],
+        "service"
+    );
+}

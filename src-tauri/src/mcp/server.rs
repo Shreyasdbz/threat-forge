@@ -22,6 +22,7 @@ use rmcp::service::RequestContext;
 use rmcp::{tool, tool_handler, tool_router, RoleServer, ServerHandler};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::models::{
     DataFlow, Element, Severity, StrideCategory, Threat, ThreatModel, TrustBoundary,
@@ -31,6 +32,15 @@ use crate::models::{
 const JSONRPC_INTERNAL_ERROR: i32 = -32603;
 const MODEL_RESOURCE: &str = "threatforge://active/model";
 const DIAGRAM_RESOURCE: &str = "threatforge://active/diagram";
+
+fn document_revision(path: &Path, content_revision: &str) -> String {
+    let mut hash = Sha256::new();
+    hash.update(path.as_os_str().as_encoded_bytes());
+    hash.update([0]);
+    hash.update(content_revision);
+    format!("{:x}", hash.finalize())
+}
+
 const WORKFLOW_PROMPTS: [(&str, &str, &str); 2] = [
     (
         "build_architecture",
@@ -457,7 +467,7 @@ impl ThreatForgeServer {
         ) = self.read()?;
         if req
             .expected_revision
-            .is_some_and(|expected| expected != revision)
+            .is_some_and(|expected| expected != document_revision(&path, &revision))
         {
             return Err(mcp_err(
                 crate::errors::ThreatForgeError::DocumentConflict.user_message(),
@@ -479,9 +489,9 @@ impl ThreatForgeServer {
         } else {
             self.save(&path, &revision, model)?
         };
-        json_result(
-            serde_json::json!({ "dry_run": req.dry_run, "revision": revision, "results": results }),
-        )
+        json_result(serde_json::json!({
+            "dry_run": req.dry_run, "revision": document_revision(&path, &revision), "results": results
+        }))
     }
 
     #[tool(
@@ -506,7 +516,9 @@ impl ThreatForgeServer {
         } else {
             revision
         };
-        json_result(serde_json::json!({ "revision": revision, "threats": suggestions }))
+        json_result(serde_json::json!({
+            "revision": document_revision(&path, &revision), "threats": suggestions
+        }))
     }
 
     #[tool(
@@ -551,6 +563,7 @@ impl ThreatForgeServer {
         let mut session = self.session()?;
         let revision =
             commit_document(&path, None, model).map_err(|error| mcp_err(error.user_message()))?;
+        let revision = document_revision(&path, &revision);
         session.active = Some(path);
         json_result(WorkspaceDocument {
             path: relative,
@@ -584,11 +597,12 @@ impl ThreatForgeServer {
         let path = workspace.resolve(&req.path, "thf").map_err(mcp_err)?;
         let snapshot = read_document(&path).map_err(|error| mcp_err(error.user_message()))?;
         let relative = workspace.relative(&path).map_err(mcp_err)?;
+        let revision = document_revision(&path, &snapshot.revision);
         self.session()?.active = Some(path);
         json_result(WorkspaceDocument {
             path: relative,
             title: snapshot.model.metadata.title,
-            revision: snapshot.revision,
+            revision,
         })
     }
 
@@ -613,7 +627,7 @@ impl ThreatForgeServer {
                 documents.push(WorkspaceDocument {
                     path: relative,
                     title,
-                    revision: snapshot.revision,
+                    revision: document_revision(&path, &snapshot.revision),
                 });
                 if documents.len() > MAX_RESULTS {
                     break;
@@ -638,7 +652,7 @@ impl ThreatForgeServer {
             .journal
             .replay(&path, false)
             .map_err(mcp_err)?;
-        json_result(serde_json::json!({ "revision": revision }))
+        json_result(serde_json::json!({ "revision": document_revision(&path, &revision) }))
     }
 
     #[tool(
@@ -654,7 +668,7 @@ impl ThreatForgeServer {
             .journal
             .replay(&path, true)
             .map_err(mcp_err)?;
-        json_result(serde_json::json!({ "revision": revision }))
+        json_result(serde_json::json!({ "revision": document_revision(&path, &revision) }))
     }
 
     #[tool(
