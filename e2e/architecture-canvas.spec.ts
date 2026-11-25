@@ -151,6 +151,24 @@ test("moves and resizes a group outline independently of its members, with undo"
 		await page.mouse.down();
 		await page.mouse.move(x + dx, y + dy, { steps: 8 });
 		await page.mouse.up();
+test("records a focused node's arrow-key movement as a document edit", async ({ page }) => {
+	await page.getByTestId("node-web-app").click();
+	const node = page.locator(".react-flow__node.selected");
+	const initialPosition = await node.evaluate((element) => getComputedStyle(element).transform);
+	await node.focus();
+	await page.keyboard.press("ArrowRight");
+	await expect(node).not.toHaveCSS("transform", initialPosition);
+	await expect(page.getByTestId("local-persistence-status")).toHaveAttribute(
+		"title",
+		/Changes have not been saved to the \.thf file/,
+	);
+	await page.keyboard.press("Control+z");
+	await expect(page.locator('.react-flow__node[data-id="web-app"]')).toHaveCSS(
+		"transform",
+		initialPosition,
+	);
+});
+
 	};
 	const title = await group.getByText("Frontend Cluster", { exact: true }).boundingBox();
 	if (!title) throw new Error("Expected group title");

@@ -324,6 +324,7 @@ function defaultElementName(type: string): string {
 export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> {
 	/** Model snapshot captured at the start of a drag (with pre-drag canvas positions baked in). */
 	let preDragSnapshot: ThreatModel | null = null;
+	let lastKeyboardMoveModel: ThreatModel | null = null;
 
 	/** Nudge gesture state (arrow key): snapshot + debounce timer. */
 	const nudgeState = {
@@ -357,17 +358,18 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 		},
 
 		onNodesChange: (changes) => {
+			const previousNodes = get().nodes;
 			// Capture pre-drag model snapshot BEFORE applying changes (nodes still have old positions)
 			const hasDragStart = changes.some((c) => c.type === "position" && c.dragging === true);
 			if (hasDragStart && !preDragSnapshot) {
 				const model = deps.model.getState().model;
 				if (model) {
-					preDragSnapshot = writePositionsToModel(model, get().nodes);
+					preDragSnapshot = writePositionsToModel(model, previousNodes);
 				}
 			}
 
 			// Apply node changes (positions update here)
-			set({ nodes: applyNodeChanges(changes, get().nodes) as DfdNode[] });
+			set({ nodes: applyNodeChanges(changes, previousNodes) as DfdNode[] });
 
 			// Handle drag end: push pre-drag snapshot to history, write new positions to model.
 			// Skip when altDragActive — the onNodeDragStop handler owns history for Alt+drag.
@@ -375,11 +377,24 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			// Alt+drag is an in-flight pointer gesture on the mounted canvas, not document state.
 			const altDragActive = useCanvasInstanceStore.getState().altDragActive;
 			const hasDragEnd = changes.some((c) => c.type === "position" && c.dragging === false);
-			if (hasDragEnd && preDragSnapshot && !altDragActive) {
-				deps.history.getState().pushSnapshot(preDragSnapshot);
-				preDragSnapshot = null;
+			if (hasDragEnd && !altDragActive) {
 				const model = deps.model.getState().model;
-				if (model) {
+				// React Flow emits completed positions without a drag start for keyboard moves.
+				const movedWithoutDrag =
+					!preDragSnapshot &&
+					changes.some((change) => {
+						if (change.type !== "position" || change.dragging !== false || !change.position) {
+							return false;
+						}
+						const before = previousNodes.find((node) => node.id === change.id)?.position;
+						return (
+							before != null && (before.x !== change.position.x || before.y !== change.position.y)
+						);
+					});
+				if (model && (preDragSnapshot || movedWithoutDrag)) {
+					deps.history
+						.getState()
+						.pushSnapshot(preDragSnapshot ?? writePositionsToModel(model, previousNodes));
 					const nodes = get().nodes;
 					let updated = writePositionsToModel(model, nodes);
 					for (const change of changes) {
@@ -392,13 +407,11 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 							});
 						}
 					}
+					if (movedWithoutDrag) lastKeyboardMoveModel = updated;
 					deps.model.setState({ model: updated, isDirty: true });
 				}
 			}
-			if (hasDragEnd && altDragActive) {
-				// Clear preDragSnapshot but don't push — Alt+drag handler will manage history
-				preDragSnapshot = null;
-			}
+			if (hasDragEnd) preDragSnapshot = null;
 
 			// Handle selection changes — process the last selected node for model-store sync.
 			// In multi-select batches, multiple nodes may be selected at once; use the last
@@ -847,6 +860,8 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 
 		syncFromModel: () => {
 			const model = deps.model.getState().model;
+			const alreadyApplied = model != null && model === lastKeyboardMoveModel;
+			lastKeyboardMoveModel = null;
 			if (!model) {
 				set({ nodes: [], edges: [], pendingLayout: null });
 				return;
@@ -854,6 +869,7 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 
 			// Consume pending layout (set before loading a model via setPendingLayout)
 			const layout = get().pendingLayout;
+			if (alreadyApplied && !layout) return;
 			const layoutPositions = layout ? new Map(layout.nodes.map((n) => [n.id, n])) : null;
 
 			// Reset counters based on existing IDs
