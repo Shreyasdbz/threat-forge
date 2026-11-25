@@ -191,6 +191,12 @@ impl WriteTarget {
         &self.path
     }
 
+    pub(crate) fn same_parent(&self, other: &Self) -> io::Result<bool> {
+        let held = self.dir.dir_metadata()?;
+        let current = other.dir.dir_metadata()?;
+        Ok((held.dev(), held.ino()) == (current.dev(), current.ino()))
+    }
+
     fn name(&self) -> &OsStr {
         &self.name
     }
@@ -347,6 +353,15 @@ impl WriteTarget {
     }
 
     pub fn atomic_write(&self, bytes: &[u8]) -> Result<(), ThreatForgeError> {
+        self.atomic_write_checked(bytes, || Ok(()))
+    }
+
+    pub(crate) fn atomic_write_checked(
+        &self,
+        bytes: &[u8],
+        check: impl Fn() -> Result<(), ThreatForgeError>,
+    ) -> Result<(), ThreatForgeError> {
+        check()?;
         let existing = self.metadata(self.name())?;
         let temporary_name = format!(".threatforge-{}.tmp", uuid::Uuid::new_v4());
         let mut options = OpenOptions::new();
@@ -365,12 +380,18 @@ impl WriteTarget {
             file.sync_all()
         })();
         drop(file);
-        let result =
-            written.and_then(|()| self.dir.rename(&temporary_name, &self.dir, self.name()));
+        let result = written
+            .map_err(|source| write_error(&self.path, source))
+            .and_then(|()| check())
+            .and_then(|()| {
+                self.dir
+                    .rename(&temporary_name, &self.dir, self.name())
+                    .map_err(|source| write_error(&self.path, source))
+            });
         if result.is_err() {
             let _ = self.dir.remove_file(&temporary_name);
         }
-        result.map_err(|source| write_error(&self.path, source))
+        result
     }
 }
 

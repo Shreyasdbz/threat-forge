@@ -1,3 +1,4 @@
+use crate::errors::ThreatForgeError;
 use crate::file_io::{WriteRoot, WriteTarget};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
@@ -34,6 +35,20 @@ impl Workspace {
             Ok(true) => Ok(()),
             _ => Err("The workspace root has moved. Restart the MCP server to reopen it.".into()),
         }
+    }
+
+    pub fn write_export(&self, target: &WriteTarget, bytes: &[u8]) -> Result<(), String> {
+        target
+            .atomic_write_checked(bytes, || {
+                let current = self
+                    .write_target(target.path())
+                    .map_err(|_| ThreatForgeError::UnapprovedPath)?;
+                if !target.same_parent(&current).unwrap_or(false) {
+                    return Err(ThreatForgeError::UnapprovedPath);
+                }
+                Ok(())
+            })
+            .map_err(|error| error.user_message())
     }
 
     pub fn resolve(&self, relative: &Path, extension: &str) -> Result<PathBuf, String> {
@@ -103,6 +118,22 @@ impl Workspace {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn export_does_not_write_after_its_destination_directory_moves() {
+        let location = tempfile::tempdir().unwrap();
+        let root = location.path().join("workspace");
+        let folder = root.join("diagrams");
+        let moved = location.path().join("moved");
+        fs::create_dir_all(&folder).unwrap();
+        let workspace = Workspace::new(&root).unwrap();
+        let target = workspace.write_target(&folder.join("diagram.svg")).unwrap();
+        fs::rename(&folder, &moved).unwrap();
+        fs::create_dir(&folder).unwrap();
+        assert!(workspace.write_export(&target, b"<svg/>").is_err());
+        assert_eq!(fs::read_dir(&moved).unwrap().count(), 0);
+        assert_eq!(fs::read_dir(&folder).unwrap().count(), 0);
+    }
 
     #[test]
     fn legacy_layout_reads_stay_with_the_opened_model_directory() {

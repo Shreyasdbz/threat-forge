@@ -962,10 +962,7 @@ impl ThreatForgeServer {
             };
             let mut content = Vec::new();
             if let Some((target, relative)) = output {
-                workspace.ensure_current().map_err(mcp_err)?;
-                target
-                    .atomic_write(bytes)
-                    .map_err(|error| mcp_err(error.user_message()))?;
+                workspace.write_export(&target, bytes).map_err(mcp_err)?;
                 content.push(ContentBlock::text(format!("Saved {relative}")));
             }
             content.push(match svg {
