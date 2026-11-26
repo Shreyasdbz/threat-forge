@@ -98,6 +98,101 @@ describe("canvas-store", () => {
 		expect(edges[0].target).toBe("data-store-1");
 	});
 
+	it("projects groups after boundaries and avoids generated group ID collisions", () => {
+		const model = createTestModel();
+		model.groups = [{ id: "core", name: "Core", stroke_color: "#059669" }];
+		model.elements[1].id = "architecture-group:core";
+		model.elements[1].group = "core";
+		model.data_flows[0].to = model.elements[1].id;
+		model.trust_boundaries[0].contains[1] = model.elements[1].id;
+
+		useModelStore.getState().setModel(model, null);
+		useCanvasStore.getState().syncFromModel();
+
+		const { nodes, edges } = useCanvasStore.getState();
+		expect(nodes.map(({ id }) => id)).toEqual([
+			"boundary-1",
+			":architecture-group:core",
+			"process-1",
+			"architecture-group:core",
+		]);
+		expect(nodes[1]).toMatchObject({
+			type: "architectureGroup",
+			position: { x: 680, y: 0 },
+			selectable: false,
+			connectable: false,
+			focusable: false,
+			data: { architectureGroupId: "core", groupAccent: "#059669" },
+		});
+		expect(nodes[3]).toMatchObject({ parentId: "boundary-1", extent: "parent" });
+		expect(edges[0].target).toBe("architecture-group:core");
+	});
+
+	it("prefers pending layout over live geometry, and live positions over inline ones", () => {
+		const model = createTestModel();
+		model.elements[1].position = { x: 300, y: 350 };
+		model.trust_boundaries[0].size = { width: 400, height: 300 };
+		useModelStore.getState().setModel(model, null);
+		useCanvasStore.getState().syncFromModel();
+		model.elements[1].position = { x: 400, y: 450 };
+		useCanvasStore.getState().setPendingLayout({
+			diagram_id: "main",
+			viewport: { x: 20, y: 40, zoom: 0.75 },
+			nodes: [
+				{ id: "boundary-1", x: 25, y: 35, width: 500, height: 350 },
+				{ id: "process-1", x: 125, y: 135 },
+			],
+		});
+		useCanvasStore.getState().syncFromModel();
+
+		const { nodes, pendingLayout, viewport } = useCanvasStore.getState();
+		expect(nodes[0]).toMatchObject({
+			position: { x: 25, y: 35 },
+			width: 500,
+			height: 350,
+			style: { width: 500, height: 350, pointerEvents: "none" },
+		});
+		expect(nodes[1].position).toEqual({ x: 125, y: 135 });
+		expect(nodes[2].position).toEqual({ x: 300, y: 350 });
+		expect(pendingLayout).toBeNull();
+		expect(viewport).toEqual({ x: 20, y: 40, zoom: 0.75 });
+	});
+
+	it("retains canvas flow handles and label offsets only when the model omits them", () => {
+		const model = createTestModel();
+		useModelStore.getState().setModel(model, null);
+		useCanvasStore.getState().syncFromModel();
+		const [edge] = useCanvasStore.getState().edges;
+		useCanvasStore.setState({
+			edges: [
+				{
+					...edge,
+					sourceHandle: "right-source",
+					targetHandle: "left-target",
+					data: edge.data && { ...edge.data, labelOffsetX: 0, labelOffsetY: -8 },
+				},
+			],
+		});
+		useCanvasStore.getState().syncFromModel();
+		expect(useCanvasStore.getState().edges[0]).toMatchObject({
+			sourceHandle: "right-source",
+			targetHandle: "left-target",
+			data: { labelOffsetX: 0, labelOffsetY: -8 },
+		});
+
+		Object.assign(model.data_flows[0], {
+			source_handle: "top",
+			target_handle: "bottom",
+			label_offset: { x: 12, y: 0 },
+		});
+		useCanvasStore.getState().syncFromModel();
+		expect(useCanvasStore.getState().edges[0]).toMatchObject({
+			sourceHandle: "top-source",
+			targetHandle: "bottom-target",
+			data: { labelOffsetX: 12, labelOffsetY: 0 },
+		});
+	});
+
 	it("clears nodes and edges when model is null", () => {
 		// First sync with a model
 		useModelStore.getState().setModel(createTestModel(), null);
