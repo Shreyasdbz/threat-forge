@@ -55,6 +55,12 @@ pub enum ThreatForgeError {
         valid: Vec<String>,
     },
 
+    #[error("Invalid sequence field '{field}': {reason}.")]
+    InvalidSequence { field: String, reason: &'static str },
+
+    #[error("Cannot create a typed sequence view: this 1.0 document already contains the opaque diagrams[].sequence field.")]
+    SequencePromotionConflict,
+
     #[error("Circular group nesting detected at group '{id}'")]
     CircularGroupNesting { id: String },
 

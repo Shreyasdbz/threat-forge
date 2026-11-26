@@ -365,6 +365,7 @@ pub fn parse_tm7(xml: &str) -> Result<ThreatModel, Tm7Error> {
                 y: 0.0,
                 zoom: 1.0,
             }),
+            sequence: None,
         }],
     })
 }

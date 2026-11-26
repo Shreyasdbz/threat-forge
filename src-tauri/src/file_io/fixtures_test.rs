@@ -420,7 +420,7 @@ fn invalid_fixtures_are_rejected_with_the_expected_error() {
     match bad_version {
         ThreatForgeError::UnsupportedVersion { version, supported } => {
             assert_eq!(version, "2.0");
-            assert_eq!(supported, vec!["1.0".to_string()]);
+            assert_eq!(supported, vec!["1.0".to_string(), "1.1".to_string()]);
         }
         other => panic!("expected UnsupportedVersion, got {other:?}"),
     }
@@ -458,6 +458,56 @@ fn valid_fixtures_pass_reader_validation() {
         read_threat_model(&fixture_path(name))
             .unwrap_or_else(|e| panic!("valid fixture {name} was rejected: {e}"));
     }
+}
+
+#[test]
+fn typed_sequence_reader_validates_version_shape_and_references() {
+    let fixture = fixture_text("v1.1-sequence.thf");
+    let typed = read_threat_model(&fixture_path("v1.1-sequence.thf")).expect("typed sequence");
+    let sequence = typed.diagrams[1]
+        .sequence
+        .as_ref()
+        .expect("sequence projection");
+    assert_eq!(sequence.messages[0].flow_id.as_deref(), Some("submit"));
+    assert_eq!(sequence.messages[1].id, "response");
+    let dir = tempfile::tempdir().expect("temp dir");
+    let path = dir.path().join("model.thf");
+    for (from, to, message) in [
+        ("to: client", "to: missing", "messages[response].to"),
+        ("id: response", "id: request", "Duplicate ID 'request'"),
+        ("id: client", "id: \" \"", "ID must not be blank"),
+        (
+            "from: client\n          to: service",
+            "from: service\n          to: client",
+            "flow endpoints must match message direction",
+        ),
+    ] {
+        let invalid = fixture.replace(from, to);
+        assert_ne!(invalid, fixture);
+        std::fs::write(&path, invalid).expect("write invalid version");
+        let error = read_threat_model(&path).expect_err("invalid sequence");
+        assert!(error.to_string().contains(message), "{error}");
+    }
+}
+
+#[test]
+fn opaque_sequence_prevents_promotion_before_native_save() {
+    let fixture = fixture_text("v1.0-opaque-sequence.thf");
+    let dir = tempfile::tempdir().expect("temp dir");
+    let path = dir.path().join("model.thf");
+    std::fs::write(&path, &fixture).expect("write opaque file");
+    let snapshot = super::read_document(&path).expect("opaque legacy sequence is valid");
+    assert!(snapshot.model.diagrams[0].sequence.is_none());
+    let mut proposed = snapshot.model;
+    proposed.version = "1.1".into();
+    let Err(error) = super::write_document(&path, Some(&snapshot.revision), proposed) else {
+        panic!("must not promote an opaque extension");
+    };
+    assert!(error.to_string().contains("diagrams[].sequence"));
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read unchanged file"),
+        fixture
+    );
 }
 
 #[test]
@@ -864,6 +914,7 @@ fn max_filled_model() -> ThreatModel {
                 y: 25.0,
                 zoom: 0.85,
             }),
+            sequence: None,
         }],
     }
 }
@@ -984,6 +1035,7 @@ fn architecture_only_model() -> ThreatModel {
             description: None,
             layout_file: None,
             viewport: None,
+            sequence: None,
         }],
     }
 }

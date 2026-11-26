@@ -16,7 +16,22 @@ pub fn import_tm7(source: &str) -> Result<String, JsError> {
 }
 
 fn parse_model(model: &str) -> Result<models::ThreatModel, JsError> {
-    serde_json::from_str(model).map_err(|_| JsError::new("Invalid diagram model."))
+    let invalid = |_| JsError::new("Invalid diagram model.");
+    let mut value: serde_json::Value = serde_json::from_str(model).map_err(invalid)?;
+    if value.get("version").and_then(serde_json::Value::as_str) != Some("1.1") {
+        if let Some(diagrams) = value
+            .get_mut("diagrams")
+            .and_then(serde_json::Value::as_array_mut)
+        {
+            for diagram in diagrams
+                .iter_mut()
+                .filter_map(serde_json::Value::as_object_mut)
+            {
+                diagram.remove("sequence");
+            }
+        }
+    }
+    serde_json::from_value(value).map_err(invalid)
 }
 
 #[wasm_bindgen]

@@ -154,6 +154,45 @@ fn initialize_params(protocol_version: &str) -> Value {
 }
 
 #[test]
+fn mcp_graph_edits_preserve_opaque_and_typed_sequence_values() {
+    for (fixture, view) in [
+        (
+            include_str!("../../tests/fixtures/thf/v1.0-opaque-sequence.thf"),
+            0,
+        ),
+        (
+            include_str!("../../tests/fixtures/thf/v1.1-sequence.thf"),
+            1,
+        ),
+    ] {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("model.thf");
+        std::fs::write(&path, fixture).expect("fixture .thf should be written");
+        let before: serde_yaml::Value = serde_yaml::from_str(fixture).expect("fixture YAML");
+        let mut server = McpServer::spawn(&path);
+        server.start_workspace();
+        server.tool(
+            2,
+            "add_element",
+            json!({ "name": "Audit log", "element_type": "process" }),
+        );
+        let persisted = std::fs::read_to_string(&path).expect("edited .thf");
+        let after: serde_yaml::Value = serde_yaml::from_str(&persisted).expect("edited YAML");
+        assert_eq!(after["version"], before["version"]);
+        assert_eq!(
+            after["diagrams"][view]["sequence"],
+            before["diagrams"][view]["sequence"]
+        );
+        assert!(persisted.contains("Audit log"));
+        server.request(
+            3,
+            "resources/read",
+            json!({ "uri": "threatforge://active/model" }),
+        );
+    }
+}
+
+#[test]
 fn mcp_server_handshakes_lists_its_tools_and_executes_one_over_stdio() {
     let dir = tempfile::tempdir().expect("temp dir");
     let model_path = dir.path().join("model.thf");

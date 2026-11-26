@@ -1,0 +1,39 @@
+version: "1.1"
+metadata:
+  title: Checkout
+  author: Fixture
+  created: 2026-11-26
+  modified: 2026-11-26
+elements:
+  - id: customer
+    type: external_entity
+    name: Customer
+  - id: checkout
+    type: process
+    name: Checkout
+data_flows:
+  - id: submit
+    from: customer
+    to: checkout
+diagrams:
+  - id: main
+    name: Data flow
+  - id: checkout-sequence
+    name: Checkout sequence
+    kind: sequence
+    sequence:
+      participants:
+        - id: client
+          element_id: customer
+        - id: service
+          element_id: checkout
+      messages:
+        - id: request
+          from: client
+          to: service
+          label: Submit order
+          flow_id: submit
+        - id: response
+          from: service
+          to: client
+          label: Show receipt

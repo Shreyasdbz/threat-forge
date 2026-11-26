@@ -11,7 +11,21 @@ pub fn read_threat_model(path: &Path) -> Result<ThreatModel, ThreatForgeError> {
 
 pub(crate) fn validate_model(model: &ThreatModel) -> Result<(), ThreatForgeError> {
     validate_version(&model.version)?;
-    validate_references(model)
+    validate_references(model)?;
+    match model.version.as_str() {
+        "1.1" => validate_sequences(model),
+        _ if model
+            .diagrams
+            .iter()
+            .any(|diagram| diagram.sequence.is_some()) =>
+        {
+            Err(invalid_sequence(
+                "diagrams[].sequence",
+                "requires version 1.1",
+            ))
+        }
+        _ => Ok(()),
+    }
 }
 
 /// Migrate old-format models that use sidecar layout JSON files.
@@ -104,10 +118,10 @@ impl LegacyLayouts {
 /// Validate the schema version is supported
 fn validate_version(version: &str) -> Result<(), ThreatForgeError> {
     match version {
-        "1.0" => Ok(()),
+        "1.0" | "1.1" => Ok(()),
         _ => Err(ThreatForgeError::UnsupportedVersion {
             version: version.to_string(),
-            supported: vec!["1.0".to_string()],
+            supported: vec!["1.0".to_string(), "1.1".to_string()],
         }),
     }
 }
@@ -330,6 +344,144 @@ fn validate_references(model: &ThreatModel) -> Result<(), ThreatForgeError> {
         }
     }
 
+    Ok(())
+}
+
+fn validate_sequences(model: &ThreatModel) -> Result<(), ThreatForgeError> {
+    let elements: Vec<_> = model
+        .elements
+        .iter()
+        .map(|element| element.id.as_str())
+        .collect();
+    let flows: HashMap<_, _> = model
+        .data_flows
+        .iter()
+        .map(|flow| (flow.id.as_str(), flow))
+        .collect();
+    for (index, diagram) in model.diagrams.iter().enumerate() {
+        let Some(sequence) = &diagram.sequence else {
+            continue;
+        };
+        let path = format!("diagrams[{}].sequence", diagram.id);
+        if diagram.kind.as_deref() != Some("sequence") {
+            return Err(invalid_sequence(&path, "requires kind: sequence"));
+        }
+        require_sequence_id(&diagram.id, || format!("diagrams[{index}].id"))?;
+        validate_unique(
+            model
+                .diagrams
+                .iter()
+                .filter(|entry| entry.id == diagram.id)
+                .map(|entry| entry.id.as_str()),
+            "diagrams",
+        )?;
+        for (i, participant) in sequence.participants.iter().enumerate() {
+            require_sequence_id(&participant.id, || format!("{path}.participants[{i}].id"))?;
+        }
+        let participant_ids: Vec<_> = sequence
+            .participants
+            .iter()
+            .map(|participant| participant.id.as_str())
+            .collect();
+        validate_unique(
+            participant_ids.iter().copied(),
+            &format!("{path}.participants"),
+        )?;
+        validate_unique(
+            sequence
+                .participants
+                .iter()
+                .map(|participant| participant.element_id.as_str()),
+            &format!("{path}.participants.element_id"),
+        )?;
+        let mut endpoints = HashMap::new();
+        for participant in &sequence.participants {
+            require_sequence_reference(&participant.element_id, &elements, || {
+                format!("{path}.participants[{}].element_id", participant.id)
+            })?;
+            endpoints.insert(participant.id.as_str(), participant.element_id.as_str());
+        }
+        for (i, message) in sequence.messages.iter().enumerate() {
+            require_sequence_id(&message.id, || format!("{path}.messages[{i}].id"))?;
+        }
+        validate_unique(
+            sequence.messages.iter().map(|message| message.id.as_str()),
+            &format!("{path}.messages"),
+        )?;
+        for message in &sequence.messages {
+            let field = format!("{path}.messages[{}]", message.id);
+            require_sequence_reference(&message.from, &participant_ids, || {
+                format!("{field}.from")
+            })?;
+            require_sequence_reference(&message.to, &participant_ids, || format!("{field}.to"))?;
+            if let Some(id) = &message.flow_id {
+                let Some(flow) = flows.get(id.as_str()) else {
+                    return Err(ThreatForgeError::InvalidReference {
+                        field: format!("{field}.flow_id"),
+                        reference: id.clone(),
+                        valid: model
+                            .data_flows
+                            .iter()
+                            .map(|flow| flow.id.clone())
+                            .collect(),
+                    });
+                };
+                if endpoints.get(message.from.as_str()) != Some(&flow.from.as_str())
+                    || endpoints.get(message.to.as_str()) != Some(&flow.to.as_str())
+                {
+                    return Err(invalid_sequence(
+                        &format!("{field}.flow_id"),
+                        "flow endpoints must match message direction",
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn invalid_sequence(field: &str, reason: &'static str) -> ThreatForgeError {
+    ThreatForgeError::InvalidSequence {
+        field: field.into(),
+        reason,
+    }
+}
+
+fn require_sequence_id(id: &str, field: impl FnOnce() -> String) -> Result<(), ThreatForgeError> {
+    if id.trim().is_empty() {
+        return Err(invalid_sequence(&field(), "ID must not be blank"));
+    }
+    Ok(())
+}
+
+fn require_sequence_reference(
+    id: &str,
+    valid: &[&str],
+    field: impl FnOnce() -> String,
+) -> Result<(), ThreatForgeError> {
+    if !valid.contains(&id) {
+        return Err(ThreatForgeError::InvalidReference {
+            field: field(),
+            reference: id.into(),
+            valid: valid.iter().map(|id| (*id).into()).collect(),
+        });
+    }
+    Ok(())
+}
+
+fn validate_unique<'a>(
+    ids: impl IntoIterator<Item = &'a str>,
+    section: &str,
+) -> Result<(), ThreatForgeError> {
+    let mut seen = std::collections::HashSet::new();
+    for id in ids {
+        if !seen.insert(id) {
+            return Err(ThreatForgeError::DuplicateId {
+                id: id.into(),
+                section: section.into(),
+            });
+        }
+    }
     Ok(())
 }
 

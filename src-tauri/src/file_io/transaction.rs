@@ -102,7 +102,15 @@ fn parse_document_with_revision(
         source,
     };
     let raw: Value = serde_yaml::from_slice(bytes).map_err(yaml_error)?;
-    let model = serde_yaml::from_value(raw.clone()).map_err(yaml_error)?;
+    let mut typed = raw.clone();
+    if typed.get("version").and_then(Value::as_str) != Some("1.1") {
+        if let Some(diagrams) = typed.get_mut("diagrams").and_then(Value::as_sequence_mut) {
+            for diagram in diagrams.iter_mut().filter_map(Value::as_mapping_mut) {
+                diagram.remove("sequence");
+            }
+        }
+    }
+    let model = serde_yaml::from_value(typed).map_err(yaml_error)?;
     validate_model(&model)?;
     Ok(DocumentSnapshot {
         model,
@@ -556,6 +564,9 @@ fn write_with_base(
     }
     .map(|bytes| parse_document(path, bytes))
     .transpose()?;
+    if let Some(prior) = &prior {
+        prior.validate_sequence_promotion(&proposed.version)?;
+    }
     prepare_document(
         prior.as_ref().map(|snapshot| &snapshot.model),
         &mut proposed,
@@ -607,6 +618,27 @@ pub(crate) fn prepare_document(
 }
 
 impl DocumentSnapshot {
+    pub(crate) fn validate_sequence_promotion(
+        &self,
+        version: &str,
+    ) -> Result<(), ThreatForgeError> {
+        if self.model.version == "1.0"
+            && version == "1.1"
+            && self
+                .raw
+                .get("diagrams")
+                .and_then(Value::as_sequence)
+                .is_some_and(|diagrams| {
+                    diagrams
+                        .iter()
+                        .any(|diagram| diagram.get("sequence").is_some())
+                })
+        {
+            return Err(ThreatForgeError::SequencePromotionConflict);
+        }
+        Ok(())
+    }
+
     pub fn source_yaml(&self) -> Result<String, ThreatForgeError> {
         serde_yaml::to_string(&self.raw)
             .map_err(|source| ThreatForgeError::YamlSerialize { source })

@@ -17,11 +17,13 @@
 
 import { describe, expect, it } from "vitest";
 import {
+	assertSequencePromotionAllowed,
 	readThreatModelText,
 	ThfValidationError,
 	type ThfValidationErrorKind,
 	validateThreatModel,
 } from "@/lib/thf-validation";
+import { serializeThreatModelYaml } from "@/lib/thf-yaml";
 import type { ThreatModel } from "@/types/threat-model";
 import architectureCanonicalFullRaw from "../../tests/fixtures/thf/architecture-canonical-full.thf?raw";
 import architectureOnlyRaw from "../../tests/fixtures/thf/architecture-only.thf?raw";
@@ -45,7 +47,9 @@ import unsupportedVersionRaw from "../../tests/fixtures/thf/invalid/unsupported-
 import legacySidecarRaw from "../../tests/fixtures/thf/legacy-sidecar/model.thf?raw";
 import canonicalFullRaw from "../../tests/fixtures/thf/v1.0-canonical-full.thf?raw";
 import minimalRaw from "../../tests/fixtures/thf/v1.0-minimal.thf?raw";
+import opaqueSequenceRaw from "../../tests/fixtures/thf/v1.0-opaque-sequence.thf?raw";
 import unknownFieldsRaw from "../../tests/fixtures/thf/v1.0-unknown-fields.thf?raw";
+import typedSequenceRaw from "../../tests/fixtures/thf/v1.1-sequence.thf?raw";
 
 interface InvalidCase {
 	name: string;
@@ -68,7 +72,7 @@ const INVALID_CASES: InvalidCase[] = [
 		name: "invalid/unsupported-version.thf",
 		raw: unsupportedVersionRaw,
 		kind: "unsupported-version",
-		message: `Unsupported schema version '2.0'. Supported versions: ["1.0"]`,
+		message: `Unsupported schema version '2.0'. Supported versions: ["1.0", "1.1"]`,
 	},
 	{
 		// reader.rs: ThreatForgeError::DuplicateId { id: "app", section: "elements" }
@@ -212,6 +216,59 @@ function asMapping(value: unknown, label: string): Record<string, unknown> {
 }
 
 describe("browser `.thf` read validation — parity with read_threat_model", () => {
+	it("preserves an opaque 1.0 sequence value on an edited round trip", () => {
+		const model = readThreatModelText(opaqueSequenceRaw);
+		model.metadata.title = "Edited legacy document";
+		const saved = readThreatModelText(serializeThreatModelYaml(model));
+		expect(saved.version).toBe("1.0");
+		expect(saved.metadata.title).toBe("Edited legacy document");
+		expect(saved.diagrams[0].sequence).toEqual({
+			participants: "external",
+			settings: [42, true, null],
+		});
+	});
+
+	it("blocks promotion for opaque values in the browser model or native source", () => {
+		const model = readThreatModelText(opaqueSequenceRaw);
+		const nativeProjection = readThreatModelText(opaqueSequenceRaw.split("    sequence:")[0]);
+		expect(() => assertSequencePromotionAllowed(model)).toThrow("diagrams[].sequence");
+		expect(() => assertSequencePromotionAllowed(nativeProjection, opaqueSequenceRaw)).toThrow(
+			"diagrams[].sequence",
+		);
+		expect(() => assertSequencePromotionAllowed(nativeProjection)).not.toThrow();
+	});
+
+	it("round-trips a typed 1.1 sequence with ordered and linked messages", () => {
+		const model = readThreatModelText(typedSequenceRaw);
+		const saved = readThreatModelText(serializeThreatModelYaml(model));
+		expect(saved.diagrams).toEqual(model.diagrams);
+		expect(saved.diagrams[1].sequence).toMatchObject({
+			messages: [{ id: "request", flow_id: "submit" }, { id: "response" }],
+		});
+	});
+
+	it("rejects a typed 1.1 sequence link whose endpoints are reversed", () => {
+		const raw = typedSequenceRaw.replace(
+			"from: client\n          to: service",
+			"from: service\n          to: client",
+		);
+		const error = catchValidationError(() => readThreatModelText(raw));
+		expect(error.kind).toBe("invalid-sequence");
+		expect(error.message).toContain(
+			"diagrams[checkout-sequence].sequence.messages[request].flow_id",
+		);
+	});
+
+	it.each([
+		["missing participant", "to: client", "to: missing", "invalid-reference"],
+		["duplicate message ID", "id: response", "id: request", "duplicate-id"],
+		["blank participant ID", "id: client", 'id: " "', "invalid-sequence"],
+	])("rejects a typed 1.1 sequence with a %s", (_name, from, to, kind) => {
+		expect(
+			catchValidationError(() => readThreatModelText(typedSequenceRaw.replace(from, to))).kind,
+		).toBe(kind);
+	});
+
 	it.each(INVALID_CASES)("rejects $name as $kind", ({ raw, kind, message }) => {
 		const error = catchValidationError(() => readThreatModelText(raw));
 		expect(error.kind).toBe(kind);

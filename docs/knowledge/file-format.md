@@ -20,7 +20,7 @@ version → metadata → layers → groups → elements → data_flows → relat
 
 | Section | Purpose |
 |---------|---------|
-| `version` | Schema version (currently `"1.0"`). Always first field. |
+| `version` | Schema version (`"1.0"` for ordinary documents; `"1.1"` enables typed sequence views). Always first field. |
 | `metadata` | Title, author, dates, description, authoring info |
 | `layers` | Optional architecture layers; display order is array order |
 | `groups` | Optional architecture containers; may nest via `parent` |
@@ -250,7 +250,7 @@ these values back into the document. Released IDs are permanent — see
 ## Schema Stability Rules
 
 - Never make breaking changes without a version bump and migration path
-- The `version` field is always first under root (currently `"1.0"`)
+- The `version` field is always first under root
 - Schema validation runs on every file load via serde deserialization
 - All element/flow references in threats must point to existing IDs
 - Reject files with duplicate IDs within any section
@@ -261,9 +261,8 @@ This is the detailed argument behind **ADR-009** in
 [`architecture.md`](architecture.md#architecture-decision-records-adrs).
 
 **Decision: additive schema growth does not bump `version`.** Documents that gain new optional
-sections or fields remain `version: "1.0"`. `validate_version`
-(`src-tauri/src/file_io/reader.rs`) keeps its exact-match, fail-closed behavior and is not
-widened.
+sections or fields stay at their existing version. `validate_version`
+(`src-tauri/src/file_io/reader.rs`) accepts only explicitly supported versions and fails closed.
 
 ### The forward rule
 
@@ -275,8 +274,8 @@ widened.
 1. **Additive change is not breaking change.** No field is removed, renamed, retyped, or given new
    semantics, so there is nothing to migrate. `AGENTS.md` requires a bump for *breaking* schema
    changes, and this is not one.
-2. **A bump converts graceful degradation into a hard failure.** `validate_version` matches `"1.0"`
-   exactly and returns `UnsupportedVersion` for anything else. Because serde tolerates unknown
+2. **A blanket bump converts graceful degradation into a hard failure.** Older readers match
+   `"1.0"` exactly and return `UnsupportedVersion` for anything else. Because serde tolerates unknown
    fields, an already-released build opens a document containing sections it has never heard of and
    simply ignores them. Bumping to `"1.1"` would instead make every already-shipped build refuse to
    open **any** file saved by the newer version — including plain threat models carrying no new
@@ -288,12 +287,31 @@ widened.
 
 ### Alternatives considered and rejected
 
-- **Bump to `"1.1"`.** Rejected per (2): it makes downgrade a total failure instead of a partial
-  one, for a change with no breaking element.
+- **Bump every document to `"1.1"`.** Rejected per (2): it makes downgrade a total failure instead
+  of a partial one, even for documents with no new semantics.
 - **Keep `"1.0"` but widen `validate_version` to accept any `1.x`.** Rejected. It cannot help the
   installed base, because already-released builds hard-fail regardless. Going forward it would
   convert a clear refusal into silent data loss the first time a build met an unknown `1.x`
   document. Exact-match is the fail-closed behavior and stays.
+
+### Sequence compatibility (#370)
+
+In a 1.0 document, an existing `diagrams[].sequence` extension is opaque, even when
+`kind` is `sequence`. Like other unknown YAML fields, the extension's parsed value
+survives saves without interpretation or replacement; formatting and comments follow
+the existing writer behavior. Typed sequence views are available only in 1.1.
+Older editors cannot safely enforce sequence references when editing the shared graph,
+so the version boundary applies only to documents opting into the new semantics.
+Before adding the first typed view to a 1.0 document, check for
+an existing `diagrams[].sequence` key. If present, refuse promotion without changing
+the document and name the conflicting field in the error. Ordinary 1.0 saves must
+leave the version unchanged.
+
+In 1.1, a typed view uses `kind: sequence` and a `sequence` mapping. Its
+`participants` list contains local `id` and canonical `element_id`; its `messages`
+list contains local `id`, participant `from` and `to`, `label`, and optional canonical
+`flow_id`. A linked flow must have the same directed endpoints. List order controls
+columns and time. A kind-only diagram does not define a typed sequence.
 
 ### Unknown fields and downgrade compatibility
 
