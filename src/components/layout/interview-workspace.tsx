@@ -3,14 +3,13 @@ import { useStore } from "zustand";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
-import {
-	buildInterviewProposal,
-	type InterviewAnswers,
-	interviewElements,
-} from "@/lib/interview-proposal";
+import { type InterviewAnswers, interviewElements } from "@/lib/interview-proposal";
+import { reviewInterview } from "@/lib/interview-review";
 import { useActiveStores } from "@/stores/document-stores";
 import type { InterviewDraft } from "@/stores/interview-store";
+import { useUiStore } from "@/stores/ui-store";
 import type { ThreatModel } from "@/types/threat-model";
+import { InterviewReviewPanel } from "./interview-review-panel";
 
 const STEPS = [
 	"Scope and assets",
@@ -23,28 +22,64 @@ const STEPS = [
 
 export function InterviewControl() {
 	const { interview } = useActiveStores();
-	const draft = useStore(interview, (state) => state.draft);
+	const resumable = useStore(interview, (state) => !!state.draft || state.applied);
 	return (
 		<div className="flex h-10 shrink-0 items-center border-b border-editor-line pr-2">
 			<Button variant="outline" size="sm" onClick={interview.getState().start}>
-				{draft ? "Resume interview" : "Guided interview"}
+				{resumable ? "Resume interview" : "Guided interview"}
 			</Button>
 		</div>
 	);
 }
 
 export function InterviewWorkspace({ children }: { children: ReactNode }) {
-	const { interview, model: modelStore } = useActiveStores();
+	const stores = useActiveStores();
+	const { interview, model: modelStore } = stores;
 	const draft = useStore(interview, (state) => (state.visible ? state.draft : null));
+	const applied = useStore(interview, (state) => state.visible && state.applied);
 	const model = useStore(modelStore, (state) => state.model);
 	const { update, hide, discard } = interview.getState();
-	const showing = !!draft && !!model;
+	const showing = (!!draft || applied) && !!model;
+	const advance = () =>
+		update((state) => ({
+			...state,
+			step: state.step + 1,
+			review: state.step === STEPS.length - 2 ? reviewInterview(stores, state.answers) : null,
+		}));
 	return (
 		<div className="relative h-full">
 			<div className={showing ? "invisible h-full" : "h-full"} inert={showing}>
 				{children}
 			</div>
-			{showing && (
+			{applied && (
+				<section
+					aria-label="Interview additions applied"
+					className="absolute inset-0 space-y-4 overflow-auto bg-editor-surface p-5"
+				>
+					<h2 className="text-editor-title3">Interview additions applied</h2>
+					<p className="text-editor-body">
+						The model is updated. You can undo these additions together or review threats
+						separately.
+					</p>
+					<div className="flex flex-wrap gap-2">
+						<Button variant="outline" onClick={discard}>
+							Return to diagram
+						</Button>
+						<Button
+							onClick={() => {
+								discard();
+								modelStore.getState().selectSequence(null);
+								const ui = useUiStore.getState();
+								if (!ui.rightPanelOpen) ui.toggleRightPanel();
+								ui.setRightPanelTab("threats");
+							}}
+						>
+							Open STRIDE review
+						</Button>
+					</div>
+				</section>
+			)}
+			{draft && model && (
 				<section
 					aria-label="Guided interview"
 					className="absolute inset-0 overflow-auto bg-editor-surface p-5"
@@ -65,7 +100,11 @@ export function InterviewWorkspace({ children }: { children: ReactNode }) {
 							Answers stay in this tab and are discarded when you cancel, close, or reload. They are
 							not saved to the file.
 						</p>
-						<Questions model={model} draft={draft} update={update} />
+						{draft.step === STEPS.length - 1 ? (
+							<InterviewReviewPanel key={draft.review?.documentId} stores={stores} draft={draft} />
+						) : (
+							<Questions model={model} draft={draft} update={update} />
+						)}
 						<div className="flex flex-wrap items-center gap-2 border-t border-editor-line pt-3">
 							<Button variant="ghost" onClick={discard}>
 								Cancel interview
@@ -74,20 +113,19 @@ export function InterviewWorkspace({ children }: { children: ReactNode }) {
 							<Button
 								variant="outline"
 								disabled={draft.step === 0}
-								onClick={() => update((state) => ({ ...state, step: state.step - 1 }))}
+								onClick={() =>
+									update((state) => ({ ...state, step: state.step - 1, review: null }))
+								}
 							>
 								Back
 							</Button>
 							{draft.step < STEPS.length - 1 && (
 								<>
-									<Button
-										variant="ghost"
-										onClick={() => update((state) => ({ ...state, step: state.step + 1 }))}
-									>
+									<Button variant="ghost" onClick={advance}>
 										Skip
 									</Button>
-									<Button onClick={() => update((state) => ({ ...state, step: state.step + 1 }))}>
-										Continue
+									<Button onClick={advance}>
+										{draft.step === STEPS.length - 2 ? "Review changes" : "Continue"}
 									</Button>
 								</>
 							)}
@@ -385,31 +423,5 @@ function Questions({
 				</Button>
 			</div>
 		);
-	const proposal = buildInterviewProposal(model, answers);
-	return (
-		<div className="space-y-2 text-editor-body">
-			<h3 className="font-semibold">Proposed additions</h3>
-			{proposal.changes.length ? (
-				<ul className="list-disc pl-5">
-					{proposal.changes.map(({ key, kind, value }) => (
-						<li key={key}>
-							{value.name} ({kind})
-						</li>
-					))}
-				</ul>
-			) : (
-				<p>No additions proposed.</p>
-			)}
-			{proposal.gaps.length > 0 && (
-				<>
-					<h3 className="font-semibold">Unanswered questions</h3>
-					<ul className="list-disc pl-5">
-						{proposal.gaps.map((gap) => (
-							<li key={gap}>{gap}</li>
-						))}
-					</ul>
-				</>
-			)}
-		</div>
-	);
+	return null;
 }

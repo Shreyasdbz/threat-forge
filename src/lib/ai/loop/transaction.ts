@@ -17,6 +17,7 @@
 import { buildLayoutFromModel } from "@/lib/model-layout-utils";
 import { ThfValidationError, validateThreatModel } from "@/lib/thf-validation";
 import { useCanvasStore } from "@/stores/canvas-store";
+import { type DocumentStores, getActiveStores } from "@/stores/document-stores";
 import { useHistoryStore } from "@/stores/history-store";
 import { useModelStore } from "@/stores/model-store";
 import type { ThreatModel } from "@/types/threat-model";
@@ -87,7 +88,11 @@ export interface CommitInput {
  * Otherwise the pre-turn snapshot is pushed (once per turn) and the document is
  * swapped in with selection intact.
  */
-export function commitToolOutcome(outcome: ToolOutcome, input: CommitInput): CommitOutcome {
+export function commitToolOutcome(
+	outcome: ToolOutcome,
+	input: CommitInput,
+	stores: DocumentStores = getActiveStores(),
+): CommitOutcome {
 	if (outcome.status === "error") {
 		return { status: "refused", refusal: "tool_error", result: outcome.result };
 	}
@@ -105,7 +110,7 @@ export function commitToolOutcome(outcome: ToolOutcome, input: CommitInput): Com
 			result: "A read-only tool returned a document change, which is not allowed.",
 		};
 	}
-	if (useModelStore.getState().model !== input.expected) {
+	if (stores.model.getState().model !== input.expected) {
 		// Reference equality is enough: every mutation replaces the model wholesale.
 		return {
 			status: "refused",
@@ -124,9 +129,9 @@ export function commitToolOutcome(outcome: ToolOutcome, input: CommitInput): Com
 		return { status: "refused", refusal: "invalid_document", result: message };
 	}
 
-	pushTurnSnapshotOnce(input);
-	useModelStore.getState().restoreSnapshot(outcome.document);
-	useCanvasStore.getState().syncFromModel();
+	pushTurnSnapshotOnce(input, stores.history);
+	stores.model.getState().restoreSnapshot(outcome.document);
+	stores.canvas.getState().syncFromModel();
 	return { status: "committed", document: outcome.document, result: outcome.result };
 }
 
@@ -134,11 +139,11 @@ export function commitToolOutcome(outcome: ToolOutcome, input: CommitInput): Com
  * Push the turn's single history snapshot, capturing the document as it stood
  * immediately before this first successful commit.
  */
-function pushTurnSnapshotOnce(input: CommitInput): void {
+function pushTurnSnapshotOnce(input: CommitInput, history: DocumentStores["history"]): void {
 	if (input.ledger.pushed) return;
-	useHistoryStore.getState().pushSnapshot(input.expected);
+	history.getState().pushSnapshot(input.expected);
 	input.ledger.pushed = true;
-	const past = useHistoryStore.getState().past;
+	const past = history.getState().past;
 	input.ledger.undoDepth = past.length;
 	input.ledger.baseline = past[past.length - 1] ?? null;
 }
