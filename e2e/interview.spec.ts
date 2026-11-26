@@ -1,7 +1,60 @@
 import { readFile } from "node:fs/promises";
-import { expect, test } from "./fixtures";
+import { textResponse } from "./anthropic-sse";
+import { expect, seedAnthropicApiKey, test } from "./fixtures";
 import { openDocument, saveDocument } from "./support/interactions";
 import { buildOfflineInterview } from "./support/interview";
+
+test.describe("cancelled AI request", () => {
+	test.use({
+		allowedBrowserEvents: [
+			{
+				channel: "requestfailed",
+				pattern: /^POST https:\/\/api\.anthropic\.com\/v1\/messages — net::ERR_ABORTED$/,
+			},
+		],
+	});
+
+	test("cancels interview AI after consent and can still apply the offline proposal", async ({
+		page,
+	}) => {
+		await seedAnthropicApiKey(page);
+		let releaseRequest = () => {};
+		const paused = new Promise<void>((resolve) => {
+			releaseRequest = resolve;
+		});
+		let requests = 0;
+		await page.route("https://api.anthropic.com/v1/messages", async (route) => {
+			requests++;
+			await paused;
+			await route.fulfill({
+				status: 200,
+				contentType: "text/event-stream",
+				body: textResponse('{"questions":["Late suggestion"]}'),
+			});
+		});
+		await page.goto("/app");
+		await openDocument(page, "tests/fixtures/thf/v1.1-sequence.thf");
+		const interview = await buildOfflineInterview(page);
+		await interview.getByRole("button", { name: "Optional AI follow-up" }).click();
+		await interview.getByRole("checkbox", { name: "System scope", exact: true }).check();
+		const send = interview.getByRole("button", { name: "Send selected answers to Anthropic" });
+		expect(requests).toBe(0);
+		try {
+			const [request] = await Promise.all([
+				page.waitForRequest("https://api.anthropic.com/v1/messages"),
+				send.click(),
+			]);
+			expect(JSON.stringify(request.postDataJSON())).not.toContain("Order ID");
+			await interview.getByRole("button", { name: "Cancel AI request" }).click();
+			await expect(interview.getByRole("status")).toContainText("Request cancelled");
+		} finally {
+			releaseRequest();
+		}
+		await expect(interview.getByText("Late suggestion")).toHaveCount(0);
+		await interview.getByRole("button", { name: "Apply selected changes" }).click();
+		await expect(page.getByRole("heading", { name: "Interview additions applied" })).toBeVisible();
+	});
+});
 
 test("reviews offline additions, applies once, and hands off to a separate STRIDE review", async ({
 	page,

@@ -7,6 +7,7 @@ import {
 } from "@/lib/interview-review";
 import type { DocumentStores } from "@/stores/document-stores";
 import type { InterviewDraft } from "@/stores/interview-store";
+import { InterviewAssistance } from "./interview-assistance";
 
 export function InterviewReviewPanel({
 	stores,
@@ -93,6 +94,18 @@ export function InterviewReviewPanel({
 					{error}
 				</p>
 			)}
+			<InterviewAssistance
+				answers={draft.answers}
+				stillCurrent={() => {
+					const { model, fileRevision, fileSync } = stores.model.getState();
+					return (
+						fileSync !== "conflict" &&
+						model === review.expected &&
+						fileRevision === review.revision &&
+						stores.interview.getState().draft?.answers === draft.answers
+					);
+				}}
+			/>
 			<div className="flex flex-wrap gap-2">
 				<Button variant="outline" onClick={rebuild}>
 					Rebuild proposal
