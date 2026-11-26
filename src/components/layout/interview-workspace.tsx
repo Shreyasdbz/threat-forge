@@ -176,6 +176,20 @@ function Questions({
 			answers: { ...state.answers, [key]: [...state.answers[key], { ...row, key: state.nextKey }] },
 		}));
 	}
+	function removeElement(key: number) {
+		const ref = `answer:${key}`;
+		update((state) => ({
+			...state,
+			answers: {
+				...state.answers,
+				elements: state.answers.elements.filter((element) => element.key !== key),
+				boundaries: state.answers.boundaries.map((boundary) => ({
+					...boundary,
+					members: boundary.members.filter((member) => member !== ref),
+				})),
+			},
+		}));
+	}
 
 	const endpoints = interviewElements(model, answers);
 	if (step === 0)
@@ -271,9 +285,7 @@ function Questions({
 							<Button
 								className="justify-self-start"
 								variant="ghost"
-								onClick={() =>
-									edit("elements", (items) => items.filter(({ key }) => key !== row.key))
-								}
+								onClick={() => removeElement(row.key)}
 							>
 								Remove {label.toLowerCase()}
 							</Button>

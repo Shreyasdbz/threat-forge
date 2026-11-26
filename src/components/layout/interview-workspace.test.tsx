@@ -43,3 +43,25 @@ it("keeps skipped answers revisitable in the owning tab and discards on cancel",
 	fireEvent.click(screen.getByRole("button", { name: "Guided interview" }));
 	expect(screen.getByRole("textbox", { name: "What system are you modeling?" })).toHaveValue("");
 });
+
+it("removes deleted answer references from saved boundary selections", () => {
+	const stores = createDocumentStores();
+	stores.model.getState().setModel(readThreatModelText(fixture), null);
+	setActiveStores(stores);
+	stores.interview.getState().start();
+	stores.interview.getState().update((draft) => ({
+		...draft,
+		step: 1,
+		nextKey: 3,
+		answers: {
+			...draft.answers,
+			elements: [{ key: 1, role: "process", name: "Billing", reuse: "" }],
+			boundaries: [{ key: 2, name: "Internal", members: ["answer:1", "existing:checkout"] }],
+		},
+	}));
+	render(<InterviewWorkspace>Diagram</InterviewWorkspace>);
+	fireEvent.click(screen.getByRole("button", { name: "Remove actor or service 1" }));
+	expect(stores.interview.getState().draft?.answers.boundaries).toEqual([
+		{ key: 2, name: "Internal", members: ["existing:checkout"] },
+	]);
+});

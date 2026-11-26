@@ -44,3 +44,21 @@ it("maps explicit reuse and new elements deterministically without writing the g
 	expect(model.getState().model).toBe(before);
 	expect(history.getState().past).toEqual([]);
 });
+
+it("proposes boundaries with remaining valid members when a reference is no longer available", () => {
+	const model = readThreatModelText(fixture);
+	const proposal = buildInterviewProposal(model, {
+		scope: "",
+		assets: "",
+		elements: [],
+		flows: [],
+		boundaries: [
+			{ key: 1, name: "Internal", members: ["answer:9", "existing:checkout"] },
+			{ key: 2, name: "Empty", members: ["existing:removed"] },
+		],
+	});
+	expect(proposal.changes).toMatchObject([
+		{ kind: "boundary", value: { name: "Internal", contains: ["checkout"] }, requires: [] },
+	]);
+	expect(proposal.gaps).toContain("A boundary needs a name and valid members.");
+});

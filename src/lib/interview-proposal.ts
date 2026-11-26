@@ -113,7 +113,7 @@ export function buildInterviewProposal(
 	for (const answer of answers.boundaries) {
 		const name = answer.name.trim();
 		const members = answer.members.flatMap((ref) => refs.get(ref) ?? []);
-		if (!name || !members.length || members.length !== answer.members.length) {
+		if (!name || !members.length) {
 			gaps.push("A boundary needs a name and valid members.");
 			continue;
 		}
