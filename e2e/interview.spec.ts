@@ -23,6 +23,20 @@ test("answer field undo and redo do not change document history", async ({ page 
 	await expect(sequence).not.toBeVisible();
 });
 
+test("history shortcuts on proposal controls do not invalidate the preview", async ({ page }) => {
+	await page.goto("/app");
+	await openDocument(page, "tests/fixtures/thf/v1.1-sequence.thf");
+	await page.getByRole("button", { name: "New sequence" }).click();
+	const interview = await buildOfflineInterview(page);
+	const addition = interview.getByRole("checkbox", { name: "Billing worker (element)" });
+	await expect(addition).toBeChecked();
+	await addition.press("ControlOrMeta+z");
+	await addition.press("ControlOrMeta+Shift+z");
+	await addition.press("ControlOrMeta+y");
+	await interview.getByRole("button", { name: "Apply selected changes" }).click();
+	await expect(page.getByRole("heading", { name: "Interview additions applied" })).toBeVisible();
+});
+
 test.describe("cancelled AI request", () => {
 	test.use({
 		allowedBrowserEvents: [

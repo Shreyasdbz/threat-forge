@@ -37,9 +37,8 @@ export function useNativeMenu() {
 
 			unlistenMenu = await listen<string>("menu-action", (event) => {
 				const action = event.payload;
-				const graphHidden =
-					getActiveStores().interview.getState().visible ||
-					showingSequence(useModelStore.getState());
+				const interviewVisible = getActiveStores().interview.getState().visible;
+				const graphHidden = interviewVisible || showingSequence(useModelStore.getState());
 
 				switch (action) {
 					// File
@@ -71,6 +70,7 @@ export function useNativeMenu() {
 							document.execCommand("undo");
 							break;
 						}
+						if (interviewVisible) break;
 						const currentModel = useModelStore.getState().model;
 						if (!currentModel) break;
 						const snapshot = useHistoryStore.getState().undo(currentModel);
@@ -87,6 +87,7 @@ export function useNativeMenu() {
 							document.execCommand("redo");
 							break;
 						}
+						if (interviewVisible) break;
 						const currentModel = useModelStore.getState().model;
 						if (!currentModel) break;
 						const snapshot = useHistoryStore.getState().redo(currentModel);
