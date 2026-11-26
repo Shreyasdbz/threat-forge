@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import {
 	type InterviewAnswers,
-	interviewBoundaryMemberRef,
 	interviewElements,
+	interviewExistingBoundaries,
 } from "@/lib/interview-proposal";
 import { reviewInterview } from "@/lib/interview-review";
 import { useActiveStores } from "@/stores/document-stores";
@@ -170,10 +170,7 @@ function Questions({
 			answers: { ...state.answers, [key]: mutate(state.answers[key]) },
 		}));
 	}
-	function add<K extends "elements" | "flows" | "boundaries">(
-		key: K,
-		row: InterviewAnswers[K][number],
-	) {
+	function add<K extends "elements" | "flows">(key: K, row: InterviewAnswers[K][number]) {
 		update((state) => ({
 			...state,
 			nextKey: state.nextKey + 1,
@@ -181,18 +178,42 @@ function Questions({
 		}));
 	}
 	function removeElement(key: number) {
-		const ref = `answer:${key}`;
-		update((state) => ({
-			...state,
-			answers: {
-				...state.answers,
-				elements: state.answers.elements.filter((element) => element.key !== key),
-				boundaries: state.answers.boundaries.map((boundary) => ({
-					...boundary,
-					members: boundary.members.filter((member) => member !== ref),
-				})),
-			},
-		}));
+		update((state) => {
+			const { boundaries, elements } = state.answers;
+			const memberOf = { ...boundaries.memberOf };
+			delete memberOf[`answer:${key}`];
+			return {
+				...state,
+				answers: {
+					...state.answers,
+					elements: elements.filter((element) => element.key !== key),
+					boundaries: { ...boundaries, memberOf },
+				},
+			};
+		});
+	}
+	function changeReuse(key: number, reuse: string) {
+		update((state) => {
+			const { boundaries, elements } = state.answers;
+			const memberOf = { ...boundaries.memberOf };
+			const answerRef = `answer:${key}`;
+			const existingRef = `existing:${reuse}`;
+			const assignment = memberOf[answerRef];
+			if (reuse && assignment !== undefined) {
+				memberOf[existingRef] ??= assignment;
+				delete memberOf[answerRef];
+			}
+			return {
+				...state,
+				answers: {
+					...state.answers,
+					elements: elements.map((element) =>
+						element.key === key ? { ...element, reuse } : element,
+					),
+					boundaries: { ...boundaries, memberOf },
+				},
+			};
+		});
 	}
 
 	const endpoints = interviewElements(model, answers);
@@ -243,7 +264,7 @@ function Questions({
 									<NativeSelect
 										id={id}
 										value={row.reuse}
-										onChange={(event) => change({ reuse: event.target.value })}
+										onChange={(event) => changeReuse(row.key, event.target.value)}
 									>
 										<option value="">Create a new element</option>
 										{model.elements.map(({ id, name }) => (
@@ -378,19 +399,15 @@ function Questions({
 				</Button>
 			</div>
 		);
-	if (step === 4)
+	if (step === 4) {
+		const { definitions, memberOf } = answers.boundaries;
+		const existingBoundaries = interviewExistingBoundaries(model);
 		return (
 			<div className="space-y-3">
 				<p className="text-editor-body">
 					Which elements share a trust boundary? Flows between members and non-members cross it.
 				</p>
-				{answers.boundaries.map((row, index) => {
-					const resolveMember = (ref: string) => interviewBoundaryMemberRef(ref, answers.elements);
-					const selected = new Set(row.members.map(resolveMember));
-					const change = (patch: Partial<typeof row>) =>
-						edit("boundaries", (items) =>
-							items.map((item) => (item.key === row.key ? { ...item, ...patch } : item)),
-						);
+				{definitions.map((row, index) => {
 					return (
 						<fieldset key={row.key} className="grid gap-2 border border-editor-line p-3">
 							<legend className="px-1 text-editor-caption">Boundary {index + 1}</legend>
@@ -399,33 +416,28 @@ function Questions({
 									<Input
 										id={id}
 										value={row.name}
-										onChange={(event) => change({ name: event.target.value })}
+										onChange={(event) => {
+											const name = event.target.value;
+											edit("boundaries", (current) => ({
+												...current,
+												definitions: current.definitions.map((item) =>
+													item.key === row.key ? { ...item, name } : item,
+												),
+											}));
+										}}
 									/>
 								)}
 							</Field>
-							{endpoints.map(({ ref, name }) => (
-								<Field key={ref} label={name}>
-									{(id) => (
-										<input
-											id={id}
-											type="checkbox"
-											checked={selected.has(ref)}
-											onChange={(event) =>
-												change({
-													members: event.target.checked
-														? [...row.members, ref]
-														: row.members.filter((member) => resolveMember(member) !== ref),
-												})
-											}
-										/>
-									)}
-								</Field>
-							))}
 							<Button
 								className="justify-self-start"
 								variant="ghost"
 								onClick={() =>
-									edit("boundaries", (items) => items.filter(({ key }) => key !== row.key))
+									edit("boundaries", (current) => ({
+										definitions: current.definitions.filter(({ key }) => key !== row.key),
+										memberOf: Object.fromEntries(
+											Object.entries(current.memberOf).filter(([, key]) => key !== row.key),
+										),
+									}))
 								}
 							>
 								Remove boundary {index + 1}
@@ -435,11 +447,68 @@ function Questions({
 				})}
 				<Button
 					variant="outline"
-					onClick={() => add("boundaries", { key: 0, name: "", members: [] })}
+					onClick={() =>
+						update((state) => ({
+							...state,
+							nextKey: state.nextKey + 1,
+							answers: {
+								...state.answers,
+								boundaries: {
+									...state.answers.boundaries,
+									definitions: [
+										...state.answers.boundaries.definitions,
+										{ key: state.nextKey, name: "" },
+									],
+								},
+							},
+						}))
+					}
 				>
 					Add boundary
 				</Button>
+				{definitions.length > 0 && (
+					<fieldset className="grid gap-2 border border-editor-line p-3">
+						<legend className="px-1 text-editor-caption">Boundary membership</legend>
+						{endpoints.map(({ ref, name }) => {
+							const owner = existingBoundaries.get(ref);
+							if (owner !== undefined) {
+								return (
+									<p key={ref} className="text-editor-caption">
+										{name} stays in {owner}.
+									</p>
+								);
+							}
+							return (
+								<Field key={ref} label={`Boundary for ${name}`}>
+									{(id) => (
+										<NativeSelect
+											id={id}
+											value={memberOf[ref] ?? ""}
+											onChange={(event) => {
+												const value = event.target.value;
+												edit("boundaries", (current) => {
+													const memberOf = { ...current.memberOf };
+													if (value) memberOf[ref] = Number(value);
+													else delete memberOf[ref];
+													return { ...current, memberOf };
+												});
+											}}
+										>
+											<option value="">No boundary</option>
+											{definitions.map(({ key, name }, index) => (
+												<option key={key} value={key}>
+													{name.trim() || `Boundary ${index + 1}`}
+												</option>
+											))}
+										</NativeSelect>
+									)}
+								</Field>
+							);
+						})}
+					</fieldset>
+				)}
 			</div>
 		);
+	}
 	return null;
 }

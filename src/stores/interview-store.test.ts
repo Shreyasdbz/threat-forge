@@ -20,7 +20,7 @@ it("maps explicit reuse and new elements deterministically without writing the g
 			flows: [
 				{ key: 3, name: "Order", from: "existing:customer", to: "answer:2", data: "order, ID" },
 			],
-			boundaries: [{ key: 4, name: "Orders", members: ["answer:2"] }],
+			boundaries: { definitions: [{ key: 4, name: "Orders" }], memberOf: { "answer:2": 4 } },
 		},
 	}));
 	const draft = interview.getState().draft;
@@ -52,10 +52,13 @@ it("proposes boundaries with remaining valid members when a reference is no long
 		assets: "",
 		elements: [],
 		flows: [],
-		boundaries: [
-			{ key: 1, name: "Internal", members: ["answer:9", "existing:checkout"] },
-			{ key: 2, name: "Empty", members: ["existing:removed"] },
-		],
+		boundaries: {
+			definitions: [
+				{ key: 1, name: "Internal" },
+				{ key: 2, name: "Empty" },
+			],
+			memberOf: { "answer:9": 1, "existing:checkout": 1, "existing:removed": 2 },
+		},
 	});
 	expect(proposal.changes).toMatchObject([
 		{ kind: "boundary", value: { name: "Internal", contains: ["checkout"] }, requires: [] },
@@ -71,7 +74,10 @@ it("maps a retained boundary selection to the reused element without a create de
 		assets: "",
 		elements: [{ key: 1, role: "process", name: "Billing", reuse: "checkout" }],
 		flows: [],
-		boundaries: [{ key: 2, name: "Internal", members: ["answer:1", "existing:customer"] }],
+		boundaries: {
+			definitions: [{ key: 2, name: "Internal" }],
+			memberOf: { "existing:checkout": 2, "existing:customer": 2 },
+		},
 	});
 	expect(proposal.changes).toMatchObject([
 		{

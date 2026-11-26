@@ -8,7 +8,6 @@ import type { ThreatModel, TrustBoundary } from "@/types/threat-model";
 import {
 	buildInterviewProposal,
 	type InterviewAnswers,
-	type InterviewChange,
 	type InterviewProposal,
 } from "./interview-proposal";
 
@@ -57,31 +56,6 @@ export function selectInterviewChange(
 	return { ...review, selected };
 }
 
-export function resolveInterviewSelection(review: InterviewReview): InterviewProposal {
-	const names = new Map(review.expected.elements.map(({ id, name }) => [id, name]));
-	for (const change of review.changes) {
-		if (change.kind === "element") names.set(change.value.id, change.value.name);
-	}
-	const owners = new Map<string, string>();
-	const gaps = [...review.gaps];
-	const changes = review.changes.flatMap<InterviewChange>((change) => {
-		if (!review.selected.has(change.key)) return [];
-		if (change.kind !== "boundary") return [change];
-		const { name, contains } = change.value;
-		const members = contains.filter((id) => {
-			const owner = owners.get(id);
-			if (owner !== undefined) {
-				gaps.push(`Boundary “${name}” excludes “${names.get(id)}”, already in “${owner}”.`);
-				return false;
-			}
-			owners.set(id, name);
-			return true;
-		});
-		return members.length ? [{ ...change, value: { ...change.value, contains: members } }] : [];
-	});
-	return { changes, gaps: [...new Set(gaps)] };
-}
-
 export function applyInterviewReview(
 	stores: DocumentStores,
 	review: InterviewReview,
@@ -97,7 +71,7 @@ export function applyInterviewReview(
 	) {
 		return "The document changed. Rebuild the proposal before applying revisions.";
 	}
-	const { changes } = resolveInterviewSelection(review);
+	const changes = review.changes.filter(({ key }) => review.selected.has(key));
 	if (!changes.length) return "Select at least one addition to apply.";
 	if (changes.some(({ requires }) => requires.some((key) => !review.selected.has(key)))) {
 		return "Select the required elements before applying their dependent additions.";

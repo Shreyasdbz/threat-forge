@@ -3,12 +3,7 @@ import { readThreatModelText } from "@/lib/thf-validation";
 import { useDocumentRegistry } from "@/stores/document-registry";
 import { createDocumentStores, setActiveStores } from "@/stores/document-stores";
 import fixture from "../../tests/fixtures/thf/v1.1-sequence.thf?raw";
-import {
-	applyInterviewReview,
-	resolveInterviewSelection,
-	reviewInterview,
-	selectInterviewChange,
-} from "./interview-review";
+import { applyInterviewReview, reviewInterview, selectInterviewChange } from "./interview-review";
 
 afterEach(() => {
 	useDocumentRegistry.setState({ documents: {}, activeDocumentId: null, openDocumentIds: [] });
@@ -31,7 +26,7 @@ it("refuses cross-tab and stale previews and applies only selected additions in 
 		assets: "",
 		elements: [{ key: 1, role: "process" as const, name: "Billing", reuse: "" }],
 		flows: [{ key: 2, name: "Order", from: "existing:customer", to: "answer:1", data: "" }],
-		boundaries: [{ key: 3, name: "Internal", members: ["answer:1"] }],
+		boundaries: { definitions: [{ key: 3, name: "Internal" }], memberOf: { "answer:1": 3 } },
 	};
 	const review = reviewInterview(stores, answers);
 	if (!review) throw new Error("Missing review");
@@ -82,7 +77,10 @@ it("wraps positioned members without moving them in the diagram or exported mode
 		assets: "",
 		elements: [],
 		flows: [],
-		boundaries: [{ key: 1, name: "Internal", members: ["existing:customer", "existing:checkout"] }],
+		boundaries: {
+			definitions: [{ key: 1, name: "Internal" }],
+			memberOf: { "existing:customer": 1, "existing:checkout": 1 },
+		},
 	});
 	if (!review) throw new Error("Missing review");
 	expect(applyInterviewReview(stores, review)).toBeNull();
@@ -127,17 +125,17 @@ it("keeps members in their first boundary and discloses exclusions before applyi
 			{ key: 2, role: "process", name: "Billing", reuse: "" },
 		],
 		flows: [],
-		boundaries: [
-			{ key: 3, name: "Checkout tier", members: ["answer:1", "existing:checkout"] },
-			{ key: 4, name: "Billing tier", members: ["existing:checkout", "answer:2"] },
-		],
+		boundaries: {
+			definitions: [
+				{ key: 3, name: "Checkout tier" },
+				{ key: 4, name: "Billing tier" },
+			],
+			memberOf: { "existing:customer": 3, "existing:checkout": 3, "answer:2": 4 },
+		},
 	});
 	if (!review) throw new Error("Missing review");
-	expect(resolveInterviewSelection(review).gaps).toEqual(
-		expect.arrayContaining([
-			"Boundary “Checkout tier” excludes “Customer”, already in “Public”.",
-			"Boundary “Billing tier” excludes “Checkout”, already in “Checkout tier”.",
-		]),
+	expect(review.gaps).toContain(
+		"Boundary “Checkout tier” excludes “Customer”, already in “Public”.",
 	);
 	expect(applyInterviewReview(stores, review)).toBeNull();
 	expect(
@@ -149,7 +147,7 @@ it("keeps members in their first boundary and discloses exclusions before applyi
 	]);
 });
 
-it("reassigns a shared member when the earlier proposed boundary is unchecked", () => {
+it("retains the chosen membership when an unrelated boundary is unchecked", () => {
 	const before = readThreatModelText(fixture);
 	const registry = useDocumentRegistry.getState();
 	const id = registry.createDocument({ model: before, filePath: null, pendingLayout: null });
@@ -160,20 +158,17 @@ it("reassigns a shared member when the earlier proposed boundary is unchecked", 
 		assets: "",
 		elements: [],
 		flows: [],
-		boundaries: [
-			{ key: 1, name: "First tier", members: ["existing:checkout"] },
-			{ key: 2, name: "Second tier", members: ["existing:checkout"] },
-		],
+		boundaries: {
+			definitions: [
+				{ key: 1, name: "First tier" },
+				{ key: 2, name: "Second tier" },
+			],
+			memberOf: { "existing:customer": 1, "existing:checkout": 2 },
+		},
 	});
 	if (!review) throw new Error("Missing review");
-	expect(resolveInterviewSelection(review).changes.map(({ key }) => key)).toEqual(["boundary-1"]);
 	const secondOnly = selectInterviewChange(review, "boundary-1", false);
 	expect(secondOnly.selected).toEqual(new Set(["boundary-2"]));
-	const preview = resolveInterviewSelection(secondOnly);
-	expect(preview.changes).toMatchObject([{ key: "boundary-2", value: { contains: ["checkout"] } }]);
-	expect(preview.gaps).not.toContain(
-		"Boundary “Second tier” excludes “Checkout”, already in “First tier”.",
-	);
 	expect(applyInterviewReview(stores, secondOnly)).toBeNull();
 	expect(
 		stores.model.getState().model?.trust_boundaries.map(({ name, contains }) => [name, contains]),

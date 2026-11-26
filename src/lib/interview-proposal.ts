@@ -4,14 +4,17 @@ import type { DataFlow, Element, ThreatModel, TrustBoundary } from "@/types/thre
 export type InterviewRole = "external_entity" | "process" | "data_store";
 export type InterviewElement = { key: number; role: InterviewRole; name: string; reuse: string };
 export type InterviewFlow = { key: number; name: string; from: string; to: string; data: string };
-export type InterviewBoundary = { key: number; name: string; members: string[] };
+export type InterviewBoundary = { key: number; name: string };
 
 export interface InterviewAnswers {
 	scope: string;
 	assets: string;
 	elements: InterviewElement[];
 	flows: InterviewFlow[];
-	boundaries: InterviewBoundary[];
+	boundaries: {
+		definitions: InterviewBoundary[];
+		memberOf: Partial<Record<string, number>>;
+	};
 }
 
 export type InterviewChange = (
@@ -34,10 +37,14 @@ export function interviewElements(model: ThreatModel, answers: InterviewAnswers)
 	];
 }
 
-export function interviewBoundaryMemberRef(ref: string, elements: InterviewElement[]): string {
-	if (!ref.startsWith("answer:")) return ref;
-	const answer = elements.find(({ key }) => ref === `answer:${key}`);
-	return answer?.reuse ? `existing:${answer.reuse}` : ref;
+export function interviewExistingBoundaries(model: ThreatModel): Map<string, string> {
+	const owners = new Map<string, string>();
+	for (const { name, contains } of model.trust_boundaries) {
+		for (const id of contains) {
+			if (!owners.has(`existing:${id}`)) owners.set(`existing:${id}`, name);
+		}
+	}
+	return owners;
 }
 
 export function buildInterviewProposal(
@@ -67,7 +74,7 @@ export function buildInterviewProposal(
 	if (!answers.elements.some(({ role }) => role === "data_store"))
 		gaps.push("Stores not answered.");
 	if (!answers.flows.length) gaps.push("Directional flows not answered.");
-	if (!answers.boundaries.length) gaps.push("Trust boundaries not answered.");
+	if (!answers.boundaries.definitions.length) gaps.push("Trust boundaries not answered.");
 
 	for (const answer of answers.elements) {
 		if (answer.reuse) {
@@ -118,26 +125,25 @@ export function buildInterviewProposal(
 			},
 		});
 	}
-	const ownerByMember = new Map<string, string>();
-	for (const boundary of model.trust_boundaries) {
-		for (const id of boundary.contains) {
-			if (!ownerByMember.has(id)) ownerByMember.set(id, boundary.name);
-		}
-	}
-	for (const answer of answers.boundaries) {
+	const existingBoundaries = interviewExistingBoundaries(model);
+	for (const answer of answers.boundaries.definitions) {
 		const name = answer.name.trim();
-		const resolved = answer.members.flatMap(
-			(ref) => refs.get(interviewBoundaryMemberRef(ref, answers.elements)) ?? [],
+		const requested = Object.entries(answers.boundaries.memberOf).flatMap(([ref, key]) =>
+			key === answer.key ? [ref] : [],
 		);
+		const resolved = requested.flatMap((ref) => {
+			const member = refs.get(ref);
+			return member ? [{ ref, ...member }] : [];
+		});
 		if (!name || !resolved.length) {
 			gaps.push("A boundary needs a name and valid members.");
 			continue;
 		}
-		if (resolved.length !== answer.members.length) {
+		if (resolved.length !== requested.length) {
 			gaps.push(`Boundary “${name}” has unavailable members.`);
 		}
 		const members = resolved.filter((member) => {
-			const owner = ownerByMember.get(member.id);
+			const owner = existingBoundaries.get(member.ref);
 			if (owner === undefined) return true;
 			gaps.push(`Boundary “${name}” excludes “${member.name}”, already in “${owner}”.`);
 			return false;

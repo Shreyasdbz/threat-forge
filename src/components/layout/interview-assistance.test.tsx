@@ -16,7 +16,7 @@ const answers = {
 	assets: "Private inventory",
 	elements: [],
 	flows: [],
-	boundaries: [],
+	boundaries: { definitions: [], memberOf: {} },
 };
 
 beforeEach(() => {
@@ -28,6 +28,7 @@ afterEach(cleanup);
 function openConsent(stillCurrent = () => true) {
 	render(<InterviewAssistance answers={answers} stillCurrent={stillCurrent} />);
 	fireEvent.click(screen.getByRole("button", { name: "Optional AI follow-up" }));
+	expect(screen.getByRole("checkbox", { name: "Trust boundaries" })).toBeDisabled();
 	const send = screen.getByRole("button", { name: /^Send selected answers to / });
 	expect(send).toBeDisabled();
 	fireEvent.click(screen.getByRole("checkbox", { name: "System scope" }));

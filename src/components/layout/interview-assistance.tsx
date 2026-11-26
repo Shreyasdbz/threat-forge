@@ -86,7 +86,10 @@ export function InterviewAssistance({
 					<input
 						type="checkbox"
 						checked={selected.has(key)}
-						disabled={pending || !answers[key].length}
+						disabled={
+							pending ||
+							!(key === "boundaries" ? answers.boundaries.definitions : answers[key]).length
+						}
 						onChange={(event) => {
 							const next = new Set(selected);
 							if (event.target.checked) next.add(key);
