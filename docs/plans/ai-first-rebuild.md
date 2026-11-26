@@ -83,6 +83,12 @@ behavior; otherwise defer it. Publish the behavior-preserving refactors separate
 The owner authorized tracking this work under #368; Project 2 is inaccessible
 from this environment, so the board claim could not be recorded.
 
+### 2026-11-26 follow-on — sequence diagrams and guided interviews (#368)
+
+The earlier visual-flow scope and baselines are unchanged. The separate
+[sequence and interview plan](./368-sequence-and-interview.md) defines the proposed
+feature scope, compatibility gates and execution sub-issues.
+
 ## Existing branch overlap
 
 - `codex/distribution-signing` adds signing workflows, verification scripts, and
