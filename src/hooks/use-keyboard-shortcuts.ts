@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { buildLayoutFromModel } from "@/lib/model-layout-utils";
+import { showingSequence } from "@/lib/sequence-views";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useClipboardStore } from "@/stores/clipboard-store";
@@ -16,6 +17,7 @@ export function useKeyboardShortcuts() {
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
 			const mod = e.metaKey || e.ctrlKey;
+			const sequenceActive = showingSequence(useModelStore.getState());
 
 			// Non-modifier shortcuts (only when not focused in an input)
 			const active = document.activeElement;
@@ -34,6 +36,7 @@ export function useKeyboardShortcuts() {
 						return;
 					case "Delete":
 					case "Backspace":
+						if (sequenceActive) return;
 						e.preventDefault();
 						useCanvasStore.getState().deleteSelected();
 						return;
@@ -77,6 +80,7 @@ export function useKeyboardShortcuts() {
 					case "ArrowLeft":
 					case "ArrowRight": {
 						if (
+							sequenceActive ||
 							e.defaultPrevented ||
 							(active !== document.body && !active?.closest(".react-flow"))
 						) {
@@ -219,25 +223,25 @@ export function useKeyboardShortcuts() {
 					useSettingsStore.getState().openSettingsDialog();
 					break;
 				case "a":
-					if (!isInputFocused) {
+					if (!isInputFocused && !sequenceActive) {
 						e.preventDefault();
 						useClipboardStore.getState().selectAll();
 					}
 					break;
 				case "c":
-					if (!isInputFocused) {
+					if (!isInputFocused && !sequenceActive) {
 						e.preventDefault();
 						useClipboardStore.getState().copySelected();
 					}
 					break;
 				case "x":
-					if (!isInputFocused) {
+					if (!isInputFocused && !sequenceActive) {
 						e.preventDefault();
 						useClipboardStore.getState().cutSelected();
 					}
 					break;
 				case "v":
-					if (!isInputFocused) {
+					if (!isInputFocused && !sequenceActive) {
 						e.preventDefault();
 						useClipboardStore.getState().paste();
 					}

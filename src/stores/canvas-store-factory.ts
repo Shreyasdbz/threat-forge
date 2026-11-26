@@ -284,26 +284,24 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 		},
 
 		onEdgesChange: (changes) => {
-			const prevEdges = get().edges;
-			const nextEdges = applyEdgeChanges(changes, prevEdges) as DfdEdge[];
-			set({ edges: nextEdges });
-
-			// Handle edge removal — remove from model store
 			const removals = changes.filter(
 				(c): c is Extract<typeof c, { type: "remove" }> => c.type === "remove",
 			);
 			if (removals.length > 0) {
-				const model = deps.model.getState().model;
+				const { model, filePath, checkSequenceReferences } = deps.model.getState();
 				if (model) {
-					deps.history.getState().pushSnapshot(model);
 					const removedIds = new Set(removals.map((r) => r.id));
-					const updatedFlows = model.data_flows.filter((f) => !removedIds.has(f.id));
-					deps.model
-						.getState()
-						.setModel({ ...model, data_flows: updatedFlows }, deps.model.getState().filePath);
+					const proposed = {
+						...model,
+						data_flows: model.data_flows.filter((f) => !removedIds.has(f.id)),
+					};
+					if (!checkSequenceReferences(proposed)) return;
+					deps.history.getState().pushSnapshot(model);
+					deps.model.getState().setModel(proposed, filePath);
 					deps.model.getState().markDirty();
 				}
 			}
+			set({ edges: applyEdgeChanges(changes, get().edges) });
 		},
 
 		setViewport: (viewport) => set({ viewport }),
@@ -494,6 +492,19 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 
 			const selectedNodeIds = new Set(selectedNodes.map((n) => n.id));
 			const selectedEdgeIds = new Set(selectedEdges.map((e) => e.id));
+			const { model, filePath, checkSequenceReferences } = deps.model.getState();
+			const proposed =
+				model &&
+				removeGraphItems(model, {
+					elements: new Set(
+						selectedNodes.filter((n) => n.type !== "trustBoundary").map((n) => n.id),
+					),
+					boundaries: new Set(
+						selectedNodes.filter((n) => n.type === "trustBoundary").map((n) => n.id),
+					),
+					flows: selectedEdgeIds,
+				});
+			if (proposed && !checkSequenceReferences(proposed)) return;
 
 			// Find all edges to remove: explicitly selected + connected to removed nodes
 			const connectedEdgeIds = currentEdges
@@ -508,21 +519,9 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			set({ nodes: nextNodes, edges: nextEdges });
 
 			// Update model store
-			const model = deps.model.getState().model;
-			if (model) {
+			if (model && proposed) {
 				deps.history.getState().pushSnapshot(model);
-				deps.model.getState().setModel(
-					removeGraphItems(model, {
-						elements: new Set(
-							selectedNodes.filter((n) => n.type !== "trustBoundary").map((n) => n.id),
-						),
-						boundaries: new Set(
-							selectedNodes.filter((n) => n.type === "trustBoundary").map((n) => n.id),
-						),
-						flows: selectedEdgeIds,
-					}),
-					deps.model.getState().filePath,
-				);
+				deps.model.getState().setModel(proposed, filePath);
 				deps.model.getState().markDirty();
 				deps.model.getState().setSelectedElement(null);
 			}
@@ -573,8 +572,6 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			const flow = model.data_flows.find((f) => f.id === edgeId);
 			if (!flow) return;
 
-			deps.history.getState().pushSnapshot(model);
-
 			// Update model: swap from/to and handles (use direct set to preserve selection state)
 			const updatedFlows = model.data_flows.map((f) =>
 				f.id === edgeId
@@ -587,8 +584,11 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 						}
 					: f,
 			);
+			const proposed = { ...model, data_flows: updatedFlows };
+			if (!deps.model.getState().checkSequenceReferences(proposed)) return;
+			deps.history.getState().pushSnapshot(model);
 			deps.model.setState({
-				model: { ...model, data_flows: updatedFlows },
+				model: proposed,
 				isDirty: true,
 			});
 
@@ -616,8 +616,6 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			const flow = model.data_flows.find((f) => f.id === oldEdge.id);
 			if (!flow) return;
 
-			deps.history.getState().pushSnapshot(model);
-
 			// Update model data_flows
 			const updatedFlows = model.data_flows.map((f) =>
 				f.id === oldEdge.id
@@ -630,8 +628,11 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 						}
 					: f,
 			);
+			const proposed = { ...model, data_flows: updatedFlows };
+			if (!deps.model.getState().checkSequenceReferences(proposed)) return;
+			deps.history.getState().pushSnapshot(model);
 			deps.model.setState({
-				model: { ...model, data_flows: updatedFlows },
+				model: proposed,
 				isDirty: true,
 			});
 

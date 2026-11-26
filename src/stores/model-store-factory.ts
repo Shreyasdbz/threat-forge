@@ -1,7 +1,13 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { getStrideAdapter } from "@/lib/adapters/get-stride-adapter";
+import {
+	assertSequencePromotionAllowed,
+	ThfValidationError,
+	validateSequences,
+} from "@/lib/thf-validation";
 import type {
 	DataFlow,
+	Diagram,
 	Element,
 	Metadata,
 	Threat,
@@ -30,6 +36,8 @@ export interface ModelState {
 	selectedThreatId: string | null;
 	/** Whether STRIDE analysis is running */
 	isAnalyzing: boolean;
+	selectedSequenceId: string | null;
+	sequenceError: string | null;
 
 	// Actions
 	setModel: (
@@ -45,6 +53,9 @@ export interface ModelState {
 	setSelectedEdge: (id: string | null) => void;
 	setSelectedBoundary: (id: string | null) => void;
 	setSelectedThreat: (id: string | null) => void;
+	selectSequence: (id: string | null) => void;
+	editSequenceDiagrams: (diagrams: Diagram[]) => boolean;
+	checkSequenceReferences: (proposed: ThreatModel) => boolean;
 
 	// Metadata editing
 	updateMetadata: (updates: Partial<Metadata>) => void;
@@ -125,6 +136,8 @@ export function createModelStore(deps: ModelStoreDeps): StoreApi<ModelState> {
 		selectedBoundaryId: null,
 		selectedThreatId: null,
 		isAnalyzing: false,
+		selectedSequenceId: null,
+		sequenceError: null,
 
 		setModel: (model, filePath, fileRevision, sourceYaml) =>
 			set((state) => ({
@@ -157,7 +170,40 @@ export function createModelStore(deps: ModelStoreDeps): StoreApi<ModelState> {
 				selectedEdgeId: null,
 				selectedBoundaryId: null,
 				selectedThreatId: null,
+				selectedSequenceId: null,
+				sequenceError: null,
 			}),
+
+		selectSequence: (id) => set({ selectedSequenceId: id, sequenceError: null }),
+		editSequenceDiagrams: (diagrams) => {
+			const { model, sourceYaml } = get();
+			if (!model) return false;
+			try {
+				assertSequencePromotionAllowed(model, sourceYaml);
+				const proposed = { ...model, version: "1.1", diagrams };
+				validateSequences(proposed);
+				captureHistory(model);
+				set({ model: proposed, isDirty: true, sequenceError: null });
+				return true;
+			} catch (error) {
+				if (!(error instanceof ThfValidationError)) throw error;
+				set({ sequenceError: error.message });
+				return false;
+			}
+		},
+		checkSequenceReferences: (proposed) => {
+			try {
+				validateSequences(proposed);
+				if (get().sequenceError) set({ sequenceError: null });
+				return true;
+			} catch (error) {
+				if (!(error instanceof ThfValidationError)) throw error;
+				set({
+					sequenceError: `Graph edit refused. ${error.message} Unlink or remove the sequence reference first.`,
+				});
+				return false;
+			}
+		},
 
 		markDirty: () => set({ isDirty: true }),
 		markClean: () => set({ isDirty: false }),
@@ -219,10 +265,16 @@ export function createModelStore(deps: ModelStoreDeps): StoreApi<ModelState> {
 			const { model } = get();
 			if (!model) return;
 
-			captureHistoryDebounced(model, `flow:${id}`);
 			const updatedFlows = model.data_flows.map((f) => (f.id === id ? { ...f, ...updates } : f));
+			const proposed = { ...model, data_flows: updatedFlows };
+			if (
+				(updates.from !== undefined || updates.to !== undefined) &&
+				!get().checkSequenceReferences(proposed)
+			)
+				return;
+			captureHistoryDebounced(model, `flow:${id}`);
 			set({
-				model: { ...model, data_flows: updatedFlows },
+				model: proposed,
 				isDirty: true,
 			});
 		},

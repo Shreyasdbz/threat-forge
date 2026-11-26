@@ -15,32 +15,77 @@ import { Button } from "@/components/ui/button";
 import { useFileOperations } from "@/hooks/use-file-operations";
 import { buildLayoutFromModel } from "@/lib/model-layout-utils";
 import { openExternalUrl } from "@/lib/platform";
+import { sequenceDiagrams } from "@/lib/sequence-views";
 import { loadTemplate, TEMPLATES, type TemplateInfo } from "@/lib/templates";
 import { TIPS } from "@/lib/tips";
 import { useDocumentRegistry } from "@/stores/document-registry";
 import { useModelStore } from "@/stores/model-store";
 import { useSettingsStore } from "@/stores/settings-store";
+import { useUiStore } from "@/stores/ui-store";
+import { SequenceEditor } from "./sequence-editor";
 
 const LazyDfdCanvas = lazy(() => import("./dfd-canvas").then((m) => ({ default: m.DfdCanvas })));
 
 export function Canvas() {
 	const model = useModelStore((s) => s.model);
+	const selectedSequenceId = useModelStore((s) => s.selectedSequenceId);
+	const selectSequence = useModelStore((s) => s.selectSequence);
+	const editDiagrams = useModelStore((s) => s.editSequenceDiagrams);
+	const sequenceError = useModelStore((s) => s.sequenceError);
 
 	if (!model) {
 		return <EmptyCanvas />;
 	}
 
+	const sequences = sequenceDiagrams(model);
+	const active = sequences.find((diagram) => diagram.id === selectedSequenceId);
 	return (
 		<div data-testid="canvas-area" className="h-full w-full">
-			<Suspense
-				fallback={
-					<div className="flex h-full items-center justify-center text-editor-body text-muted-foreground">
-						Loading canvas...
+			<div className="relative h-full w-full">
+				{sequenceError && (
+					<div
+						role="alert"
+						className="absolute top-2 right-2 z-10 max-w-sm border border-destructive bg-editor-surface p-2 text-editor-caption"
+					>
+						{sequenceError}
 					</div>
-				}
-			>
-				<LazyDfdCanvas />
-			</Suspense>
+				)}
+				<div className={active ? "invisible h-full w-full" : "h-full w-full"} inert={!!active}>
+					<Suspense
+						fallback={
+							<div className="flex h-full items-center justify-center text-editor-body text-muted-foreground">
+								Loading canvas...
+							</div>
+						}
+					>
+						<LazyDfdCanvas />
+					</Suspense>
+				</div>
+				{active && (
+					<div className="absolute inset-0">
+						<SequenceEditor
+							key={active.id}
+							diagram={active}
+							model={model}
+							onChange={(diagram) =>
+								editDiagrams(
+									model.diagrams.map((entry) => (entry.id === active.id ? diagram : entry)),
+								)
+							}
+							onDelete={() => {
+								if (editDiagrams(model.diagrams.filter((entry) => entry.id !== active.id)))
+									selectSequence(null);
+							}}
+							onOpenFlow={(id) => {
+								selectSequence(null);
+								useModelStore.getState().setSelectedEdge(id);
+								if (!useUiStore.getState().rightPanelOpen) useUiStore.getState().toggleRightPanel();
+								useUiStore.getState().setRightPanelTab("threats");
+							}}
+						/>
+					</div>
+				)}
+			</div>
 		</div>
 	);
 }

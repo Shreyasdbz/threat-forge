@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { buildLayoutFromModel } from "@/lib/model-layout-utils";
 import { isTauri } from "@/lib/platform";
+import { showingSequence } from "@/lib/sequence-views";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useClipboardStore } from "@/stores/clipboard-store";
@@ -113,7 +114,7 @@ export function useNativeMenu() {
 							} else if (action === "edit-paste") {
 								document.execCommand("paste");
 							}
-						} else {
+						} else if (!showingSequence(useModelStore.getState())) {
 							if (action === "edit-select-all") {
 								useClipboardStore.getState().selectAll();
 							} else if (action === "edit-copy") {
@@ -127,7 +128,8 @@ export function useNativeMenu() {
 						break;
 					}
 					case "edit-delete":
-						useCanvasStore.getState().deleteSelected();
+						if (!showingSequence(useModelStore.getState()))
+							useCanvasStore.getState().deleteSelected();
 						break;
 
 					// View

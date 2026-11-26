@@ -114,7 +114,7 @@ export function validateThreatModel(model: ThreatModel): ThreatModel {
 	}
 	validateThreatModelVersion(requireString(model.version, "version"));
 	validateReferences(model);
-	if (model.version === "1.1") validateSequences(model);
+	validateSequences(model);
 	return model;
 }
 
@@ -144,7 +144,8 @@ export function assertSequencePromotionAllowed(model: ThreatModel, sourceYaml?: 
 	}
 }
 
-function validateSequences(model: ThreatModel): void {
+export function validateSequences(model: ThreatModel): void {
+	if (model.version !== "1.1") return;
 	const diagrams = model.diagrams.map((diagram, index) => asRecord(diagram, `diagrams[${index}]`));
 	const diagramIds = diagrams.map((diagram, index) =>
 		requireString(diagram.id, `diagrams[${index}].id`),

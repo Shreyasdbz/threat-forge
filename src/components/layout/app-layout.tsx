@@ -28,6 +28,7 @@ import { KeyboardShortcutsDialog } from "../panels/keyboard-shortcuts-dialog";
 import { RightPanel } from "../panels/right-panel";
 import { SettingsDialog } from "../panels/settings-dialog";
 import { ResizeHandle } from "../ui/resize-handle";
+import { DiagramViewControl } from "./diagram-view-control";
 import { DocumentTabStrip } from "./document-tab-strip";
 import { StatusBar } from "./status-bar";
 import { TopMenuBar } from "./top-menu-bar";
@@ -146,7 +147,12 @@ export function AppLayout() {
 					    the tablist controls. The role/labelling go on the wrapper, not on <main>, so the
 					    main landmark survives (`#54` D4). */}
 						<main className="flex min-h-80 min-w-0 flex-1 flex-col overflow-hidden md:min-h-0">
-							<DocumentTabStrip />
+							<div className="flex shrink-0 bg-editor-surface">
+								<div className="min-w-0 flex-1">
+									<DocumentTabStrip />
+								</div>
+								<DiagramViewControl />
+							</div>
 							<div
 								className="flex-1 overflow-hidden"
 								{...(activeDocumentId

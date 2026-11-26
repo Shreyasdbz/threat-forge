@@ -48,6 +48,7 @@ const MITIGATION_STATUSES: MitigationStatus[] = [
 export function ThreatsTab() {
 	const model = useModelStore((s) => s.model);
 	const selectedElementId = useModelStore((s) => s.selectedElementId);
+	const selectedEdgeId = useModelStore((s) => s.selectedEdgeId);
 	const selectedThreatId = useModelStore((s) => s.selectedThreatId);
 	const setSelectedThreat = useModelStore((s) => s.setSelectedThreat);
 	const isAnalyzing = useModelStore((s) => s.isAnalyzing);
@@ -60,13 +61,18 @@ export function ThreatsTab() {
 
 	const hasElements = model.elements.length > 0;
 	const threats =
-		filterByElement && selectedElementId
-			? model.threats.filter((t) => t.element === selectedElementId || t.flow === selectedElementId)
-			: model.threats;
+		filterByElement && selectedEdgeId
+			? model.threats.filter((t) => t.flow === selectedEdgeId)
+			: filterByElement && selectedElementId
+				? model.threats.filter(
+						(t) => t.element === selectedElementId || t.flow === selectedElementId,
+					)
+				: model.threats;
 
 	const selectedElement = selectedElementId
 		? model.elements.find((e) => e.id === selectedElementId)
 		: null;
+	const selectedFlow = model.data_flows.find((flow) => flow.id === selectedEdgeId);
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -94,7 +100,7 @@ export function ThreatsTab() {
 			</Button>
 
 			{/* Filter toggle when element is selected */}
-			{selectedElement && model.threats.length > 0 && (
+			{(selectedElement || selectedFlow) && model.threats.length > 0 && (
 				<button
 					type="button"
 					onClick={() => setFilterByElement(!filterByElement)}
@@ -102,8 +108,10 @@ export function ThreatsTab() {
 				>
 					<Shield className="h-3 w-3" />
 					{filterByElement
-						? `Showing threats for "${selectedElement.name}"`
-						: "Filter by selected element"}
+						? `Showing threats for "${selectedElement?.name ?? selectedFlow?.name}"`
+						: selectedFlow
+							? "Filter by selected flow"
+							: "Filter by selected element"}
 				</button>
 			)}
 
