@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { buildLayoutFromModel } from "@/lib/model-layout-utils";
 import { isTauri } from "@/lib/platform";
 import { showingSequence } from "@/lib/sequence-views";
+import { isTextEditing } from "@/lib/text-editing";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useClipboardStore } from "@/stores/clipboard-store";
@@ -39,11 +40,6 @@ export function useNativeMenu() {
 				const graphHidden =
 					getActiveStores().interview.getState().visible ||
 					showingSequence(useModelStore.getState());
-				const el = document.activeElement;
-				const isText =
-					el instanceof HTMLInputElement ||
-					el instanceof HTMLTextAreaElement ||
-					(el instanceof HTMLElement && el.isContentEditable);
 
 				switch (action) {
 					// File
@@ -71,7 +67,7 @@ export function useNativeMenu() {
 
 					// Edit
 					case "edit-undo": {
-						if (isText) {
+						if (isTextEditing(document.activeElement)) {
 							document.execCommand("undo");
 							break;
 						}
@@ -87,7 +83,7 @@ export function useNativeMenu() {
 						break;
 					}
 					case "edit-redo": {
-						if (isText) {
+						if (isTextEditing(document.activeElement)) {
 							document.execCommand("redo");
 							break;
 						}
@@ -111,6 +107,12 @@ export function useNativeMenu() {
 						// native menu intercepts the keystroke at the OS level, so
 						// the webview never sees the keydown — we trigger text ops
 						// manually here.
+						const el = document.activeElement;
+						const isText =
+							el instanceof HTMLInputElement ||
+							el instanceof HTMLTextAreaElement ||
+							(el instanceof HTMLElement && el.isContentEditable);
+
 						if (isText) {
 							if (action === "edit-select-all") {
 								if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {

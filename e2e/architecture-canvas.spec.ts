@@ -10,6 +10,20 @@ test.beforeEach(async ({ page }) => {
 	await openDocument(page, "tests/fixtures/thf/architecture-canonical-full.thf");
 });
 
+test("document undo and redo work with the flow authentication checkbox focused", async ({
+	page,
+}) => {
+	await page.getByTestId("flow-label-flow-1").click();
+	const authenticated = page.getByRole("checkbox", { name: "Authenticated" });
+	await expect(authenticated).toBeChecked();
+	await authenticated.uncheck();
+	await expect(authenticated).toBeFocused();
+	await authenticated.press("ControlOrMeta+z");
+	await expect(authenticated).toBeChecked();
+	await authenticated.press("ControlOrMeta+Shift+z");
+	await expect(authenticated).not.toBeChecked();
+});
+
 test("fits equal-width icon-only inspector tabs at the default panel width", async ({ page }) => {
 	const tabs = page.getByRole("tablist", { name: "Inspector" }).getByRole("tab");
 	await expect(tabs).toHaveCount(4);

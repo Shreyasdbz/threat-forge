@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { buildLayoutFromModel } from "@/lib/model-layout-utils";
 import { showingSequence } from "@/lib/sequence-views";
+import { isTextEditing } from "@/lib/text-editing";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useClipboardStore } from "@/stores/clipboard-store";
@@ -131,7 +132,7 @@ export function useKeyboardShortcuts() {
 					}
 					break;
 				case "z": {
-					if (isInputFocused) break;
+					if (isTextEditing(active)) break;
 					e.preventDefault();
 					const currentModel = useModelStore.getState().model;
 					if (!currentModel) break;
@@ -157,7 +158,7 @@ export function useKeyboardShortcuts() {
 					break;
 				}
 				case "y": {
-					if (isInputFocused) break;
+					if (isTextEditing(active)) break;
 					// Redo alternative (Cmd+Y)
 					e.preventDefault();
 					const currentModel = useModelStore.getState().model;
