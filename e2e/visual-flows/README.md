@@ -18,8 +18,19 @@ the assertions; it does not replace them.
    include diagram geometry, and use the smallest meaningful locator crop. The checkpoint
    waits for local fonts and disables animations. Don't use sleeps, broad masking, or global
    screenshot tolerances to hide nondeterminism.
-4. Keep the initial suite within 18 flow baselines and under 60 seconds of added hosted E2E
-   time. Add a second theme only when it proves something the primary view doesn't.
+4. The original architecture and threat-modeling flows use 15 baselines. Sequence and
+   interview add four checkpoints with a separate budget of at most 30 seconds of summed
+   hosted test durations. Add a second theme baseline only when it proves something the
+   primary view doesn't.
+
+## Sequence and interview coverage
+
+- `sequence.spec.ts` reorders an annotation and linked message, saves, reopens, and
+  verifies the sequence presentation renders. The stdio and export-parity suites test
+  revision, layout, and browser/MCP SVG and PNG bytes separately.
+- `interview.spec.ts` reviews an offline proposal including a directional flow and its
+  dependency, applies it, then runs STRIDE as a separate action. The functional
+  `../interview.spec.ts` verifies undo, reopen, and consent/cancellation without extra PNGs.
 
 ## Review or update a baseline
 
