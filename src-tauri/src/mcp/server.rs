@@ -24,7 +24,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::models::{
-    DataFlow, Element, Severity, StrideCategory, Threat, ThreatModel, TrustBoundary,
+    DataFlow, Diagram, Element, SequenceMessage, SequenceParticipant, SequenceView, Severity,
+    StrideCategory, Threat, ThreatModel, TrustBoundary,
 };
 
 /// JSON-RPC internal error code.
@@ -254,6 +255,9 @@ enum Mutation {
     MoveNode(MoveRequest),
     ResizeNode(ResizeRequest),
     AutoLayout(GetModelRequest),
+    CreateSequenceView(SequenceEditRequest),
+    UpdateSequenceView(SequenceEditRequest),
+    DeleteSequenceView(SequenceReadId),
 }
 
 impl Mutation {
@@ -327,6 +331,13 @@ impl Mutation {
                 layout::arrange(model);
                 Ok("Arranged the diagram.".into())
             }
+            Self::CreateSequenceView(req) => req.apply(model, true),
+            Self::UpdateSequenceView(req) => req.apply(model, false),
+            Self::DeleteSequenceView(req) => {
+                let index = sequence_index(model, &req.diagram_id)?;
+                model.diagrams.remove(index);
+                Ok(format!("Deleted sequence view: {}", req.diagram_id))
+            }
         }
     }
 }
@@ -366,6 +377,113 @@ struct ExportRequest {
         description = "Optional workspace-relative output path with the matching extension"
     )]
     path: Option<PathBuf>,
+    #[schemars(description = "Optional diagram ID. Omit to render the graph.")]
+    diagram_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct SequenceReadId {
+    diagram_id: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct SequenceReadRequest {
+    diagram_id: String,
+    offset: Option<usize>,
+    limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct SequenceEditRequest {
+    diagram_id: String,
+    name: String,
+    participants: Vec<SequenceParticipantRequest>,
+    messages: Vec<SequenceMessageRequest>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct SequenceParticipantRequest {
+    id: String,
+    element_id: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct SequenceMessageRequest {
+    id: String,
+    from: String,
+    to: String,
+    label: String,
+    flow_id: Option<String>,
+}
+
+impl SequenceEditRequest {
+    fn apply(self, model: &mut ThreatModel, create: bool) -> Result<String, ErrorData> {
+        if self.name.trim().is_empty() {
+            return Err(mcp_err("A sequence view needs a name."));
+        }
+        let sequence = SequenceView {
+            participants: self
+                .participants
+                .into_iter()
+                .map(|row| SequenceParticipant {
+                    id: row.id,
+                    element_id: row.element_id,
+                })
+                .collect(),
+            messages: self
+                .messages
+                .into_iter()
+                .map(|row| SequenceMessage {
+                    id: row.id,
+                    from: row.from,
+                    to: row.to,
+                    label: row.label,
+                    flow_id: row.flow_id,
+                })
+                .collect(),
+        };
+        if create {
+            if model
+                .diagrams
+                .iter()
+                .any(|diagram| diagram.id == self.diagram_id)
+            {
+                return Err(mcp_err(format!(
+                    "Diagram ID already exists: {}",
+                    self.diagram_id
+                )));
+            }
+            let id = self.diagram_id;
+            model.diagrams.push(Diagram {
+                id: id.clone(),
+                name: self.name,
+                kind: Some("sequence".into()),
+                description: None,
+                layout_file: None,
+                viewport: None,
+                sequence: Some(sequence),
+            });
+            model.version = "1.1".into();
+            Ok(format!("Created sequence view: {id}"))
+        } else {
+            let index = sequence_index(model, &self.diagram_id)?;
+            model.diagrams[index].name = self.name;
+            model.diagrams[index].sequence = Some(sequence);
+            Ok(format!("Updated sequence view: {}", self.diagram_id))
+        }
+    }
+}
+
+fn sequence_index(model: &ThreatModel, diagram_id: &str) -> Result<usize, ErrorData> {
+    (model.version == "1.1")
+        .then(|| {
+            model
+                .diagrams
+                .iter()
+                .position(|diagram| diagram.id == diagram_id && diagram.sequence.is_some())
+        })
+        .flatten()
+        .ok_or_else(|| mcp_err(format!("Sequence view not found: {diagram_id}")))
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -535,14 +653,21 @@ impl ThreatForgeServer {
                 "A batch must contain between 1 and 100 operations.",
             ));
         }
-        let (
-            path,
-            DocumentSnapshot {
-                mut model,
-                revision,
-                ..
-            },
-        ) = self.read_target()?;
+        let (path, snapshot) = self.read_target()?;
+        if req
+            .operations
+            .iter()
+            .any(|op| matches!(op, Mutation::CreateSequenceView(_)))
+        {
+            snapshot
+                .validate_sequence_promotion("1.1")
+                .map_err(|error| mcp_err(error.user_message()))?;
+        }
+        let DocumentSnapshot {
+            mut model,
+            revision,
+            ..
+        } = snapshot;
         let layouts = path.read_layouts(&model);
         let path = path.path();
         let document_token = document_revision(path, &revision);
@@ -819,6 +944,42 @@ impl ThreatForgeServer {
         Ok(text_result(json))
     }
 
+    #[tool(
+        description = "Read ordered lifelines and messages for a typed sequence view by diagram ID. Offset and limit page each list (limit defaults to 50, maximum 200)."
+    )]
+    async fn get_sequence_view(
+        &self,
+        Parameters(req): Parameters<SequenceReadRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let (_, snapshot) = self.read()?;
+        let index = sequence_index(&snapshot.model, &req.diagram_id)?;
+        let diagram = &snapshot.model.diagrams[index];
+        let sequence = diagram
+            .sequence
+            .as_ref()
+            .ok_or_else(|| mcp_err("Sequence view not found."))?;
+        let limit = req.limit.unwrap_or(50);
+        if !(1..=MAX_RESULTS).contains(&limit) {
+            return Err(mcp_err(format!(
+                "Sequence read limit must be between 1 and {MAX_RESULTS}."
+            )));
+        }
+        let offset = req.offset.unwrap_or(0);
+        fn page<T>(rows: &[T], offset: usize, limit: usize) -> &[T] {
+            let start = offset.min(rows.len());
+            let end = start.saturating_add(limit).min(rows.len());
+            &rows[start..end]
+        }
+        json_result(serde_json::json!({
+            "diagram_id": diagram.id,
+            "name": diagram.name,
+            "participant_count": sequence.participants.len(),
+            "message_count": sequence.messages.len(),
+            "participants": page(&sequence.participants, offset, limit),
+            "messages": page(&sequence.messages, offset, limit),
+        }))
+    }
+
     #[tool(description = "List all elements in the threat model with their IDs, types, and names.")]
     async fn list_elements(
         &self,
@@ -960,7 +1121,7 @@ impl ThreatForgeServer {
         tokio::task::spawn_blocking(move || {
             let mut model = snapshot.model;
             model_target.read_layouts(&model).merge_into(&mut model);
-            let scene = Scene::from_model(&model).map_err(mcp_err)?;
+            let scene = Scene::select(&model, req.diagram_id.as_deref()).map_err(mcp_err)?;
             let svg = (!raster)
                 .then(|| scene.svg())
                 .transpose()
@@ -1355,7 +1516,7 @@ mod tests {
 
     /// The tool names external assistants bind to. Renaming or dropping one is a
     /// breaking change for every already-configured MCP client.
-    const EXPECTED_TOOL_NAMES: [&str; 27] = [
+    const EXPECTED_TOOL_NAMES: [&str; 28] = [
         "add_data_flow",
         "add_element",
         "add_threat",
@@ -1371,6 +1532,7 @@ mod tests {
         "export_png",
         "export_svg",
         "get_model",
+        "get_sequence_view",
         "list_documents",
         "list_elements",
         "list_threats",

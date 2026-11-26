@@ -126,9 +126,14 @@ pub enum DiagramFormat {
 }
 
 #[tauri::command]
-pub async fn render_diagram(model: ThreatModel) -> Result<String, String> {
+pub async fn render_diagram(
+    model: ThreatModel,
+    diagram_id: Option<String>,
+) -> Result<String, String> {
     file_io::validate_model(&model).map_err(|error| error.user_message())?;
-    Scene::from_model(&model)?.svg().map_err(String::from)
+    Scene::select(&model, diagram_id.as_deref())?
+        .svg()
+        .map_err(String::from)
 }
 
 #[tauri::command]
@@ -137,13 +142,14 @@ pub async fn export_diagram(
     model: ThreatModel,
     format: DiagramFormat,
     default_name: String,
+    diagram_id: Option<String>,
 ) -> Result<Option<PathBuf>, String> {
     let extension = match format {
         DiagramFormat::Svg => "svg",
         DiagramFormat::Png => "png",
     };
     file_io::validate_model(&model).map_err(|error| error.user_message())?;
-    let scene = Scene::from_model(&model)?;
+    let scene = Scene::select(&model, diagram_id.as_deref())?;
     let bytes = match format {
         DiagramFormat::Svg => scene.svg()?.into_bytes(),
         DiagramFormat::Png => scene.png()?,

@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { useFileOperations } from "@/hooks/use-file-operations";
 import { documentDisplayTitle } from "@/lib/document-display-title";
 import { captureCanvasIntoModel } from "@/lib/model-capture";
+import { sequenceDiagrams } from "@/lib/sequence-views";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useModelStore } from "@/stores/model-store";
 import { useSettingsStore } from "@/stores/settings-store";
@@ -41,7 +42,7 @@ export function TopMenuBar() {
 		useFileOperations();
 	const [guidePickerOpen, setGuidePickerOpen] = useState(false);
 	const [editingTitle, setEditingTitle] = useState(false);
-	const [presentation, setPresentation] = useState<ThreatModel>();
+	const [presentation, setPresentation] = useState<{ model: ThreatModel; diagramId?: string }>();
 	const titleInputRef = useRef<HTMLInputElement>(null);
 
 	// Show file basename when saved, otherwise model title — from the shared helper so the tab,
@@ -134,10 +135,13 @@ export function TopMenuBar() {
 					icon={IconPresentation}
 					tooltip="Present diagram and export SVG or PNG"
 					onClick={() => {
-						if (model)
-							setPresentation(
-								isDirty ? captureCanvasIntoModel(model, useCanvasStore.getState()) : model,
-							);
+						if (model) {
+							const { selectedSequenceId } = useModelStore.getState();
+							setPresentation({
+								model: isDirty ? captureCanvasIntoModel(model, useCanvasStore.getState()) : model,
+								diagramId: sequenceDiagrams(model).find(({ id }) => id === selectedSequenceId)?.id,
+							});
+						}
 					}}
 					disabled={!model}
 				/>
@@ -148,7 +152,7 @@ export function TopMenuBar() {
 					onClick={() => void importModel()}
 				/>
 				{presentation && (
-					<DiagramPresentation model={presentation} onClose={() => setPresentation(undefined)} />
+					<DiagramPresentation {...presentation} onClose={() => setPresentation(undefined)} />
 				)}
 			</div>
 

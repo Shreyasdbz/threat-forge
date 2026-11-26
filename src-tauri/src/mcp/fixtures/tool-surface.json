@@ -608,6 +608,54 @@
                 "arguments"
               ],
               "type": "object"
+            },
+            {
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/SequenceEditRequest"
+                },
+                "tool": {
+                  "const": "create_sequence_view",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tool",
+                "arguments"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/SequenceEditRequest"
+                },
+                "tool": {
+                  "const": "update_sequence_view",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tool",
+                "arguments"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/SequenceReadId"
+                },
+                "tool": {
+                  "const": "delete_sequence_view",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tool",
+                "arguments"
+              ],
+              "type": "object"
             }
           ]
         },
@@ -650,6 +698,90 @@
             "id",
             "width",
             "height"
+          ],
+          "type": "object"
+        },
+        "SequenceEditRequest": {
+          "properties": {
+            "diagram_id": {
+              "type": "string"
+            },
+            "messages": {
+              "items": {
+                "$ref": "#/$defs/SequenceMessageRequest"
+              },
+              "type": "array"
+            },
+            "name": {
+              "type": "string"
+            },
+            "participants": {
+              "items": {
+                "$ref": "#/$defs/SequenceParticipantRequest"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "diagram_id",
+            "name",
+            "participants",
+            "messages"
+          ],
+          "type": "object"
+        },
+        "SequenceMessageRequest": {
+          "properties": {
+            "flow_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "from": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "from",
+            "to",
+            "label"
+          ],
+          "type": "object"
+        },
+        "SequenceParticipantRequest": {
+          "properties": {
+            "element_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "element_id"
+          ],
+          "type": "object"
+        },
+        "SequenceReadId": {
+          "properties": {
+            "diagram_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "diagram_id"
           ],
           "type": "object"
         },
@@ -818,6 +950,13 @@
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
+        "diagram_id": {
+          "description": "Optional diagram ID. Omit to render the graph.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "path": {
           "description": "Optional workspace-relative output path with the matching extension",
           "type": [
@@ -835,6 +974,13 @@
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
+        "diagram_id": {
+          "description": "Optional diagram ID. Omit to render the graph.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "path": {
           "description": "Optional workspace-relative output path with the matching extension",
           "type": [
@@ -851,6 +997,38 @@
     "description": "Get the full threat model as JSON. Returns metadata, elements, data flows, trust boundaries, and threats.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object"
+    }
+  },
+  {
+    "name": "get_sequence_view",
+    "description": "Read ordered lifelines and messages for a typed sequence view by diagram ID. Offset and limit page each list (limit defaults to 50, maximum 200).",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "diagram_id": {
+          "type": "string"
+        },
+        "limit": {
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "offset": {
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "diagram_id"
+      ],
       "type": "object"
     }
   },
@@ -961,6 +1139,13 @@
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
+        "diagram_id": {
+          "description": "Optional diagram ID. Omit to render the graph.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "path": {
           "description": "Optional workspace-relative output path with the matching extension",
           "type": [

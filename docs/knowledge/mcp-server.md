@@ -105,10 +105,17 @@ Add to your Cursor MCP configuration:
 | `open_document` | Activate an existing document by relative `path`; subsequent diagram and threat tools use it. |
 | `set_position`, `move_node`, `resize_node` | Set `x,y`, offset by `dx,dy`, or set `width,height` given a node `id`. Nodes may be elements, trust boundaries, or architecture groups. An element inside a trust boundary uses positions relative to the boundary. |
 | `auto_layout` | Arrange elements in a grid, keeping boundary members together. |
-| `batch_transaction` | Apply 1–100 graph or layout operations as a single transaction. |
+| `batch_transaction` | Apply 1–100 graph, layout, or sequence operations as a single transaction. |
+| `get_sequence_view` | Read a typed sequence by `diagram_id`. `offset` and `limit` page each ordered list; the limit defaults to 50 and is capped at 200. |
 | `undo`, `redo` | Replay active-document edits from this MCP session, only if the file revision still matches. |
 | `analyze_stride` | Preview STRIDE suggestions. Save the latest preview as one edit with `apply: true`, its `preview_id`, and its `revision` as `expected_revision`. |
-| `export_svg`, `export_png`, `screenshot` | Render the same scene. SVG is returned as text, PNG and screenshot as MCP images. Optional `path` writes an artifact inside the workspace, replacing an existing artifact of the same type. Screenshot is a headless diagram capture, not a desktop window capture. |
+| `export_svg`, `export_png`, `screenshot` | Render the same scene. Pass `diagram_id` for an explicit view, or omit it for the graph. SVG is returned as text, PNG and screenshot as MCP images. Optional `path` writes an artifact inside the workspace, replacing an existing artifact of the same type. Screenshot is a headless diagram capture, not a desktop window capture. |
+
+Use `create_sequence_view` or `update_sequence_view` inside `batch_transaction` with
+`diagram_id`, `name`, `participants`, and `messages`. Update replaces the ordered lists.
+`delete_sequence_view` takes only `diagram_id` and does not remove graph items. Preview
+with `dry_run: true` and reuse the returned revision as `expected_revision` when applying.
+If a graph edit would break a sequence reference, remove or unlink the reference first.
 
 Search reads at most 1 MiB per document and 32 MiB in total and skips documents
 that use YAML aliases. Its `skipped` count also reports files it could not read or

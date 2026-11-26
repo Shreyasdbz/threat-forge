@@ -1,8 +1,8 @@
 interface ThreatModelWasm {
 	default: () => Promise<unknown>;
 	import_tm7: (xml: string) => string;
-	render_svg: (json: string) => string;
-	render_png: (json: string) => Uint8Array<ArrayBuffer>;
+	render_svg: (json: string, diagramId?: string) => string;
+	render_png: (json: string, diagramId?: string) => Uint8Array<ArrayBuffer>;
 }
 
 let loading: Promise<ThreatModelWasm> | undefined;

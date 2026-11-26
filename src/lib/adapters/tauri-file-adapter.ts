@@ -11,16 +11,17 @@ export function checkDocumentUpdate(
 	return invoke("check_document_update", { path, revision });
 }
 
-export function renderDiagram(model: ThreatModel): Promise<string> {
-	return invoke("render_diagram", { model });
+export function renderDiagram(model: ThreatModel, diagramId?: string): Promise<string> {
+	return invoke("render_diagram", { model, diagramId });
 }
 
 export function exportDiagram(
 	model: ThreatModel,
 	format: DiagramFormat,
 	defaultName: string,
+	diagramId?: string,
 ): Promise<string | null> {
-	return invoke("export_diagram", { model, format, defaultName });
+	return invoke("export_diagram", { model, format, defaultName, diagramId });
 }
 
 export class TauriFileAdapter implements FileAdapter {

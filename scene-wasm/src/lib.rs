@@ -35,15 +35,15 @@ fn parse_model(model: &str) -> Result<models::ThreatModel, JsError> {
 }
 
 #[wasm_bindgen]
-pub fn render_svg(model: &str) -> Result<String, JsError> {
-    scene::Scene::from_model(&parse_model(model)?)
+pub fn render_svg(model: &str, diagram_id: Option<String>) -> Result<String, JsError> {
+    scene::Scene::select(&parse_model(model)?, diagram_id.as_deref())
         .and_then(|scene| scene.svg())
         .map_err(JsError::new)
 }
 
 #[wasm_bindgen]
-pub fn render_png(model: &str) -> Result<Vec<u8>, JsError> {
-    scene::Scene::from_model(&parse_model(model)?)
+pub fn render_png(model: &str, diagram_id: Option<String>) -> Result<Vec<u8>, JsError> {
+    scene::Scene::select(&parse_model(model)?, diagram_id.as_deref())
         .and_then(|scene| scene.png())
         .map_err(JsError::new)
 }

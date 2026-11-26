@@ -236,6 +236,7 @@ fn mcp_server_handshakes_lists_its_tools_and_executes_one_over_stdio() {
             "export_png",
             "export_svg",
             "get_model",
+            "get_sequence_view",
             "list_documents",
             "list_elements",
             "list_threats",
@@ -570,6 +571,99 @@ fn workspace_batch_preview_is_scoped_to_the_selected_document() {
         server.tool_json(8, "get_model", json!({}))["elements"][0]["id"],
         "service"
     );
+}
+
+#[test]
+fn sequence_batches_preview_validate_commit_undo_and_refuse_opaque_promotion() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("model.thf");
+    let initial = include_str!("../../tests/fixtures/thf/v1.1-sequence.thf")
+        .split("  - id: checkout-sequence")
+        .next()
+        .unwrap()
+        .replace("\"1.1\"", "\"1.0\"");
+    std::fs::write(&path, &initial).unwrap();
+    let mut server = McpServer::spawn(&path);
+    server.start_workspace();
+    let arguments = json!({
+        "diagram_id": "new-sequence", "name": "Checkout sequence",
+        "participants": [{"id":"client","element_id":"customer"}, {"id":"service","element_id":"checkout"}],
+        "messages": [{"id":"request","from":"client","to":"service","label":"Order <submitted>","flow_id":"submit"}]
+    });
+    let create = json!({"tool":"create_sequence_view","arguments":arguments});
+    let preview = server.tool_json(
+        2,
+        "batch_transaction",
+        json!({"dry_run":true,"operations":[create]}),
+    );
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), initial);
+    let commit = json!({"expected_revision":preview["revision"],"operations":[create]});
+    let saved = server.tool_json(3, "batch_transaction", commit.clone());
+    assert_ne!(saved["revision"], preview["revision"]);
+    let read = server.tool_json(
+        4,
+        "get_sequence_view",
+        json!({"diagram_id":"new-sequence","offset":1,"limit":1}),
+    );
+    assert_eq!(read["participants"][0]["id"], "service");
+    assert_eq!(read["message_count"], 1);
+    assert_eq!(read["messages"], json!([]));
+    let stale = server.request_raw(
+        5,
+        "tools/call",
+        json!({"name":"batch_transaction","arguments":commit}),
+    );
+    assert!(stale.to_string().contains("changed on disk"), "{stale}");
+    let graph_delete = server.request_raw(
+        6,
+        "tools/call",
+        json!({"name":"delete_data_flow","arguments":{"id":"submit"}}),
+    );
+    assert!(
+        graph_delete.to_string().contains("new-sequence"),
+        "{graph_delete}"
+    );
+
+    let svg = server.tool(7, "export_svg", json!({"diagram_id":"new-sequence"}));
+    assert!(svg["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .contains("Order &lt;submitted&gt;"));
+    let mut update = arguments;
+    update["name"] = json!("Purchase sequence");
+    server.tool(
+        8,
+        "batch_transaction",
+        json!({"operations":[{"tool":"update_sequence_view","arguments":update}]}),
+    );
+    assert_eq!(
+        server.tool_json(9, "get_sequence_view", json!({"diagram_id":"new-sequence"}))["name"],
+        "Purchase sequence"
+    );
+    server.tool(10, "batch_transaction", json!({"operations":[{"tool":"delete_sequence_view","arguments":{"diagram_id":"new-sequence"}}]}));
+    assert_eq!(
+        server.tool_json(11, "get_model", json!({}))["version"],
+        "1.1"
+    );
+    for id in 12..=14 {
+        server.tool(id, "undo", json!({}));
+    }
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), initial);
+
+    let opaque = include_str!("../../tests/fixtures/thf/v1.0-opaque-sequence.thf");
+    std::fs::write(&path, opaque).unwrap();
+    let blocked = server.request_raw(
+        15,
+        "tools/call",
+        json!({
+            "name":"batch_transaction","arguments":{"dry_run":true,"operations":[create]}
+        }),
+    );
+    assert!(
+        blocked.to_string().contains("diagrams[].sequence"),
+        "{blocked}"
+    );
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), opaque);
 }
 
 #[test]

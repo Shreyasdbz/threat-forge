@@ -1,4 +1,4 @@
-use crate::models::{Position, Size, ThreatModel};
+use crate::models::{Position, SequenceView, Size, ThreatModel};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use read_fonts::{collections::IntSet, FontRef};
 use resvg::{tiny_skia, usvg};
@@ -228,9 +228,35 @@ pub(crate) struct Scene<'a> {
     containers: Vec<Node<'a>>,
     nodes: Vec<Node<'a>>,
     edges: Vec<Edge<'a>>,
+    sequence: Option<(&'a SequenceView, &'a ThreatModel)>,
 }
 
 impl<'a> Scene<'a> {
+    pub fn select(model: &'a ThreatModel, diagram_id: Option<&str>) -> Result<Self, &'static str> {
+        if let Some(id) = diagram_id {
+            let view = model
+                .diagrams
+                .iter()
+                .find(|diagram| diagram.id == id)
+                .ok_or("The requested diagram was not found.")?;
+            if model.version == "1.1" && view.kind.as_deref() == Some("sequence") {
+                if let Some(sequence) = &view.sequence {
+                    if sequence.participants.len() + sequence.messages.len() > MAX_NODES {
+                        return Err("The diagram is too large to render.");
+                    }
+                    return Ok(Self {
+                        title: &view.name,
+                        containers: Vec::new(),
+                        nodes: Vec::new(),
+                        edges: Vec::new(),
+                        sequence: Some((sequence, model)),
+                    });
+                }
+            }
+        }
+        Self::from_model(model)
+    }
+
     pub fn from_model(model: &'a ThreatModel) -> Result<Self, &'static str> {
         if model.elements.len()
             + model.groups.len()
@@ -363,6 +389,7 @@ impl<'a> Scene<'a> {
             containers,
             nodes,
             edges,
+            sequence: None,
         })
     }
 
@@ -375,6 +402,10 @@ impl<'a> Scene<'a> {
     }
 
     fn render_svg(&self, embed_font: bool) -> Result<String, &'static str> {
+        if let Some((sequence, model)) = self.sequence {
+            let (shapes, width, height) = sequence_shapes(sequence, model)?;
+            return self.render_svg_document(shapes, (0.0, 0.0, width, height), embed_font);
+        }
         let (mut x, mut y, mut right, mut bottom) = (0.0_f64, 0.0_f64, 320.0_f64, 160.0_f64);
         for node in self.containers.iter().chain(&self.nodes) {
             let r = node.rect;
@@ -383,7 +414,6 @@ impl<'a> Scene<'a> {
             right = right.max(r.x + r.width + 64.0);
             bottom = bottom.max(r.y + r.height + 64.0);
         }
-        let title = xml_text(rendered_chars(self.title, 240));
         let mut shapes = SvgShapes::default();
         for node in &self.containers {
             node.draw(&mut shapes);
@@ -411,7 +441,16 @@ impl<'a> Scene<'a> {
         for node in &self.nodes {
             node.draw(&mut shapes);
         }
-        let (width, height) = (right - x, bottom - y);
+        self.render_svg_document(shapes, (x, y, right - x, bottom - y), embed_font)
+    }
+
+    fn render_svg_document(
+        &self,
+        shapes: SvgShapes,
+        (x, y, width, height): (f64, f64, f64, f64),
+        embed_font: bool,
+    ) -> Result<String, &'static str> {
+        let title = xml_text(rendered_chars(self.title, 240));
         let scale = (f64::from(MAX_SIDE) / width.max(height)).min(1.0);
         let mut styles = String::new();
         let font = if embed_font && !shapes.characters.is_empty() {
@@ -439,6 +478,64 @@ impl<'a> Scene<'a> {
         svg.push_str("</g></svg>\n");
         Ok(svg)
     }
+}
+
+fn sequence_shapes(
+    sequence: &SequenceView,
+    model: &ThreatModel,
+) -> Result<(SvgShapes, f64, f64), &'static str> {
+    let names: HashMap<_, _> = model
+        .elements
+        .iter()
+        .map(|el| (el.id.as_str(), el.name.as_str()))
+        .collect();
+    let mut shapes = SvgShapes::default();
+    let width = (240.0 * sequence.participants.len() as f64 + 320.0).max(620.0);
+    let height = 160.0 + 56.0 * sequence.messages.len() as f64;
+    let mut lifelines = HashMap::new();
+    for (index, participant) in sequence.participants.iter().enumerate() {
+        let x = 280.0 + index as f64 * 240.0;
+        let caption = shapes.text(
+            names
+                .get(participant.element_id.as_str())
+                .ok_or("Invalid sequence participant.")?,
+            24,
+        );
+        lifelines.insert(participant.id.as_str(), x);
+        let _ = write!(
+            shapes.markup,
+            r##"<path d="M{x} 56V{}" fill="none" stroke="#a2aaa7" stroke-dasharray="5 5"/><rect x="{}" y="22" width="208" height="34" rx="4" fill="#fff" stroke="#a2aaa7"/><text x="{x}" y="44" text-anchor="middle" font-size="14">{caption}</text>"##,
+            height - 24.0,
+            x - 104.0,
+        );
+    }
+    for (index, message) in sequence.messages.iter().enumerate() {
+        let from = *lifelines
+            .get(message.from.as_str())
+            .ok_or("Invalid sequence endpoint.")?;
+        let to = *lifelines
+            .get(message.to.as_str())
+            .ok_or("Invalid sequence endpoint.")?;
+        let y = 108.0 + index as f64 * 56.0;
+        let label = shapes.text(&message.label, 38);
+        let label_x = (from + to) / 2.0;
+        let stroke = if message.flow_id.is_some() {
+            "#197450"
+        } else {
+            "#606973"
+        };
+        let path = if from == to {
+            format!("M{from} {y}h34v18H{from}")
+        } else {
+            format!("M{from} {y}H{to}")
+        };
+        let _ = write!(
+            shapes.markup,
+            r##"<text x="{label_x}" y="{}" text-anchor="middle" font-size="13">{label}</text><path d="{path}" fill="none" stroke="{stroke}" stroke-width="2" marker-end="url(#arrow)"/>"##,
+            y - 8.0,
+        );
+    }
+    Ok((shapes, width, height))
 }
 
 #[derive(Default)]
@@ -732,6 +829,7 @@ mod tests {
             title: "Wide flow label",
             containers: vec![],
             nodes: vec![],
+            sequence: None,
             edges: vec![Edge {
                 from,
                 to,

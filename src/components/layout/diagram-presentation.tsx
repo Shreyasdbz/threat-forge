@@ -5,15 +5,18 @@ import type { ThreatModel } from "@/types/threat-model";
 
 export function DiagramPresentation({
 	model,
+	diagramId,
 	onClose,
 }: {
 	model: ThreatModel;
+	diagramId?: string;
 	onClose: () => void;
 }) {
 	const dialog = useRef<HTMLDialogElement>(null);
 	const [image, setImage] = useState<string>();
 	const [pending, setPending] = useState<DiagramFormat>();
 	const [error, setError] = useState<string>();
+	const title = model.diagrams.find(({ id }) => id === diagramId)?.name ?? model.metadata.title;
 
 	useEffect(() => {
 		dialog.current?.showModal();
@@ -22,7 +25,7 @@ export function DiagramPresentation({
 	useEffect(() => {
 		let cancelled = false;
 		let url: string | undefined;
-		void renderDiagramSvg(model)
+		void renderDiagramSvg(model, diagramId)
 			.then((svg) => {
 				if (cancelled) return;
 				url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
@@ -35,13 +38,13 @@ export function DiagramPresentation({
 			cancelled = true;
 			if (url) URL.revokeObjectURL(url);
 		};
-	}, [model]);
+	}, [model, diagramId]);
 
 	async function exportAs(format: DiagramFormat) {
 		setPending(format);
 		setError(undefined);
 		try {
-			await saveDiagram(model, format);
+			await saveDiagram(model, format, diagramId);
 		} catch {
 			setError(`The ${format.toUpperCase()} export could not be saved.`);
 		} finally {
@@ -62,7 +65,7 @@ export function DiagramPresentation({
 					<div className="min-w-0 flex-1">
 						<p className="text-editor-caption text-editor-secondary-label">Presentation</p>
 						<h2 id="presentation-title" className="truncate text-editor-title3">
-							{model.metadata.title}
+							{title}
 						</h2>
 					</div>
 					{(["svg", "png"] as const).map((format) => (
@@ -96,7 +99,7 @@ export function DiagramPresentation({
 					{image ? (
 						<img
 							src={image}
-							alt={`Diagram of ${model.metadata.title}`}
+							alt={`Diagram of ${title}`}
 							className="h-full min-h-0 w-full object-contain"
 						/>
 					) : !error ? (
