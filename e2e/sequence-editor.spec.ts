@@ -1,5 +1,5 @@
 import { expect, suppressFirstRunOverlays, test, waitForCanvasSettled } from "./fixtures";
-import { openDocument, saveDocument } from "./support/interactions";
+import { clickElementByName, openDocument, saveDocument } from "./support/interactions";
 
 test("keyboard Save commits the focused sequence label", async ({ page }, testInfo) => {
 	await page.goto("/app");
@@ -18,6 +18,23 @@ test("keyboard Save commits the focused sequence label", async ({ page }, testIn
 	await expect(views).toHaveValue("");
 	await views.selectOption("checkout-sequence");
 	await expect(label).toHaveValue("Submit payment");
+});
+
+test("opening a sequence's linked flow replaces the graph selection", async ({ page }) => {
+	await page.goto("/app");
+	await openDocument(page, "tests/fixtures/thf/v1.1-sequence.thf");
+	await waitForCanvasSettled(page, 2);
+	await clickElementByName(page, "Customer");
+	const graph = page.locator(".react-flow");
+	await expect(graph.locator(".react-flow__node.selected")).toHaveCount(1);
+
+	await page.getByRole("combobox", { name: "Diagram view" }).selectOption("checkout-sequence");
+	await page.getByRole("button", { name: "Show linked flow and findings" }).click();
+	await expect(graph.locator(".react-flow__node.selected")).toHaveCount(0);
+	await expect(graph.locator('.react-flow__edge[data-id="submit"]')).toHaveClass(/\bselected\b/);
+	await page.keyboard.press("Delete");
+	await expect(page.getByRole("alert")).toContainText("Unlink or remove the sequence reference");
+	await expect(graph.locator(".react-flow__node")).toHaveCount(2);
 });
 
 test("creates and edits an ordered sequence with keyboard controls, then reopens it", async ({

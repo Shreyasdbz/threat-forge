@@ -18,6 +18,7 @@ import { openExternalUrl } from "@/lib/platform";
 import { sequenceDiagrams } from "@/lib/sequence-views";
 import { loadTemplate, TEMPLATES, type TemplateInfo } from "@/lib/templates";
 import { TIPS } from "@/lib/tips";
+import { useCanvasStore } from "@/stores/canvas-store";
 import { useDocumentRegistry } from "@/stores/document-registry";
 import { useModelStore } from "@/stores/model-store";
 import { useSettingsStore } from "@/stores/settings-store";
@@ -77,6 +78,13 @@ export function Canvas() {
 									selectSequence(null);
 							}}
 							onOpenFlow={(id) => {
+								useCanvasStore.setState(({ nodes, edges }) => ({
+									nodes: nodes.map((node) => (node.selected ? { ...node, selected: false } : node)),
+									edges: edges.map((edge) => {
+										const selected = edge.id === id;
+										return !!edge.selected === selected ? edge : { ...edge, selected };
+									}),
+								}));
 								selectSequence(null);
 								useModelStore.getState().setSelectedEdge(id);
 								if (!useUiStore.getState().rightPanelOpen) useUiStore.getState().toggleRightPanel();
