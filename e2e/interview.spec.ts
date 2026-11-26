@@ -37,6 +37,21 @@ test("history shortcuts on proposal controls do not invalidate the preview", asy
 	await expect(page.getByRole("heading", { name: "Interview additions applied" })).toBeVisible();
 });
 
+test("can undo applied additions from the interview confirmation", async ({ page }) => {
+	await page.goto("/app");
+	await openDocument(page, "tests/fixtures/thf/v1.1-sequence.thf");
+	const interview = await buildOfflineInterview(page);
+	await interview.getByRole("button", { name: "Apply selected changes" }).click();
+	const confirmation = page.getByRole("region", { name: "Interview additions applied" });
+	await expect(confirmation).toBeVisible();
+	await page.keyboard.press("ControlOrMeta+z");
+	await confirmation.getByRole("button", { name: "Open STRIDE review" }).click();
+	const worker = page.locator(".react-flow__node").filter({ hasText: "Billing worker" });
+	await expect(worker).toHaveCount(0);
+	await page.keyboard.press("ControlOrMeta+Shift+z");
+	await expect(worker).toBeVisible();
+});
+
 test.describe("cancelled AI request", () => {
 	test.use({
 		allowedBrowserEvents: [

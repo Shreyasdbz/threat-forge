@@ -19,8 +19,8 @@ export function useKeyboardShortcuts() {
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
 			const mod = e.metaKey || e.ctrlKey;
-			const interviewVisible = getActiveStores().interview.getState().visible;
-			const graphHidden = interviewVisible || showingSequence(useModelStore.getState());
+			const { visible, draft } = getActiveStores().interview.getState();
+			const graphHidden = visible || showingSequence(useModelStore.getState());
 
 			// Non-modifier shortcuts (only when not focused in an input)
 			const active = document.activeElement;
@@ -134,7 +134,7 @@ export function useKeyboardShortcuts() {
 				case "z": {
 					if (isTextEditing(active)) break;
 					e.preventDefault();
-					if (interviewVisible) break;
+					if (visible && draft) break;
 					const currentModel = useModelStore.getState().model;
 					if (!currentModel) break;
 					if (e.shiftKey) {
@@ -162,7 +162,7 @@ export function useKeyboardShortcuts() {
 					if (isTextEditing(active)) break;
 					// Redo alternative (Cmd+Y)
 					e.preventDefault();
-					if (interviewVisible) break;
+					if (visible && draft) break;
 					const currentModel = useModelStore.getState().model;
 					if (!currentModel) break;
 					const snapshot = useHistoryStore.getState().redo(currentModel);
