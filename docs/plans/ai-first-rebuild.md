@@ -67,6 +67,22 @@ Add browser TM7 import and additional formats, and enable visual regression in C
 with controlled baseline environments. End-to-end verification of signed Linux
 distributions and the updater is deferred to [#369](https://github.com/Shreyasdbz/threat-forge/issues/369).
 
+### 2026-11-26 replan — visual flows and stewardship (#368)
+
+Add pinned Chromium regression flows for DFD design/edit/reopen, STRIDE and
+mitigation, and architecture organization/presentation, then TM7 import, AI
+approval/undo, and opening and editing an MCP-authored file. Reuse the deterministic
+workspace setup and canvas settlement gate. Document baseline review and updates.
+Budget: at most eight pilot baselines, eighteen total, and under one minute of
+added hosted E2E time. Sequence diagrams and interview workflows are out of scope.
+
+Publish and verify the visual-flow suite before splitting the Properties and AI
+panels along existing responsibilities. Extract pure canvas projection only if
+the earlier checks are green and characterization tests first pin existing
+behavior; otherwise defer it. Publish the behavior-preserving refactors separately.
+The owner authorized tracking this work under #368; Project 2 is inaccessible
+from this environment, so the board claim could not be recorded.
+
 ## Existing branch overlap
 
 - `codex/distribution-signing` adds signing workflows, verification scripts, and
