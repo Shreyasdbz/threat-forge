@@ -1,16 +1,16 @@
 import type { CanvasState } from "./canvas-store-factory";
 import { createActiveStoreFacade } from "./document-stores";
 
+export {
+	boundaryToNode,
+	elementToNode,
+	flowToEdge,
+} from "@/lib/canvas-projection";
 export type {
 	DfdEdge,
 	DfdEdgeData,
 	DfdNode,
 	DfdNodeData,
-} from "./canvas-store-factory";
-export {
-	boundaryToNode,
-	elementToNode,
-	flowToEdge,
 } from "./canvas-store-factory";
 
 /** Canvas nodes, edges, and viewport for the active document. */
