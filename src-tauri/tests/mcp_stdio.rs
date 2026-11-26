@@ -530,6 +530,41 @@ fn workspace_relative_moves_use_sidecar_and_scene_fallback_positions() {
 }
 
 #[test]
+fn batch_relative_move_uses_the_sidecar_after_removing_an_earlier_sequence() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("model.thf");
+    let fixture = include_str!("../../tests/fixtures/thf/v1.1-sequence.thf");
+    let graph = "  - id: main\n    name: Data flow\n";
+    let original = format!(
+        "{}{graph}    layout_file: layout.json\n",
+        fixture.replace(graph, "")
+    );
+    std::fs::write(&path, original).unwrap();
+    std::fs::write(
+        dir.path().join("layout.json"),
+        br#"{"diagram_id":"main","viewport":{"x":20,"y":40,"zoom":1},"nodes":[{"id":"customer","x":120,"y":240}]}"#,
+    )
+    .unwrap();
+    let mut server = McpServer::spawn(&path);
+    server.start_workspace();
+    server.tool(
+        2,
+        "batch_transaction",
+        json!({ "operations": [
+            { "tool": "delete_sequence_view", "arguments": { "diagram_id": "checkout-sequence" } },
+            { "tool": "move_node", "arguments": { "id": "customer", "dx": 10, "dy": -20 } }
+        ] }),
+    );
+    let model = server.tool_json(3, "get_model", json!({}));
+    assert_eq!(model["diagrams"][0]["id"], "main");
+    assert_eq!(model["diagrams"][0]["layout_file"], "layout.json");
+    assert_eq!(
+        model["elements"][0]["position"],
+        json!({ "x": 130.0, "y": 220.0 })
+    );
+}
+
+#[test]
 fn workspace_batch_preview_is_scoped_to_the_selected_document() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("a.thf"), MODEL_THF).unwrap();

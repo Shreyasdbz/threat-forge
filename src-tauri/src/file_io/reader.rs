@@ -42,7 +42,7 @@ pub fn merge_layout_into_model(model: &mut ThreatModel, model_path: &Path) {
 }
 
 #[derive(Default, serde::Serialize)]
-pub(crate) struct LegacyLayouts(Vec<(usize, String, Option<DiagramLayout>)>);
+pub(crate) struct LegacyLayouts(Vec<(String, String, Option<DiagramLayout>)>);
 
 impl LegacyLayouts {
     pub(crate) fn capture(
@@ -53,14 +53,13 @@ impl LegacyLayouts {
             model
                 .diagrams
                 .iter()
-                .enumerate()
-                .filter_map(|(index, diagram)| {
+                .filter_map(|diagram| {
                     let (Some(layout_file), None) = (&diagram.layout_file, &diagram.viewport)
                     else {
                         return None;
                     };
                     let layout = read(Path::new(layout_file));
-                    Some((index, layout_file.clone(), layout))
+                    Some((diagram.id.clone(), layout_file.clone(), layout))
                 })
                 .collect(),
         )
@@ -75,9 +74,15 @@ impl LegacyLayouts {
     }
 
     pub fn merge_into(&self, model: &mut ThreatModel) {
-        for (index, _, layout) in &self.0 {
+        for (id, path, layout) in &self.0 {
+            let Some(diagram) = model.diagrams.iter_mut().find(|diagram| {
+                diagram.id == *id
+                    && diagram.layout_file.as_ref() == Some(path)
+                    && diagram.viewport.is_none()
+            }) else {
+                continue;
+            };
             let Some(layout) = layout else { continue };
-            let diagram = &mut model.diagrams[*index];
 
             // Build lookup from node ID to position data
             let positions: HashMap<&str, _> =
