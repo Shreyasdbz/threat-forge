@@ -39,6 +39,11 @@ export function useNativeMenu() {
 				const graphHidden =
 					getActiveStores().interview.getState().visible ||
 					showingSequence(useModelStore.getState());
+				const el = document.activeElement;
+				const isText =
+					el instanceof HTMLInputElement ||
+					el instanceof HTMLTextAreaElement ||
+					(el instanceof HTMLElement && el.isContentEditable);
 
 				switch (action) {
 					// File
@@ -66,6 +71,10 @@ export function useNativeMenu() {
 
 					// Edit
 					case "edit-undo": {
+						if (isText) {
+							document.execCommand("undo");
+							break;
+						}
 						const currentModel = useModelStore.getState().model;
 						if (!currentModel) break;
 						const snapshot = useHistoryStore.getState().undo(currentModel);
@@ -78,6 +87,10 @@ export function useNativeMenu() {
 						break;
 					}
 					case "edit-redo": {
+						if (isText) {
+							document.execCommand("redo");
+							break;
+						}
 						const currentModel = useModelStore.getState().model;
 						if (!currentModel) break;
 						const snapshot = useHistoryStore.getState().redo(currentModel);
@@ -98,12 +111,6 @@ export function useNativeMenu() {
 						// native menu intercepts the keystroke at the OS level, so
 						// the webview never sees the keydown — we trigger text ops
 						// manually here.
-						const el = document.activeElement;
-						const isText =
-							el instanceof HTMLInputElement ||
-							el instanceof HTMLTextAreaElement ||
-							(el instanceof HTMLElement && el.isContentEditable);
-
 						if (isText) {
 							if (action === "edit-select-all") {
 								if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {

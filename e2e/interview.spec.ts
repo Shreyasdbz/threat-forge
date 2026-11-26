@@ -4,6 +4,25 @@ import { expect, seedAnthropicApiKey, test } from "./fixtures";
 import { openDocument, saveDocument } from "./support/interactions";
 import { buildOfflineInterview } from "./support/interview";
 
+test("answer field undo and redo do not change document history", async ({ page }) => {
+	await page.goto("/app");
+	await openDocument(page, "tests/fixtures/thf/v1.1-sequence.thf");
+	await page.getByRole("button", { name: "New sequence" }).click();
+	const sequence = page.getByRole("region", { name: "Sequence editor" });
+	await expect(sequence).toBeVisible();
+	await page.getByRole("button", { name: "Guided interview" }).click();
+	const answer = page.getByRole("textbox", { name: "What system are you modeling?" });
+	await answer.pressSequentially("Checkout");
+	await answer.press("ControlOrMeta+z");
+	await expect(answer).toHaveValue("");
+	await answer.press("ControlOrMeta+Shift+z");
+	await expect(answer).toHaveValue("Checkout");
+	await page.getByRole("button", { name: "Return to diagram" }).click();
+	await expect(sequence).toBeVisible();
+	await page.keyboard.press("ControlOrMeta+z");
+	await expect(sequence).not.toBeVisible();
+});
+
 test.describe("cancelled AI request", () => {
 	test.use({
 		allowedBrowserEvents: [

@@ -131,6 +131,7 @@ export function useKeyboardShortcuts() {
 					}
 					break;
 				case "z": {
+					if (isInputFocused) break;
 					e.preventDefault();
 					const currentModel = useModelStore.getState().model;
 					if (!currentModel) break;
@@ -156,6 +157,7 @@ export function useKeyboardShortcuts() {
 					break;
 				}
 				case "y": {
+					if (isInputFocused) break;
 					// Redo alternative (Cmd+Y)
 					e.preventDefault();
 					const currentModel = useModelStore.getState().model;
