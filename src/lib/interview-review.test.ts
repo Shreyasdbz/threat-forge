@@ -104,3 +104,42 @@ it("wraps positioned members without moving them in the diagram or exported mode
 	}
 	expect(stores.history.getState().undo(model)).toEqual(before);
 });
+
+it("keeps members in their first boundary and discloses exclusions before applying", () => {
+	const before = {
+		...readThreatModelText(fixture),
+		trust_boundaries: [{ id: "public", name: "Public", contains: ["customer"] }],
+	};
+	const registry = useDocumentRegistry.getState();
+	const id = registry.createDocument({ model: before, filePath: null, pendingLayout: null });
+	const stores = registry.getDocumentStores(id);
+	if (!stores) throw new Error("Missing document");
+	const review = reviewInterview(stores, {
+		scope: "",
+		assets: "",
+		elements: [
+			{ key: 1, role: "external_entity", name: "", reuse: "customer" },
+			{ key: 2, role: "process", name: "Billing", reuse: "" },
+		],
+		flows: [],
+		boundaries: [
+			{ key: 3, name: "Checkout tier", members: ["answer:1", "existing:checkout"] },
+			{ key: 4, name: "Billing tier", members: ["existing:checkout", "answer:2"] },
+		],
+	});
+	if (!review) throw new Error("Missing review");
+	expect(review.gaps).toEqual(
+		expect.arrayContaining([
+			"Boundary “Checkout tier” excludes “Customer”, already in “Public”.",
+			"Boundary “Billing tier” excludes “Checkout”, already in “Checkout tier”.",
+		]),
+	);
+	expect(applyInterviewReview(stores, review)).toBeNull();
+	expect(
+		stores.model.getState().model?.trust_boundaries.map(({ name, contains }) => [name, contains]),
+	).toEqual([
+		["Public", ["customer"]],
+		["Checkout tier", ["checkout"]],
+		["Billing tier", ["interview-element-2-1"]],
+	]);
+});

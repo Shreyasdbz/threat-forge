@@ -51,7 +51,9 @@ export function buildInterviewProposal(
 		...model.data_flows,
 		...model.trust_boundaries,
 	];
-	const refs = new Map(model.elements.map(({ id }) => [`existing:${id}`, { id, dependency: "" }]));
+	const refs = new Map(
+		model.elements.map(({ id, name }) => [`existing:${id}`, { id, name, dependency: "" }]),
+	);
 	const makeId = (key: string) => {
 		const id = nextSequenceId(`interview-${key}`, reserved);
 		reserved.push({ id });
@@ -81,7 +83,7 @@ export function buildInterviewProposal(
 		}
 		const key = `element-${answer.key}`;
 		const id = makeId(key);
-		refs.set(`answer:${answer.key}`, { id, dependency: key });
+		refs.set(`answer:${answer.key}`, { id, name, dependency: key });
 		changes.push({
 			key,
 			kind: "element",
@@ -116,18 +118,32 @@ export function buildInterviewProposal(
 			},
 		});
 	}
+	const ownerByMember = new Map<string, string>();
+	for (const boundary of model.trust_boundaries) {
+		for (const id of boundary.contains) {
+			if (!ownerByMember.has(id)) ownerByMember.set(id, boundary.name);
+		}
+	}
 	for (const answer of answers.boundaries) {
 		const name = answer.name.trim();
-		const members = answer.members.flatMap(
+		const resolved = answer.members.flatMap(
 			(ref) => refs.get(interviewBoundaryMemberRef(ref, answers.elements)) ?? [],
 		);
-		if (!name || !members.length) {
+		if (!name || !resolved.length) {
 			gaps.push("A boundary needs a name and valid members.");
 			continue;
 		}
-		if (members.length !== answer.members.length) {
+		if (resolved.length !== answer.members.length) {
 			gaps.push(`Boundary “${name}” has unavailable members.`);
 		}
+		const members = resolved.filter((member) => {
+			const owner = ownerByMember.get(member.id);
+			if (owner === undefined) return true;
+			gaps.push(`Boundary “${name}” excludes “${member.name}”, already in “${owner}”.`);
+			return false;
+		});
+		if (!members.length) continue;
+		for (const member of members) ownerByMember.set(member.id, name);
 		const key = `boundary-${answer.key}`;
 		changes.push({
 			key,
