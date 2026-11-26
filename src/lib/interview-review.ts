@@ -1,8 +1,10 @@
 import { commitToolOutcome, createTurnUndoLedger } from "@/lib/ai/loop/transaction";
+import { projectCanvas } from "@/lib/canvas-projection";
+import { nodeToRect } from "@/lib/canvas-utils";
 import { useDocumentRegistry } from "@/stores/document-registry";
 import type { DocumentStores } from "@/stores/document-stores";
 import type { DocumentId } from "@/types/document";
-import type { ThreatModel } from "@/types/threat-model";
+import type { ThreatModel, TrustBoundary } from "@/types/threat-model";
 import {
 	buildInterviewProposal,
 	type InterviewAnswers,
@@ -84,15 +86,66 @@ export function applyInterviewReview(
 			...model.data_flows,
 			...changes.flatMap((change) => (change.kind === "flow" ? [change.value] : [])),
 		],
-		trust_boundaries: [
-			...model.trust_boundaries,
-			...changes.flatMap((change) => (change.kind === "boundary" ? [change.value] : [])),
-		],
 	};
+	const boundaries = changes.flatMap((change) =>
+		change.kind === "boundary" ? [change.value] : [],
+	);
 	const result = commitToolOutcome(
-		{ status: "ok", result: "Interview additions applied.", document },
+		{
+			status: "ok",
+			result: "Interview additions applied.",
+			document: boundaries.length ? placeBoundaries(document, boundaries, stores) : document,
+		},
 		{ expected: model, effect: "mutate", ledger: createTurnUndoLedger() },
 		stores,
 	);
 	return result.status === "committed" ? null : result.result;
+}
+
+function placeBoundaries(
+	document: ThreatModel,
+	boundaries: TrustBoundary[],
+	stores: DocumentStores,
+): ThreatModel {
+	const canvas = stores.canvas.getState();
+	const { nodes } = projectCanvas(document, canvas, canvas.pendingLayout);
+	const nodesById = new Map(nodes.map((node) => [node.id, node]));
+	const positions = new Map<string, { x: number; y: number }>();
+	const inset = 48;
+	const placed = boundaries.map((boundary) => {
+		const members = boundary.contains.flatMap((id) => {
+			const node = nodesById.get(id);
+			if (!node) return [];
+			const rect = nodeToRect(node);
+			const parent = node.parentId ? nodesById.get(node.parentId) : undefined;
+			return [
+				{
+					...rect,
+					id,
+					x: rect.x + (parent?.position.x ?? 0),
+					y: rect.y + (parent?.position.y ?? 0),
+				},
+			];
+		});
+		if (!members.length) return boundary;
+		const x = Math.min(...members.map((member) => member.x)) - inset;
+		const y = Math.min(...members.map((member) => member.y)) - inset;
+		for (const member of members) positions.set(member.id, { x: member.x - x, y: member.y - y });
+		return {
+			...boundary,
+			position: { x, y },
+			size: {
+				width: Math.max(...members.map((member) => member.x + member.width)) - x + inset,
+				height: Math.max(...members.map((member) => member.y + member.height)) - y + inset,
+			},
+		};
+	});
+	return {
+		...document,
+		elements: document.elements.map((element) => {
+			const position = positions.get(element.id);
+			return position ? { ...element, position } : element;
+		}),
+		trust_boundaries: [...document.trust_boundaries, ...placed],
+	};
 }

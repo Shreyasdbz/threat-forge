@@ -220,10 +220,16 @@ export function projectCanvas(
 		id: string,
 		inlinePos: { x: number; y: number } | undefined,
 		defaultPos: { x: number; y: number },
+		parentId?: string,
 	): { x: number; y: number } {
 		const saved = layoutPositions?.get(id);
 		if (saved) return { x: saved.x, y: saved.y };
-		return existingPositions.get(id) ?? inlinePos ?? defaultPos;
+		const existing = existingNodes.get(id);
+		return (
+			(existing?.parentId === parentId ? existingPositions.get(id) : undefined) ??
+			inlinePos ??
+			defaultPos
+		);
 	}
 
 	// Convert trust boundaries to group nodes
@@ -259,14 +265,19 @@ export function projectCanvas(
 
 	// Convert elements to nodes
 	const elementNodes: DfdNode[] = model.elements.map((e, i) => {
-		const pos = resolvePosition(e.id, e.position, {
-			x: 100 + (i % 4) * (DEFAULT_NODE_WIDTH + 136),
-			y: 100 + Math.floor(i / 4) * 208,
-		});
+		const parentBoundary = elementToBoundary.get(e.id);
+		const pos = resolvePosition(
+			e.id,
+			e.position,
+			{
+				x: 100 + (i % 4) * (DEFAULT_NODE_WIDTH + 136),
+				y: 100 + Math.floor(i / 4) * 208,
+			},
+			parentBoundary,
+		);
 		const node = elementToNode(e, pos);
 
 		// Parent to boundary if contained
-		const parentBoundary = elementToBoundary.get(e.id);
 		if (parentBoundary) {
 			node.parentId = parentBoundary;
 			node.extent = "parent";

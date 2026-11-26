@@ -56,3 +56,51 @@ it("refuses cross-tab and stale previews and applies only selected additions in 
 	expect(stores.history.getState().past).toHaveLength(1);
 	expect(stores.history.getState().undo(committed)).toEqual(before);
 });
+
+it("wraps positioned members without moving them in the diagram or exported model", () => {
+	const fixtureModel = readThreatModelText(fixture);
+	const before = {
+		...fixtureModel,
+		elements: fixtureModel.elements.map((element, index) => ({
+			...element,
+			position: { x: 840 + 400 * index, y: 700 + 200 * index },
+			size: { width: 240, height: 90 },
+		})),
+	};
+	const registry = useDocumentRegistry.getState();
+	const id = registry.createDocument({ model: before, filePath: null, pendingLayout: null });
+	const stores = registry.getDocumentStores(id);
+	if (!stores) throw new Error("Missing document");
+	stores.canvas.getState().syncFromModel();
+	const review = reviewInterview(stores, {
+		scope: "",
+		assets: "",
+		elements: [],
+		flows: [],
+		boundaries: [{ key: 1, name: "Internal", members: ["existing:customer", "existing:checkout"] }],
+	});
+	if (!review) throw new Error("Missing review");
+	expect(applyInterviewReview(stores, review)).toBeNull();
+
+	const model = stores.model.getState().model;
+	const boundary = model?.trust_boundaries[0];
+	if (!model || !boundary?.position || !boundary.size) throw new Error("Missing boundary layout");
+	const nodes = stores.canvas.getState().nodes;
+	expect(nodes.find(({ id }) => id === boundary.id)?.position).toEqual(boundary.position);
+	for (const original of before.elements) {
+		const local = model.elements.find(({ id }) => id === original.id)?.position;
+		if (!local) throw new Error("Missing member layout");
+		expect(local.x).toBeGreaterThan(0);
+		expect(local.y).toBeGreaterThan(0);
+		expect(local.x + original.size.width).toBeLessThan(boundary.size.width);
+		expect(local.y + original.size.height).toBeLessThan(boundary.size.height);
+		expect({ x: boundary.position.x + local.x, y: boundary.position.y + local.y }).toEqual(
+			original.position,
+		);
+		expect(nodes.find(({ id }) => id === original.id)).toMatchObject({
+			parentId: boundary.id,
+			position: local,
+		});
+	}
+	expect(stores.history.getState().undo(model)).toEqual(before);
+});
