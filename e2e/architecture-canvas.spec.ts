@@ -10,36 +10,39 @@ test.beforeEach(async ({ page }) => {
 	await openDocument(page, "tests/fixtures/thf/architecture-canonical-full.thf");
 });
 
-test("fits every inspector tab label at the default panel width", async ({ page }) => {
+test("fits equal-width icon-only inspector tabs at the default panel width", async ({ page }) => {
 	const tabs = page.getByRole("tablist", { name: "Inspector" }).getByRole("tab");
 	await expect(tabs).toHaveCount(4);
 	await page.evaluate(() => document.fonts.ready);
+	const widths = await tabs.evaluateAll((buttons) =>
+		buttons.map((button) => button.getBoundingClientRect().width),
+	);
+	expect(Math.min(...widths)).toBeGreaterThanOrEqual(24);
+	expect(Math.max(...widths) - Math.min(...widths)).toBeLessThan(1);
 	await expect
 		.poll(() =>
 			tabs.evaluateAll((buttons) =>
 				buttons.map((button) => {
-					const label = button.lastElementChild;
-					if (!label) return false;
-					const range = document.createRange();
-					range.selectNodeContents(label);
+					const icon = button.querySelector("svg[aria-hidden=true]");
 					return (
-						range.getClientRects().length === 1 &&
-						range.getBoundingClientRect().width <= button.clientWidth &&
+						icon !== null &&
+						icon.getBoundingClientRect().width <= button.clientWidth &&
 						button.clientHeight >= 24
 					);
 				}),
 			),
 		)
 		.toEqual([true, true, true, true]);
-	const gaps = await tabs.evaluateAll((buttons) =>
-		buttons.slice(1).map((button, index) => {
-			const label = button.firstElementChild;
-			const previousLabel = buttons[index].firstElementChild;
-			if (!label || !previousLabel) throw new Error("Inspector tab label missing");
-			return label.getBoundingClientRect().left - previousLabel.getBoundingClientRect().right;
-		}),
-	);
-	expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThan(1);
+	const properties = page.getByRole("tab", { name: "Properties", exact: true });
+	await expect(properties).toHaveText("");
+	await properties.hover();
+	const tooltip = page.locator('[data-slot="tooltip-content"]');
+	await expect(tooltip).toBeVisible();
+	await expect(tooltip).toHaveText("Properties");
+	await page.mouse.move(0, 0);
+	const threats = page.getByRole("tab", { name: "Threats", exact: true });
+	await expect(threats).toHaveText(/^\d+$/);
+	await expect(threats).toHaveAccessibleDescription(/^\d+ identified$/);
 });
 
 test("renders the neutral dot grid at a consistent diagram-space scale", async ({ page }) => {
@@ -56,10 +59,9 @@ test("renders the neutral dot grid at a consistent diagram-space scale", async (
 	await expect(dot).toHaveCSS("fill", "rgb(100, 112, 129)");
 });
 
-test("uses Inter's optical metrics and kerning for canvas captions and small editor text", async ({
-	page,
-}) => {
+test("keeps Inter canvas metrics separate from preset editor typography", async ({ page }) => {
 	const caption = page.getByTestId("node-api-gateway").getByText("dmz / nginx", { exact: true });
+	await expect(caption).toHaveCSS("font-family", /Inter/);
 	await expect(caption).toHaveCSS("font-kerning", "normal");
 	await expect(caption).toHaveCSS("font-optical-sizing", "auto");
 	await expect(caption).toHaveCSS("letter-spacing", "-0.06px");
@@ -76,9 +78,10 @@ test("uses Inter's optical metrics and kerning for canvas captions and small edi
 		await expect(sample).toHaveCSS("letter-spacing", "-0.06px");
 		await expect(sample).toHaveCSS("text-rendering", /geometricprecision/i);
 	}
-	await expect(page.getByRole("tab", { name: "AI", exact: true }).locator("span")).toHaveCSS(
-		"letter-spacing",
-		"-0.055px",
+	await expect(samples[0]).toHaveCSS("font-family", /Figtree Variable/);
+	await expect(page.getByRole("heading", { name: "Web Application" })).toHaveCSS(
+		"font-family",
+		/Outfit Variable/,
 	);
 });
 
@@ -212,26 +215,29 @@ test("keeps the minimap clear of its toggle on narrow canvases", async ({ page }
 	await expect(minimap).toHaveCount(0);
 });
 
-test("uses the bundled Inter face and equal toolbar icon targets", async ({ page }) => {
+test("uses bundled editor and canvas fonts and equal Tabler toolbar targets", async ({ page }) => {
+	await expect(page.getByTestId("node-api-gateway").getByText("dmz / nginx")).toBeVisible();
 	const session = await page.context().newCDPSession(page);
 	try {
 		await page.evaluate(() => document.fonts.ready);
 		await session.send("DOM.enable");
 		await session.send("CSS.enable");
 		const { root } = await session.send("DOM.getDocument");
-		const { nodeId } = await session.send("DOM.querySelector", {
-			nodeId: root.nodeId,
-			selector: '[data-testid="component-palette"] h2',
-		});
-		const { fonts } = await session.send("CSS.getPlatformFontsForNode", { nodeId });
-		expect(fonts.some((font) => /^Inter\b/.test(font.familyName) && font.isCustomFont)).toBe(true);
+		for (const [selector, family] of [
+			['[data-testid="component-palette"] h2', /^Outfit\b/],
+			['[data-testid="node-api-gateway"] .text-editor-caption', /^Inter\b/],
+		] as const) {
+			const { nodeId } = await session.send("DOM.querySelector", { nodeId: root.nodeId, selector });
+			const { fonts } = await session.send("CSS.getPlatformFontsForNode", { nodeId });
+			expect(fonts.some((font) => family.test(font.familyName) && font.isCustomFont)).toBe(true);
+		}
 	} finally {
 		await session.detach();
 	}
 	const buttons = page
 		.getByRole("banner")
 		.locator("button[data-testid]")
-		.filter({ has: page.locator("svg.lucide") });
+		.filter({ has: page.locator("svg.tabler-icon") });
 	expect(await buttons.count()).toBe(10);
 	const metrics = await buttons.evaluateAll((items) =>
 		items.map((button) => {
@@ -241,7 +247,7 @@ test("uses the bundled Inter face and equal toolbar icon targets", async ({ page
 			return [width, height, icon?.width, icon?.height, Number(svg?.getAttribute("stroke-width"))];
 		}),
 	);
-	expect(metrics).toEqual(Array.from({ length: 10 }, () => [32, 32, 16, 16, 2.25]));
+	expect(metrics).toEqual(Array.from({ length: 10 }, () => [32, 32, 16, 16, 1.75]));
 });
 
 test("records a focused node's arrow-key movement as a document edit", async ({ page }) => {

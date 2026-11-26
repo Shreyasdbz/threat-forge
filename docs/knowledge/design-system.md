@@ -9,14 +9,14 @@ communicate layering; do not blur the diagram behind it.
 
 ## Typography
 
-- Editor UI: `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif`.
+- Editor UI: Figtree Variable for body and controls, Outfit Variable for headings.
+  Both are bundled locally. Small editor text uses fractional glyph advances and slight negative
+  tracking. The landing page keeps its separate typography.
+- Diagram and exports:
   Bundle [Inter 4.1](https://github.com/rsms/inter/releases/tag/v4.1) under the SIL Open Font License.
-  Use its upright variable WOFF2 for the editor, embed a per-diagram variable TrueType subset in
+  Use its upright variable WOFF2 on the canvas, embed a per-diagram variable TrueType subset in
   SVG, and use its static 400/500/600 TTF faces for resvg. Do not fetch fonts from a CDN or ship an
-  Apple font. Small editor text uses fractional glyph advances and slight negative tracking.
-  Canvas captions also use Inter's small-size optical metrics and normal kerning.
-  Apply Inter's `cv11` to editor text and its open digits (`ss01`) and tabular width (`tnum`)
-  to numeric readouts. The landing page keeps its separate typography.
+  Apple font. Canvas captions use Inter's small-size optical metrics, normal kerning, and `cv11`.
 - IDs, code, and paths when precision matters:
   `ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace`.
   Use tabular figures for counts, percentages, and numeric fields; a count does not need monospace.
@@ -41,37 +41,24 @@ available to both pointer and keyboard users (for example, in the inspector).
 
 ## Color and contrast
 
-Use semantic `editor-*` roles. A blue interaction accent is distinct from the brand mark and from
-document-defined colors; only use red, orange, and green for meaningful states. Light and dark
-recipes below are the reference for the standard editor appearances. Preserve preset selection
-and use preset-aware surface and ink aliases for alternate appearances rather than painting one
-fixed background behind all themes.
+Use semantic `editor-*` roles. Midnight and Daylight use shadcn Base UI Rhea preset
+`b2w3YApQHo`: neutral surfaces and emerald actions. Preserve theme selection and use
+preset-aware surface and ink aliases rather than painting one fixed background behind all themes.
 
-| Editor role | Light | Dark | Purpose |
-| --- | --- | --- | --- |
-| `label` | `#16181C` | `#F3F5F7` | Primary text and icons |
-| `secondary-label` | `#505863` | `#B6BEC9` | Metadata and secondary actions |
-| `tertiary-label` | `#606973` | `#9EA8B6` | Hints, placeholder text, quiet captions |
-| `grouped-background` | `#F3F5F8` | `#14161B` | Sidebar and inset form surround |
-| `surface` | `#FFFFFF` | `#1D2026` | Toolbar, cards, inset form rows |
-| `raised` | `#FFFFFF` | `#262B33` | Popovers and dialogs |
-| `canvas` | `#F7F8FA` | `#171A20` | Diagram workspace |
-| `separator` | `#CFD4DC` | `#373D48` | Decorative hairlines; not a control's only visual cue |
-| `outline` | `#828B98` | `#747F90` | Control or diagram outline when shape is meaningful |
-| `fill` / `hover` / `pressed` | `#F1F3F6` / `#EBEEF3` / `#E1E6EE` | `#252A32` / `#292F39` / `#333B48` | Neutral control state tiers |
-| `selection` | `#EAF3FF` | `#243952` | Selected rows and tinted buttons |
-| `accent` / `on-accent` | `#005CC8` / `#FFFFFF` | `#79B8FF` / `#111318` | Links, focus and filled primary actions |
-| `danger` / `warning` / `success` | `#B42338` / `#944A06` / `#197248` | `#FF9AA5` / `#FFC078` / `#75D9A2` | Error/destructive, caution, success |
-| `action` | `#005CC8` | `#0064D2` | Filled STRIDE action with white text in either theme |
-| `canvas-dot` | `#AEB9C8` | `#647081` | Decorative grid only |
+| Editor role | Recipe |
+| --- | --- |
+| `label`, `secondary-label`, `tertiary-label` | Foreground for primary ink; strengthen muted ink for metadata and hints. |
+| `grouped-background`, `surface`, `raised` | Sidebar or background, card, and popover, respectively. |
+| `canvas`, `canvas-dot` | Quiet neutral canvas; keep the decorative dot grid at `#AEB9C8` in light and `#647081` in dark. |
+| `separator`, `outline` | Use border for decorative hairlines and the stronger outline for controls. |
+| `fill`, `hover`, `pressed`, `selection` | Neutral surface tiers, with a subtle selection tint. |
+| `accent`, `on-accent`, `action` | Emerald actions and focus cues in the defaults. Use the paired foreground on solid fills. |
+| `danger`, `warning`, `success` | Keep distinct destructive, caution, and success cues. |
 
 Use [WCAG contrast](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html): 4.5:1 for
 normal text and 3:1 for [required non-text cues](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html), including
-focus indicators. The reference tertiary ink reaches 5.11:1 on light grouped background and
-6.78:1 on dark surface; the selected row pairs reach 5.58:1 and 5.67:1, respectively. Filled-action
-ink reaches 6.24:1 in light and 8.95:1 in dark. Check actual adjacent backgrounds, including
-hover, raised surfaces, and any preset overrides; these sample numbers do not certify every
-component. Increase separator/outline contrast for `prefers-contrast: more`; honor forced colors
+focus indicators. Check actual adjacent backgrounds, including hover, raised surfaces, and any
+preset overrides. Increase separator/outline contrast for `prefers-contrast: more`; honor forced colors
 for essential cues. Never make color the only signal for selection, severity, group identity, or errors.
 
 ### Diagram palette
@@ -109,8 +96,8 @@ stored `.thf` colors on theme change or export.
   continuous decoration; keep immediate state feedback.
 - Focus: 2 px accent outline, 2 px offset, visible for keyboard focus and not clipped by scroll
   containers. On a filled accent control separate the ring from the fill with a surface gap.
-- Iconography: Lucide only for editor actions. Use 16 px icons in equal 32 px toolbar targets
-  and for inline actions, with 1.5 px rendered stroke (Lucide's absolute stroke option); match the weight
+- Iconography: Tabler for new editor chrome; existing diagram and action icons may remain.
+  Use 16 px icons in equal 32 px toolbar targets and for inline actions; match the weight
   and optical center of adjacent text. Use one metaphor per action across surfaces. Icons beside
   labels are decorative; icon-only controls need an accessible name and a tooltip with shortcuts.
   Diagram component glyphs and product marks are content, not alternate action icon sets.
@@ -121,7 +108,7 @@ stored `.thf` colors on theme change or export.
 | --- | --- |
 | App shell and toolbar | One quiet 48 px strip. Separate command groups with short hairlines, not a border around each icon. Keep navigation stable with overflow titles; do not repeat shortcut hints under buttons. |
 | Sidebar library | Source list, not a card grid. Use category headers and 36 px minimum rows with aligned glyph and single-line label. Use description in a tooltip or details, not a second row. Keep drag/drop and keyboard discovery. |
-| Inspector tabs | Equal-width, regular-weight labels above a single separator; mark selection with a rule. Use two columns when the pane is narrow rather than clipping labels. Arrow keys move focus; Enter or Space selects the tab. |
+| Inspector tabs | Equal-width Tabler icons above a single separator. Mark selection with a rule. Keep accessible names, hover and keyboard-focus tooltips, and the threat count. Arrow keys move focus; Enter or Space selects the tab. |
 | Document tabs | One row, underline or inset selection (not both); preserve close and pin targets, the existing keyboard model, and access to full names. Do not conflate document tabs with inspector segments. |
 | Inspector fields | Inset groups with a sentence-case footnote above. Rows share one surface and internal hairlines. Align read-only and editable values to the same edge; editable fields gain a fill on hover and focus. Stack long content and group the color, percentage and named reset on one row when space allows. |
 | Text inputs and selects | Use body type and a clear focus boundary. Outside inset inspector rows, use an opaque fill. Labels remain visible while typing; placeholders only provide examples. Align select chevrons to the right, with no second outline. |

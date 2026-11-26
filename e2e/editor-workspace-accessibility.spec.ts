@@ -12,6 +12,7 @@ for (const colorScheme of ["light", "dark"] as const) {
 			await page.goto("/app");
 			await expect(page.getByTestId("empty-canvas")).toBeVisible();
 			await test.step("empty workspace", async () => {
+				await page.getByTestId("btn-empty-new").hover();
 				await assertNoSeriousAccessibilityViolations(page);
 			});
 			await openDocument(page, fixture);
@@ -45,6 +46,9 @@ test("operates the inspector, dialogs and a canvas selection by keyboard", async
 	await properties.focus();
 	await page.keyboard.press("ArrowRight");
 	await expect(architecture).toBeFocused();
+	const tooltip = page.locator('[data-slot="tooltip-content"]');
+	await expect(tooltip).toBeVisible();
+	await expect(tooltip).toHaveText("Architecture");
 	await expect(properties).toHaveAttribute("aria-selected", "true");
 	await page.keyboard.press("Enter");
 	await expect(architecture).toHaveAttribute("aria-selected", "true");
