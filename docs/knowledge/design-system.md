@@ -69,6 +69,10 @@ text. Reserve a solid mark for the identifying dot; an outline or fill may be qu
 name and dot already communicate the container. Keep existing explicit colors; never modify
 stored `.thf` colors on theme change or export.
 
+Starter templates use muted neutral, emerald and teal boundaries, with a muted
+red for security zones. Selection on the canvas is an editor-only, single-pixel
+accent; it is not part of the exported scene.
+
 | Hue | Light canvas | Dark canvas |
 | --- | --- | --- |
 | Blue | `#286CC2` | `#7CB5F6` |
@@ -111,7 +115,7 @@ stored `.thf` colors on theme change or export.
 | Inspector tabs | Equal-width Tabler icons above a single separator. Mark selection with a rule. Keep accessible names, hover and keyboard-focus tooltips, and the threat count. Arrow keys move focus; Enter or Space selects the tab. |
 | Document tabs | One row, underline or inset selection (not both); preserve close and pin targets, the existing keyboard model, and access to full names. Do not conflate document tabs with inspector segments. |
 | Inspector fields | Inset groups with a sentence-case footnote above. Rows share one surface and internal hairlines. Align read-only and editable values to the same edge; editable fields gain a fill on hover and focus. Stack long content and group the color, percentage and named reset on one row when space allows. |
-| Text inputs and selects | Use body type and a clear focus boundary. Outside inset inspector rows, use an opaque fill. Labels remain visible while typing; placeholders only provide examples. Align select chevrons to the right, with no second outline. |
+| Text inputs and selects | Use body type and a clear focus boundary. Labels remain visible while typing; placeholders only provide examples. Native selects share the Rhea trigger dimensions, input fill, and Tabler selector icon; the browser still owns the options popup and keyboard interaction. |
 | Buttons | Plain for secondary and toolbar actions; tinted for selection or a secondary call to action; filled accent for the primary action in a decision group. Keep destructive actions labeled, not just colored. |
 | AI and threat panels | Same type and inset rows as the inspector. One panel title, readable Body copy, and Footnote metadata. Use semantic color for approval/error or severity, with words and glyphs as needed; do not turn messages or list items into stacks of decorative cards. |
 | Popovers and dialogs | One raised surface, one heading, at most one primary action. Use grouped rows for settings, hairlines only where structure needs them, and visible keyboard focus. Respect scroll, escape, and existing focus restoration. |

@@ -17,6 +17,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { GithubIcon } from "@/components/icons/github-icon";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
 import { openExternalUrl } from "@/lib/platform";
 import { cn } from "@/lib/utils";
@@ -194,13 +195,9 @@ function GeneralSection() {
 			<div className="border-t border-border pt-4" />
 
 			<SettingRow label="Language" description="Interface language (more coming soon)">
-				<select
-					aria-label="Language"
-					disabled
-					className="rounded border border-border bg-background px-2 py-1.5 text-editor-body opacity-60"
-				>
+				<NativeSelect aria-label="Language" disabled>
 					<option>English</option>
-				</select>
+				</NativeSelect>
 			</SettingRow>
 
 			<SettingRow label="Autosave" description="Automatically save when changes are made">
@@ -499,13 +496,17 @@ function ToggleSwitch({
 	testId?: string;
 }) {
 	return (
-		<Switch
-			aria-label={label}
-			checked={checked}
-			data-testid={testId}
-			onCheckedChange={onChange}
-			className="data-[size=default]:h-6 data-[size=default]:w-8 data-unchecked:border-editor-outline"
-		/>
+		<span className="inline-flex items-center gap-3">
+			<span aria-hidden="true" className="w-5 text-right text-editor-caption text-muted-foreground">
+				{checked ? "On" : "Off"}
+			</span>
+			<Switch
+				aria-label={label}
+				checked={checked}
+				data-testid={testId}
+				onCheckedChange={onChange}
+			/>
+		</span>
 	);
 }
 

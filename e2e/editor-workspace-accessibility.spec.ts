@@ -85,6 +85,34 @@ test("operates the inspector, dialogs and a canvas selection by keyboard", async
 	);
 });
 
+test("uses the same native select treatment and exposes switch state", async ({ page }) => {
+	await page.goto("/app");
+	await openDocument(page, fixture);
+	const category = page.getByRole("combobox", { name: "Component category" });
+	await expect(category).toHaveAttribute("data-slot", "native-select");
+	await category.press("End");
+	await expect(category).not.toHaveValue("all");
+	await category.press("Home");
+	await expect(category.locator("option:checked")).toHaveText("All categories");
+	await page.getByTestId("node-web-app").click();
+	const type = page.getByRole("combobox", { name: "Type", exact: true });
+	await expect(type).toHaveAttribute("data-slot", "native-select");
+
+	await page.getByTestId("btn-settings-dialog").click();
+	const settings = page.getByRole("dialog", { name: "Settings" });
+	const language = settings.getByRole("combobox", { name: "Language" });
+	await expect(language).toHaveAttribute("data-slot", "native-select");
+	await expect(language).toBeDisabled();
+	const autosave = settings.getByRole("switch", { name: "Autosave" });
+	const indicator = autosave.locator("..");
+	await expect(autosave).not.toBeChecked();
+	await expect(autosave).toHaveCSS("height", "20px");
+	await expect(indicator).toContainText("Off");
+	await autosave.press("Space");
+	await expect(autosave).toBeChecked();
+	await expect(indicator).toContainText("On");
+});
+
 test("reflows editor chrome at a 200% zoom-equivalent viewport", async ({ page }) => {
 	await page.setViewportSize({ width: 720, height: 450 });
 	await page.goto("/app");

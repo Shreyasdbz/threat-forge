@@ -14,6 +14,15 @@ import {
 } from "lucide-react";
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyMedia,
+	EmptyTitle,
+} from "@/components/ui/empty";
 import { KEY_STORAGE_UNREADABLE } from "@/lib/adapters/keychain-adapter";
 import {
 	extractLegacyActions,
@@ -170,22 +179,29 @@ function KeyStorageFault({ message, onConfigure }: { message: string; onConfigur
 function EmptyState({ onConfigure }: { onConfigure: () => void }) {
 	return (
 		<div className="flex flex-1 flex-col">
-			<div className="my-auto flex shrink-0 flex-col items-center gap-3 px-2 py-4 text-center">
-				<Bot className="size-5 shrink-0 text-muted-foreground" />
-				<div>
-					<p className="text-editor-headline">No API key configured</p>
-					<p className="mt-1 text-editor-body text-muted-foreground">
+			<Empty className="my-auto flex-none rounded-none px-2 py-4">
+				<EmptyHeader>
+					<EmptyMedia variant="icon">
+						<Bot aria-hidden="true" />
+					</EmptyMedia>
+					<EmptyTitle className="text-editor-title3 tracking-normal">
+						No API key configured
+					</EmptyTitle>
+					<EmptyDescription className="text-editor-body">
 						Add your Anthropic or OpenAI API key to get AI-powered threat analysis.
-					</p>
-				</div>
-				<button
-					type="button"
-					onClick={onConfigure}
-					className="min-h-11 shrink-0 rounded-md border border-border px-3 text-editor-footnote hover:bg-accent active:bg-accent focus-visible:outline-1 focus-visible:outline-foreground"
-				>
-					Configure API Key
-				</button>
-			</div>
+					</EmptyDescription>
+				</EmptyHeader>
+				<EmptyContent>
+					<Button
+						type="button"
+						variant="outline"
+						onClick={onConfigure}
+						className="min-h-11 text-editor-footnote"
+					>
+						Configure API Key
+					</Button>
+				</EmptyContent>
+			</Empty>
 		</div>
 	);
 }
@@ -783,61 +799,63 @@ function ChatInput({ canSend }: { canSend: boolean }) {
 	}
 
 	return (
-		<fieldset
-			aria-label="Message composer"
-			className="mt-3 min-w-0 shrink-0 rounded-lg border border-border bg-background p-2 has-[textarea:focus-visible]:outline-1 has-[textarea:focus-visible]:outline-foreground"
+		<Card
+			size="sm"
+			className="mt-3 min-w-0 shrink-0 overflow-visible border border-border py-0 has-[textarea:focus-visible]:outline-1 has-[textarea:focus-visible]:outline-foreground"
 		>
-			{canSend && (
-				<textarea
-					ref={inputRef}
-					value={input}
-					onChange={(e) => setInput(e.target.value)}
-					onKeyDown={handleKeyDown}
-					placeholder="Ask about threats..."
-					aria-label="Message AI assistant"
-					rows={2}
-					className="block max-h-40 w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-editor-body leading-relaxed placeholder:text-muted-foreground focus:outline-none"
-				/>
-			)}
-			<div className="relative flex items-start justify-between gap-1">
-				<ChatModelSelector disabled={isBusy} />
-				{isBusy ? (
-					<button
-						type="button"
-						onClick={stopGenerating}
-						className="flex size-11 shrink-0 items-center justify-center rounded-md text-foreground hover:bg-accent active:bg-accent focus-visible:outline-1 focus-visible:outline-foreground"
-						title="Stop generating (Esc)"
-						aria-label="Stop response"
-					>
-						<Square className="size-3 fill-current" />
-					</button>
-				) : canSend ? (
-					<button
-						type="button"
-						onClick={handleSubmit}
-						disabled={!input.trim()}
-						className={cn(
-							"flex size-11 shrink-0 items-center justify-center rounded-md focus-visible:outline-1 focus-visible:outline-foreground",
-							input.trim()
-								? "text-foreground hover:bg-accent active:bg-accent"
-								: "cursor-default text-muted-foreground opacity-50",
-						)}
-						title="Send (Enter)"
-						aria-label="Send message"
-					>
-						<ArrowUp className="size-4" aria-hidden="true" />
-					</button>
-				) : null}
-			</div>
-			{(canSend || isBusy) && (
-				<p role="status" className="sr-only">
-					{turnPhase === "awaiting_approval"
-						? "Review suggested changes"
-						: isBusy
-							? "Generating…"
-							: "Enter to send"}
-				</p>
-			)}
-		</fieldset>
+			<fieldset aria-label="Message composer" className="min-w-0 p-2">
+				{canSend && (
+					<textarea
+						ref={inputRef}
+						value={input}
+						onChange={(e) => setInput(e.target.value)}
+						onKeyDown={handleKeyDown}
+						placeholder="Ask about threats..."
+						aria-label="Message AI assistant"
+						rows={2}
+						className="block max-h-40 w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-editor-body leading-relaxed placeholder:text-muted-foreground focus:outline-none"
+					/>
+				)}
+				<div className="relative flex items-start justify-between gap-1">
+					<ChatModelSelector disabled={isBusy} />
+					{isBusy ? (
+						<button
+							type="button"
+							onClick={stopGenerating}
+							className="flex size-11 shrink-0 items-center justify-center rounded-md text-foreground hover:bg-accent active:bg-accent focus-visible:outline-1 focus-visible:outline-foreground"
+							title="Stop generating (Esc)"
+							aria-label="Stop response"
+						>
+							<Square className="size-3 fill-current" />
+						</button>
+					) : canSend ? (
+						<button
+							type="button"
+							onClick={handleSubmit}
+							disabled={!input.trim()}
+							className={cn(
+								"flex size-11 shrink-0 items-center justify-center rounded-md focus-visible:outline-1 focus-visible:outline-foreground",
+								input.trim()
+									? "text-foreground hover:bg-accent active:bg-accent"
+									: "cursor-default text-muted-foreground opacity-50",
+							)}
+							title="Send (Enter)"
+							aria-label="Send message"
+						>
+							<ArrowUp className="size-4" aria-hidden="true" />
+						</button>
+					) : null}
+				</div>
+				{(canSend || isBusy) && (
+					<p role="status" className="sr-only">
+						{turnPhase === "awaiting_approval"
+							? "Review suggested changes"
+							: isBusy
+								? "Generating…"
+								: "Enter to send"}
+					</p>
+				)}
+			</fieldset>
+		</Card>
 	);
 }

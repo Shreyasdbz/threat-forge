@@ -113,12 +113,12 @@ type TemplateBuilder = (today: string) => ThreatModel;
  * Boundary color palette (hex)
  * ────────────────────────────────────────────────────────────────────────── */
 const BOUNDARY_COLORS = {
-	edge: { fill: "#F97316", stroke: "#F97316", fillOpacity: 0.04, strokeOpacity: 0.45 },
-	internal: { fill: "#3B82F6", stroke: "#3B82F6", fillOpacity: 0.04, strokeOpacity: 0.45 },
-	data: { fill: "#8B5CF6", stroke: "#8B5CF6", fillOpacity: 0.04, strokeOpacity: 0.45 },
-	security: { fill: "#EF4444", stroke: "#EF4444", fillOpacity: 0.05, strokeOpacity: 0.5 },
-	external: { fill: "#6B7280", stroke: "#6B7280", fillOpacity: 0.03, strokeOpacity: 0.35 },
-	iot: { fill: "#10B981", stroke: "#10B981", fillOpacity: 0.04, strokeOpacity: 0.45 },
+	edge: { fill: "#737373", stroke: "#737373", fillOpacity: 0.04, strokeOpacity: 0.45 },
+	internal: { fill: "#059669", stroke: "#059669", fillOpacity: 0.04, strokeOpacity: 0.45 },
+	data: { fill: "#0F766E", stroke: "#0F766E", fillOpacity: 0.04, strokeOpacity: 0.45 },
+	security: { fill: "#854D4D", stroke: "#854D4D", fillOpacity: 0.05, strokeOpacity: 0.5 },
+	external: { fill: "#737373", stroke: "#737373", fillOpacity: 0.03, strokeOpacity: 0.35 },
+	iot: { fill: "#047857", stroke: "#047857", fillOpacity: 0.04, strokeOpacity: 0.45 },
 };
 
 /* ═════════════════════════════════════════════════════════════════════════════

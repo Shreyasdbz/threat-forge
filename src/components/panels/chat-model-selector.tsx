@@ -1,5 +1,6 @@
 import { Check, ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { getDefaultModelId, getModelById, getModelsForProvider } from "@/lib/ai-models";
 import { cn } from "@/lib/utils";
 import { type AiProvider, useChatStore } from "@/stores/chat-store";
@@ -176,9 +177,10 @@ export function ChatModelSelector({ disabled }: { disabled: boolean }) {
 				if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
 			}}
 		>
-			<button
+			<Button
 				ref={triggerRef}
 				type="button"
+				variant="ghost"
 				aria-label="Model"
 				aria-describedby={`${menuId}-selection`}
 				aria-haspopup="menu"
@@ -193,11 +195,11 @@ export function ChatModelSelector({ disabled }: { disabled: boolean }) {
 						setOpen(true);
 					}
 				}}
-				className="flex h-11 max-w-full min-w-11 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground active:bg-accent focus-visible:outline-1 focus-visible:outline-foreground disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+				className="h-11 max-w-full min-w-11 gap-1.5 px-2 text-editor-caption text-muted-foreground transition-none hover:text-foreground"
 			>
 				<span className="min-w-0 truncate">{selectedModel?.label ?? selectedId}</span>
 				<ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
-			</button>
+			</Button>
 			<span id={`${menuId}-selection`} className="sr-only">
 				{provider === "openai" ? "OpenAI" : "Anthropic"}: {selectedModel?.label ?? selectedId}
 			</span>

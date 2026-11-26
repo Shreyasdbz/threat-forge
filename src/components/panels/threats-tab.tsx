@@ -11,6 +11,7 @@ import {
 import { useRef, useState } from "react";
 import { CanvasContextMenu, type ContextMenuItem } from "@/components/canvas/canvas-context-menu";
 import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
 import { copyTextToClipboard } from "@/lib/platform";
 import { getComponent } from "@/lib/registry/registry";
 import { serializeThreatYaml } from "@/lib/thf-yaml";
@@ -278,46 +279,46 @@ function ThreatEditor({ threat }: { threat: Threat }) {
 					type="text"
 					value={threat.title}
 					onChange={(e) => updateThreat(threat.id, { title: e.target.value })}
-					className="w-full rounded border border-border bg-background px-2 py-1 text-editor-caption focus:border-primary focus:outline-none"
+					className="w-full"
 				/>
 			</FieldGroup>
 
 			{/* Category + Severity row */}
 			<div className="grid grid-cols-2 gap-2">
 				<FieldGroup label="Category">
-					<select
+					<NativeSelect
 						value={threat.category}
 						onChange={(e) =>
 							updateThreat(threat.id, {
 								category: e.target.value as StrideCategory,
 							})
 						}
-						className="w-full rounded border border-border bg-background px-2 py-1 text-editor-caption focus:border-primary focus:outline-none"
+						className="w-full"
 					>
 						{STRIDE_CATEGORIES.map((c) => (
 							<option key={c} value={c}>
 								{c}
 							</option>
 						))}
-					</select>
+					</NativeSelect>
 				</FieldGroup>
 
 				<FieldGroup label="Severity">
-					<select
+					<NativeSelect
 						value={threat.severity}
 						onChange={(e) =>
 							updateThreat(threat.id, {
 								severity: e.target.value as Severity,
 							})
 						}
-						className="w-full rounded border border-border bg-background px-2 py-1 text-editor-caption focus:border-primary focus:outline-none"
+						className="w-full"
 					>
 						{SEVERITIES.map((s) => (
 							<option key={s} value={s}>
 								{s.charAt(0).toUpperCase() + s.slice(1)}
 							</option>
 						))}
-					</select>
+					</NativeSelect>
 				</FieldGroup>
 			</div>
 
@@ -350,21 +351,21 @@ function ThreatEditor({ threat }: { threat: Threat }) {
 
 			{/* Mitigation */}
 			<FieldGroup label="Mitigation Status">
-				<select
+				<NativeSelect
 					value={threat.mitigation?.status ?? "not_started"}
 					onChange={(e) =>
 						handleMitigationChange({
 							status: e.target.value as MitigationStatus,
 						})
 					}
-					className="w-full rounded border border-border bg-background px-2 py-1 text-editor-caption focus:border-primary focus:outline-none"
+					className="w-full"
 				>
 					{MITIGATION_STATUSES.map((s) => (
 						<option key={s} value={s}>
 							{formatMitigationStatus(s)}
 						</option>
 					))}
-				</select>
+				</NativeSelect>
 			</FieldGroup>
 
 			<FieldGroup label="Mitigation Notes">

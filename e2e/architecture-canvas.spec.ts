@@ -109,7 +109,8 @@ test("aligns inspector rows and section headings on the same inset", async ({ pa
 		locator.evaluate(
 			(element) =>
 				element.getBoundingClientRect().left +
-				Number.parseFloat(getComputedStyle(element).paddingLeft),
+				Number.parseFloat(getComputedStyle(element).paddingLeft) +
+				Number.parseFloat(getComputedStyle(element).borderLeftWidth),
 		);
 	const fieldLabel = details.getByText("Name", { exact: true });
 	const name = details.getByRole("textbox", { name: "Name", exact: true });

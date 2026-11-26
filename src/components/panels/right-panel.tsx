@@ -67,8 +67,8 @@ export function RightPanel() {
 									{count > 0 && (
 										<Badge
 											aria-hidden="true"
-											variant="secondary"
-											className="h-4 min-w-4 px-0.5 tabular-nums"
+											variant="ghost"
+											className="h-4 min-w-0 px-0.5 text-editor-caption2 text-muted-foreground tabular-nums"
 										>
 											{count > 99 ? "99+" : count}
 										</Badge>

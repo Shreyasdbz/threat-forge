@@ -87,9 +87,7 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 				className={cn(
 					"h-full w-full relative rounded-editor-panel border border-dashed transition-colors",
 					!hasCustomColors && (selected ? "border-editor-accent" : "border-editor-outline"),
-					hasCustomColors &&
-						selected &&
-						"ring-2 ring-editor-accent ring-offset-1 ring-offset-editor-canvas",
+					hasCustomColors && selected && "outline outline-1 outline-editor-accent",
 					isDragOver && isDraggingElement && "border-editor-accent bg-editor-selection",
 				)}
 				style={{

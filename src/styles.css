@@ -18,6 +18,7 @@
 @theme static {
 	--font-editor: "Figtree Variable", system-ui, sans-serif;
 	--font-editor-heading: "Outfit Variable", system-ui, sans-serif;
+	--font-heading: var(--font-editor-heading);
 	--font-diagram: "Inter", system-ui, sans-serif;
 	--font-editor-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 	--text-editor-caption2: 0.6875rem;
@@ -146,6 +147,8 @@ html.light[data-theme-preset]:not([data-theme-preset="daylight"]) {
 	--radius-lg: 0rem;
 	--radius-xl: 0rem;
 	--radius-2xl: 0rem;
+	--radius-3xl: 0rem;
+	--radius-4xl: 0rem;
 }
 
 .editor-workspace :is(h1, h2, h3):not(.react-flow *) {

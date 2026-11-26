@@ -92,10 +92,10 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 
 	const isHexagon = shape === "hexagon";
 
-	const hexBorderColor = strokeColor
-		? hexToRgba(strokeColor, strokeOpacity)
-		: selected
-			? "var(--editor-accent)"
+	const hexBorderColor = selected
+		? "var(--editor-accent)"
+		: strokeColor
+			? hexToRgba(strokeColor, strokeOpacity)
 			: "var(--editor-outline)";
 	const hexFillColor = fillColor ? hexToRgba(fillColor, fillOpacity) : "var(--editor-surface)";
 
@@ -189,10 +189,8 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 				nodeData.elementSize ? "h-full w-full overflow-hidden" : "min-h-[72px]",
 				shapeClass(shape),
 				!hasCustomColors && (selected ? "border-editor-accent" : "border-editor-outline"),
-				hasCustomColors &&
-					selected &&
-					"ring-2 ring-editor-accent ring-offset-1 ring-offset-editor-canvas",
-				connectedToSelectedEdge && !selected && "ring-2 ring-editor-accent/30",
+				hasCustomColors && selected && "outline outline-1 outline-editor-accent",
+				connectedToSelectedEdge && !selected && "outline outline-1 outline-editor-accent/50",
 			)}
 			style={{ width: nodeData.elementSize ? undefined : DEFAULT_NODE_WIDTH, ...customStyle }}
 		>

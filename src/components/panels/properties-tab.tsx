@@ -1,14 +1,7 @@
 import { MarkerType } from "@xyflow/react";
-import { ArrowLeftRight, Box, ChevronDown, MousePointer2, RotateCcw } from "lucide-react";
-import {
-	type ComponentProps,
-	type ReactNode,
-	useCallback,
-	useEffect,
-	useId,
-	useLayoutEffect,
-	useState,
-} from "react";
+import { ArrowLeftRight, Box, MousePointer2, RotateCcw } from "lucide-react";
+import { type ReactNode, useCallback, useEffect, useId, useLayoutEffect, useState } from "react";
+import { NativeSelect } from "@/components/ui/native-select";
 import { getComponent, listCategories, listComponents } from "@/lib/registry/registry";
 import { type DfdEdge, type DfdEdgeData, useCanvasStore } from "@/stores/canvas-store";
 import { useActiveStores } from "@/stores/document-stores";
@@ -19,7 +12,7 @@ import type { DataFlow } from "@/types/threat-model";
 const ROW = "grid min-h-11 grid-cols-[minmax(0,2fr)_minmax(0,3fr)] items-center gap-2 px-3 py-1.5";
 const LABEL = "text-editor-footnote text-editor-secondary-label";
 const INPUT =
-	"min-h-7 w-full min-w-0 rounded-editor-control border-0 bg-transparent px-2 py-1 text-left text-editor-body text-foreground placeholder:text-editor-secondary-label hover:bg-editor-hover focus:bg-editor-fill";
+	"min-h-7 w-full min-w-0 rounded-editor-control border-0 bg-transparent px-[13px] py-1 text-left text-editor-body text-foreground placeholder:text-editor-secondary-label hover:bg-editor-hover focus:bg-editor-fill";
 
 function InspectorGroup({ title, children }: { title: string; children: ReactNode }) {
 	return (
@@ -39,18 +32,6 @@ function InspectorField({ label, children }: { label: string; children: ReactNod
 			<span className={LABEL}>{label}</span>
 			{children}
 		</label>
-	);
-}
-
-function InspectorSelect({ className = "", ...props }: ComponentProps<"select">) {
-	return (
-		<span className="relative min-w-0">
-			<select {...props} className={`${INPUT} appearance-none pr-7 ${className}`} />
-			<ChevronDown
-				aria-hidden="true"
-				className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-editor-secondary-label"
-			/>
-		</span>
 	);
 }
 
@@ -328,10 +309,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 				{/* Type dropdown — hidden for text annotations */}
 				{!isTextAnnotation && (
 					<InspectorField label="Type">
-						<InspectorSelect
-							value={element.type}
-							onChange={(e) => handleTypeChange(e.target.value)}
-						>
+						<NativeSelect value={element.type} onChange={(e) => handleTypeChange(e.target.value)}>
 							<option value="generic">Generic</option>
 							{componentsByCategory.map((group) => (
 								<optgroup key={group.category} label={group.category}>
@@ -342,7 +320,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 									))}
 								</optgroup>
 							))}
-						</InspectorSelect>
+						</NativeSelect>
 					</InspectorField>
 				)}
 
@@ -351,7 +329,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 				{/* Sub-type dropdown (conditional, not for text) */}
 				{!isTextAnnotation && subtypes.length > 0 && (
 					<InspectorField label="Sub Type">
-						<InspectorSelect
+						<NativeSelect
 							value={element.subtype ?? ""}
 							onChange={(e) => handleSubtypeChange(e.target.value)}
 						>
@@ -361,7 +339,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 									{st.label}
 								</option>
 							))}
-						</InspectorSelect>
+						</NativeSelect>
 					</InspectorField>
 				)}
 
@@ -398,7 +376,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 				<InspectorGroup title="Architecture">
 					{(["layer", "group"] as const).map((field) => (
 						<InspectorField key={field} label={field === "layer" ? "Layer" : "Group"}>
-							<InspectorSelect
+							<NativeSelect
 								value={element[field] ?? ""}
 								onChange={(event) =>
 									updateElement(element.id, { [field]: event.target.value || undefined })
@@ -410,7 +388,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 										{option.name}
 									</option>
 								))}
-							</InspectorSelect>
+							</NativeSelect>
 						</InspectorField>
 					))}
 					<CommaSeparatedField
@@ -447,7 +425,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 					/>
 
 					<InspectorField label="Font Size">
-						<InspectorSelect
+						<NativeSelect
 							value={element.font_size ?? 14}
 							onChange={(e) => {
 								const size = Number.parseInt(e.target.value, 10);
@@ -461,7 +439,7 @@ function ElementProperties({ elementId }: { elementId: string }) {
 									{size}px
 								</option>
 							))}
-						</InspectorSelect>
+						</NativeSelect>
 					</InspectorField>
 
 					<div className={ROW}>
@@ -773,7 +751,7 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
 		<dl className={ROW}>
 			<dt className={LABEL}>{label}</dt>
 			<dd
-				className={`min-w-0 wrap-anywhere px-2 text-left ${
+				className={`min-w-0 wrap-anywhere px-[13px] text-left ${
 					label === "ID" ? "break-all font-editor-mono text-editor-caption" : "text-editor-body"
 				}`}
 			>

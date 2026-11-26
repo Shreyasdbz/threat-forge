@@ -3,6 +3,7 @@ import { Search, ShieldAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 import { IconRenderer } from "@/components/icons/icon-renderer";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH, nodeToRect } from "@/lib/canvas-utils";
 import {
 	listCategories,
@@ -119,7 +120,7 @@ export function ComponentPalette() {
 
 			{!searchQuery && (
 				<div className="shrink-0 px-4 pb-2">
-					<select
+					<NativeSelect
 						aria-label="Component category"
 						value={activeCategory}
 						onChange={(event) =>
@@ -127,7 +128,7 @@ export function ComponentPalette() {
 								categories.find(({ id }) => id === event.target.value)?.id ?? ALL_CATEGORIES,
 							)
 						}
-						className="min-h-8 w-full rounded-editor-control border border-editor-outline bg-editor-surface px-3 text-editor-body"
+						className="w-full"
 					>
 						<option value={ALL_CATEGORIES}>All categories</option>
 						{categories.map(({ id, label }) => (
@@ -135,7 +136,7 @@ export function ComponentPalette() {
 								{label}
 							</option>
 						))}
-					</select>
+					</NativeSelect>
 				</div>
 			)}
 

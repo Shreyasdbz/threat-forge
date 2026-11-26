@@ -133,6 +133,20 @@ test.describe("Canvas Visual Regression", () => {
 });
 
 for (const colorScheme of ["light", "dark"] as const) {
+	test(`AI and Settings controls match the ${colorScheme} baselines`, async ({ page }) => {
+		await page.emulateMedia({ colorScheme });
+		await page.goto("/app");
+		await openDocument(page, "tests/fixtures/thf/architecture-canonical-full.thf");
+		await page.getByRole("tab", { name: "AI", exact: true }).click();
+		const inspector = page.getByTestId("right-panel");
+		await expect(inspector.getByRole("button", { name: "Configure API Key" })).toBeVisible();
+		await expect(inspector).toHaveScreenshot(`inspector-ai-${colorScheme}.png`);
+		await page.getByTestId("btn-settings-dialog").click();
+		const settings = page.getByRole("dialog", { name: "Settings" });
+		await expect(settings.getByRole("switch", { name: "Autosave" })).toBeVisible();
+		await expect(settings).toHaveScreenshot(`settings-controls-${colorScheme}.png`);
+	});
+
 	test(`selected component inspector matches the ${colorScheme} baseline`, async ({ page }) => {
 		await page.emulateMedia({ colorScheme });
 		await page.goto("/app");
