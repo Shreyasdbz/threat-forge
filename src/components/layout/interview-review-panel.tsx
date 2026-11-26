@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	applyInterviewReview,
+	resolveInterviewSelection,
 	reviewInterview,
 	selectInterviewChange,
 } from "@/lib/interview-review";
@@ -24,6 +25,10 @@ export function InterviewReviewPanel({
 		setError(null);
 	}
 	if (!review) return <Button onClick={rebuild}>Build proposal</Button>;
+	const { changes, gaps } = resolveInterviewSelection(review);
+	const selectedBoundaries = new Map(
+		changes.flatMap((change) => (change.kind === "boundary" ? [[change.key, change.value]] : [])),
+	);
 	const names = new Map(review.expected.elements.map(({ id, name }) => [id, name]));
 	for (const change of review.changes) {
 		if (change.kind === "element") names.set(change.value.id, change.value.name);
@@ -35,12 +40,13 @@ export function InterviewReviewPanel({
 				<ul className="space-y-2">
 					{review.changes.map((change) => {
 						const { key, kind, value, requires } = change;
+						const checked = review.selected.has(key);
 						return (
 							<li key={key} className="border border-editor-line p-2">
 								<label className="flex items-center gap-2 font-medium">
 									<input
 										type="checkbox"
-										checked={review.selected.has(key)}
+										checked={checked}
 										onChange={(event) => {
 											const checked = event.target.checked;
 											update((state) => ({
@@ -61,7 +67,10 @@ export function InterviewReviewPanel({
 								)}
 								{change.kind === "boundary" && (
 									<p className="ml-5 text-muted-foreground">
-										Members: {change.value.contains.map((id) => names.get(id)).join(", ")}
+										Members:{" "}
+										{(checked ? selectedBoundaries.get(key)?.contains : change.value.contains)
+											?.map((id) => names.get(id))
+											.join(", ") ?? "None to add"}
 									</p>
 								)}
 								{requires.length > 0 && (
@@ -79,11 +88,11 @@ export function InterviewReviewPanel({
 			) : (
 				<p>No additions proposed.</p>
 			)}
-			{review.gaps.length > 0 && (
+			{gaps.length > 0 && (
 				<>
 					<h3 className="font-semibold">Unanswered questions</h3>
 					<ul className="list-disc pl-5">
-						{review.gaps.map((gap) => (
+						{gaps.map((gap) => (
 							<li key={gap}>{gap}</li>
 						))}
 					</ul>
@@ -111,7 +120,7 @@ export function InterviewReviewPanel({
 					Rebuild proposal
 				</Button>
 				<Button
-					disabled={!review.selected.size}
+					disabled={!changes.length}
 					onClick={() => {
 						const refusal = applyInterviewReview(stores, review);
 						if (refusal) setError(refusal);

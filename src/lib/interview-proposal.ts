@@ -143,7 +143,6 @@ export function buildInterviewProposal(
 			return false;
 		});
 		if (!members.length) continue;
-		for (const member of members) ownerByMember.set(member.id, name);
 		const key = `boundary-${answer.key}`;
 		changes.push({
 			key,
