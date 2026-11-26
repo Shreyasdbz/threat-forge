@@ -61,4 +61,23 @@ it("proposes boundaries with remaining valid members when a reference is no long
 		{ kind: "boundary", value: { name: "Internal", contains: ["checkout"] }, requires: [] },
 	]);
 	expect(proposal.gaps).toContain("A boundary needs a name and valid members.");
+	expect(proposal.gaps).toContain("Boundary “Internal” has unavailable members.");
+});
+
+it("maps a retained boundary selection to the reused element without a create dependency", () => {
+	const model = readThreatModelText(fixture);
+	const proposal = buildInterviewProposal(model, {
+		scope: "",
+		assets: "",
+		elements: [{ key: 1, role: "process", name: "Billing", reuse: "checkout" }],
+		flows: [],
+		boundaries: [{ key: 2, name: "Internal", members: ["answer:1", "existing:customer"] }],
+	});
+	expect(proposal.changes).toMatchObject([
+		{
+			kind: "boundary",
+			value: { name: "Internal", contains: ["checkout", "customer"] },
+			requires: [],
+		},
+	]);
 });

@@ -3,7 +3,11 @@ import { useStore } from "zustand";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
-import { type InterviewAnswers, interviewElements } from "@/lib/interview-proposal";
+import {
+	type InterviewAnswers,
+	interviewBoundaryMemberRef,
+	interviewElements,
+} from "@/lib/interview-proposal";
 import { reviewInterview } from "@/lib/interview-review";
 import { useActiveStores } from "@/stores/document-stores";
 import type { InterviewDraft } from "@/stores/interview-store";
@@ -381,6 +385,8 @@ function Questions({
 					Which elements share a trust boundary? Flows between members and non-members cross it.
 				</p>
 				{answers.boundaries.map((row, index) => {
+					const resolveMember = (ref: string) => interviewBoundaryMemberRef(ref, answers.elements);
+					const selected = new Set(row.members.map(resolveMember));
 					const change = (patch: Partial<typeof row>) =>
 						edit("boundaries", (items) =>
 							items.map((item) => (item.key === row.key ? { ...item, ...patch } : item)),
@@ -403,12 +409,12 @@ function Questions({
 										<input
 											id={id}
 											type="checkbox"
-											checked={row.members.includes(ref)}
+											checked={selected.has(ref)}
 											onChange={(event) =>
 												change({
 													members: event.target.checked
 														? [...row.members, ref]
-														: row.members.filter((member) => member !== ref),
+														: row.members.filter((member) => resolveMember(member) !== ref),
 												})
 											}
 										/>

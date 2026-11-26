@@ -65,3 +65,34 @@ it("removes deleted answer references from saved boundary selections", () => {
 		{ key: 2, name: "Internal", members: ["existing:checkout"] },
 	]);
 });
+
+it("keeps a selected member visible and removable after switching to reuse", () => {
+	const stores = createDocumentStores();
+	stores.model.getState().setModel(readThreatModelText(fixture), null);
+	setActiveStores(stores);
+	stores.interview.getState().start();
+	stores.interview.getState().update((draft) => ({
+		...draft,
+		step: 1,
+		nextKey: 3,
+		answers: {
+			...draft.answers,
+			elements: [{ key: 1, role: "process", name: "Billing", reuse: "" }],
+			boundaries: [{ key: 2, name: "Internal", members: ["answer:1", "existing:customer"] }],
+		},
+	}));
+	render(<InterviewWorkspace>Diagram</InterviewWorkspace>);
+	fireEvent.change(screen.getByRole("combobox", { name: "Create or reuse" }), {
+		target: { value: "checkout" },
+	});
+	for (let step = 0; step < 3; step++) {
+		fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+	}
+	const checkout = screen.getByRole("checkbox", { name: "Checkout" });
+	expect(checkout).toBeChecked();
+	expect(screen.getByRole("checkbox", { name: "Customer" })).toBeChecked();
+	fireEvent.click(checkout);
+	expect(stores.interview.getState().draft?.answers.boundaries[0]?.members).toEqual([
+		"existing:customer",
+	]);
+});

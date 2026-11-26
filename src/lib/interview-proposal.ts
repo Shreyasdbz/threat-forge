@@ -34,6 +34,12 @@ export function interviewElements(model: ThreatModel, answers: InterviewAnswers)
 	];
 }
 
+export function interviewBoundaryMemberRef(ref: string, elements: InterviewElement[]): string {
+	if (!ref.startsWith("answer:")) return ref;
+	const answer = elements.find(({ key }) => ref === `answer:${key}`);
+	return answer?.reuse ? `existing:${answer.reuse}` : ref;
+}
+
 export function buildInterviewProposal(
 	model: ThreatModel,
 	answers: InterviewAnswers,
@@ -112,10 +118,15 @@ export function buildInterviewProposal(
 	}
 	for (const answer of answers.boundaries) {
 		const name = answer.name.trim();
-		const members = answer.members.flatMap((ref) => refs.get(ref) ?? []);
+		const members = answer.members.flatMap(
+			(ref) => refs.get(interviewBoundaryMemberRef(ref, answers.elements)) ?? [],
+		);
 		if (!name || !members.length) {
 			gaps.push("A boundary needs a name and valid members.");
 			continue;
+		}
+		if (members.length !== answer.members.length) {
+			gaps.push(`Boundary “${name}” has unavailable members.`);
 		}
 		const key = `boundary-${answer.key}`;
 		changes.push({
