@@ -4,6 +4,7 @@ import {
 	IconMessageChatbot,
 	IconShieldExclamation,
 } from "@tabler/icons-react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -25,6 +26,7 @@ export function RightPanel() {
 	const selected = useUiStore((s) => s.rightPanelTab);
 	const setTab = useUiStore((s) => s.setRightPanelTab);
 	const threatCount = useModelStore((s) => s.model?.threats.length ?? 0);
+	const [focusInTabs, setFocusInTabs] = useState(false);
 	return (
 		<Tabs
 			data-testid="right-panel"
@@ -39,6 +41,10 @@ export function RightPanel() {
 				<TabsList
 					variant="line"
 					aria-label="Inspector"
+					onFocus={() => setFocusInTabs(true)}
+					onBlur={(event) => {
+						if (!event.currentTarget.contains(event.relatedTarget)) setFocusInTabs(false);
+					}}
 					className="mx-2 grid w-auto shrink-0 grid-cols-4 gap-1 border-b border-editor-separator p-0 group-data-horizontal/tabs:h-10"
 				>
 					{tabs.map(({ id, label, Icon }) => {
@@ -49,6 +55,7 @@ export function RightPanel() {
 									render={
 										<TabsTrigger
 											value={id}
+											{...(!focusInTabs && { tabIndex: id === selected ? 0 : -1 })}
 											data-testid={`tab-${id}`}
 											aria-label={label}
 											aria-description={count ? `${count} identified` : undefined}

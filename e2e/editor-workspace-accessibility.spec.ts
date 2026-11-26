@@ -50,6 +50,12 @@ test("operates the inspector, dialogs and a canvas selection by keyboard", async
 	await expect(tooltip).toBeVisible();
 	await expect(tooltip).toHaveText("Architecture");
 	await expect(properties).toHaveAttribute("aria-selected", "true");
+	await page.keyboard.press("Tab");
+	await expect(page.getByRole("tabpanel", { name: "Properties", exact: true })).toBeFocused();
+	await page.keyboard.press("Shift+Tab");
+	await expect(properties).toBeFocused();
+	await page.keyboard.press("ArrowRight");
+	await expect(architecture).toBeFocused();
 	await page.keyboard.press("Enter");
 	await expect(architecture).toHaveAttribute("aria-selected", "true");
 	await page.keyboard.press("Tab");
