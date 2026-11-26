@@ -4,7 +4,7 @@ import { getDefaultModelId } from "@/lib/ai-models";
 import { INTERVIEW_ANSWER_SECTIONS, requestInterviewQuestions } from "@/lib/interview-assistance";
 import {
 	type InterviewAnswers,
-	interviewElementRef,
+	interviewMembersByBoundary,
 	isInterviewElementAnswer,
 } from "@/lib/interview-proposal";
 import { useChatStore } from "@/stores/chat-store";
@@ -58,14 +58,13 @@ export function InterviewAssistance({
 		const modelId =
 			(provider === "openai" ? settings.aiModelOpenai : settings.aiModelAnthropic) ||
 			getDefaultModelId(provider);
+		const membersByBoundary = interviewMembersByBoundary(answers.elements);
 		const sendable = {
 			...answers,
 			elements: elementAnswers.map(({ key, role, name, reuse }) => ({ key, role, name, reuse })),
 			boundaries: answers.boundaries.map((boundary) => ({
 				...boundary,
-				members: answers.elements.flatMap((entry) =>
-					entry.boundary === boundary.key ? [interviewElementRef(entry)] : [],
-				),
+				members: membersByBoundary.get(boundary.key) ?? [],
 			})),
 		};
 		const result = await requestInterviewQuestions({

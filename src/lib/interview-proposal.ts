@@ -43,6 +43,39 @@ export function interviewElementRef(entry: InterviewAnswers["elements"][number])
 	return entry.reuse ? `existing:${entry.reuse}` : `answer:${entry.key}`;
 }
 
+interface InterviewMembership {
+	answer?: InterviewElement;
+	direct?: InterviewBoundaryTarget;
+}
+
+export function indexInterviewMembership(elements: InterviewAnswers["elements"]) {
+	const byRef = new Map<string, InterviewMembership>();
+	for (const entry of elements) {
+		const ref = interviewElementRef(entry);
+		const membership = byRef.get(ref) ?? {};
+		if (isInterviewElementAnswer(entry)) membership.answer = entry;
+		else membership.direct = entry;
+		byRef.set(ref, membership);
+	}
+	return byRef;
+}
+
+export function effectiveInterviewBoundary(membership: InterviewMembership | undefined) {
+	return membership?.answer?.boundary ?? membership?.direct?.boundary;
+}
+
+export function interviewMembersByBoundary(elements: InterviewAnswers["elements"]) {
+	const byBoundary = new Map<number, string[]>();
+	for (const [ref, membership] of indexInterviewMembership(elements)) {
+		const boundary = effectiveInterviewBoundary(membership);
+		if (boundary === undefined) continue;
+		const members = byBoundary.get(boundary);
+		if (members) members.push(ref);
+		else byBoundary.set(boundary, [ref]);
+	}
+	return byBoundary;
+}
+
 export function interviewElements(model: ThreatModel, answers: InterviewAnswers) {
 	return [
 		...model.elements.map(({ id, name }) => ({ ref: `existing:${id}`, name })),
@@ -146,11 +179,10 @@ export function buildInterviewProposal(
 		});
 	}
 	const existingBoundaries = interviewExistingBoundaries(model);
+	const membersByBoundary = interviewMembersByBoundary(answers.elements);
 	for (const answer of answers.boundaries) {
 		const name = answer.name.trim();
-		const requested = answers.elements.flatMap((entry) =>
-			entry.boundary === answer.key ? [interviewElementRef(entry)] : [],
-		);
+		const requested = membersByBoundary.get(answer.key) ?? [];
 		const resolved = requested.flatMap((ref) => {
 			const member = refs.get(ref);
 			return member ? [{ ref, ...member }] : [];

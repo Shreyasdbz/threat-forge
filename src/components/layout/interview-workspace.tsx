@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import {
+	effectiveInterviewBoundary,
 	type InterviewAnswers,
-	interviewElementRef,
+	indexInterviewMembership,
 	interviewElements,
 	interviewExistingBoundaries,
 	isInterviewElementAnswer,
@@ -183,24 +184,12 @@ function Questions({
 		}));
 	}
 	const endpoints = interviewElements(model, answers);
-	const rowsByRef = new Map(answers.elements.map((row) => [interviewElementRef(row), row]));
-	function reuseElement(key: number, reuse: string) {
-		edit("elements", (items) => {
-			const direct = reuse
-				? items.find((entry) => "existing" in entry && entry.existing === reuse)
-				: undefined;
-			return items.flatMap((entry) => {
-				if (entry === direct) return [];
-				if (isInterviewElementAnswer(entry) && entry.key === key) {
-					return [{ ...entry, reuse, boundary: entry.boundary ?? direct?.boundary }];
-				}
-				return [entry];
-			});
-		});
-	}
+	const membershipByRef = indexInterviewMembership(answers.elements);
 	function assignBoundary(ref: string, boundary: number | undefined) {
 		edit("elements", (items) => {
-			const entry = items.find((item) => interviewElementRef(item) === ref);
+			const { answer, direct } = indexInterviewMembership(items).get(ref) ?? {};
+			const entry =
+				answer && (boundary !== undefined || answer.boundary !== undefined) ? answer : direct;
 			if (entry) {
 				return items.flatMap((item) => {
 					if (item !== entry) return [item];
@@ -280,20 +269,16 @@ function Questions({
 									<NativeSelect
 										id={id}
 										value={row.reuse}
-										onChange={(event) => reuseElement(row.key, event.target.value)}
+										onChange={(event) => change({ reuse: event.target.value })}
 									>
 										<option value="">Create a new element</option>
 										{model.elements.map(({ id, name }) => {
-											const usedBy = rowsByRef.get(`existing:${id}`);
+											const usedBy = membershipByRef.get(`existing:${id}`)?.answer;
 											return (
 												<option
 													key={id}
 													value={id}
-													disabled={
-														usedBy !== undefined &&
-														isInterviewElementAnswer(usedBy) &&
-														usedBy.key !== row.key
-													}
+													disabled={usedBy !== undefined && usedBy.key !== row.key}
 												>
 													Reuse {name}
 												</option>
@@ -473,7 +458,8 @@ function Questions({
 					<fieldset className="grid gap-2 border border-editor-line p-3">
 						<legend className="px-1 text-editor-caption">Boundary membership</legend>
 						{endpoints.map(({ ref, name }) => {
-							const row = rowsByRef.get(ref);
+							const membership = membershipByRef.get(ref);
+							const hasOverride = membership?.direct && membership.answer?.boundary !== undefined;
 							const owner = existingBoundaries.get(ref);
 							if (owner !== undefined) {
 								return (
@@ -487,7 +473,7 @@ function Questions({
 									{(id) => (
 										<NativeSelect
 											id={id}
-											value={row?.boundary ?? ""}
+											value={effectiveInterviewBoundary(membership) ?? ""}
 											onChange={(event) =>
 												assignBoundary(
 													ref,
@@ -495,7 +481,9 @@ function Questions({
 												)
 											}
 										>
-											<option value="">No boundary</option>
+											<option value="">
+												{hasOverride ? "Use direct assignment" : "No boundary"}
+											</option>
 											{boundaries.map(({ key, name }, index) => (
 												<option key={key} value={key}>
 													{name.trim() || `Boundary ${index + 1}`}

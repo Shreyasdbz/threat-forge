@@ -146,6 +146,31 @@ it("keeps a single membership across the interview boundary lifecycle", () => {
 	};
 	const cases = [
 		[
+			"direct membership survives unassigned reuse, reuse-change, and answer removal",
+			() => {
+				navigate("Continue");
+				choose("Customer", "3");
+				navigate("Back");
+				fireEvent.click(screen.getByRole("button", { name: "Add actor or service" }));
+				const target = screen.getByRole("combobox", { name: "Create or reuse" });
+				fireEvent.change(target, { target: { value: "customer" } });
+				navigate("Continue");
+				expect(membership("Customer")).toHaveValue("3");
+				reuse("checkout");
+				expect(membership("Customer")).toHaveValue("3");
+				expect(membership("Checkout")).toHaveValue("");
+				reuse("customer");
+				navigate("Back");
+				fireEvent.click(screen.getByRole("button", { name: "Remove actor or service 1" }));
+				expect(stores.interview.getState().draft?.answers.elements).toEqual([
+					{ existing: "customer", boundary: 3 },
+				]);
+				navigate("Continue");
+				choose("Customer", "");
+				navigate("Back");
+			},
+		],
+		[
 			"create",
 			() => {
 				fireEvent.click(screen.getByRole("button", { name: "Add actor or service" }));
@@ -175,7 +200,16 @@ it("keeps a single membership across the interview boundary lifecycle", () => {
 				choose("Checkout", "3");
 				reuse("checkout");
 				expect(membership("Checkout")).toHaveValue("2");
-				expect(stores.interview.getState().draft?.answers.elements).toHaveLength(1);
+				expect(stores.interview.getState().draft?.answers.elements).toContainEqual({
+					existing: "checkout",
+					boundary: 3,
+				});
+				fireEvent.click(screen.getByRole("button", { name: "Review changes" }));
+				expect(screen.getByRole("checkbox", { name: "Internal (boundary)" })).toBeChecked();
+				expect(
+					screen.queryByRole("checkbox", { name: "Other (boundary)" }),
+				).not.toBeInTheDocument();
+				fireEvent.click(screen.getByRole("button", { name: "Back" }));
 			},
 		],
 		[
@@ -183,7 +217,7 @@ it("keeps a single membership across the interview boundary lifecycle", () => {
 			() => {
 				reuse("customer");
 				expect(membership("Customer")).toHaveValue("2");
-				expect(membership("Checkout")).toHaveValue("");
+				expect(membership("Checkout")).toHaveValue("3");
 			},
 		],
 		[
