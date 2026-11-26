@@ -113,6 +113,10 @@ export function useFileOperations() {
 	}, []);
 
 	const saveDocument = useCallback(async (saveAs: boolean) => {
+		const focused = document.activeElement;
+		if (focused instanceof HTMLInputElement && focused.hasAttribute("data-sequence-draft")) {
+			focused.blur();
+		}
 		const registry = useDocumentRegistry.getState();
 		const id = registry.activeDocumentId;
 		const target = (id && registry.getDocumentStores(id)?.model) || useModelStore;

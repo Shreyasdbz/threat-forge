@@ -288,6 +288,7 @@ function CommitInput({
 	return (
 		<Input
 			id={id}
+			data-sequence-draft
 			key={value}
 			defaultValue={value}
 			onBlur={(event) => {

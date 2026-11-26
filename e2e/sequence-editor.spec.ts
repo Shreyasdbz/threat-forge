@@ -1,6 +1,25 @@
 import { expect, suppressFirstRunOverlays, test, waitForCanvasSettled } from "./fixtures";
 import { openDocument, saveDocument } from "./support/interactions";
 
+test("keyboard Save commits the focused sequence label", async ({ page }, testInfo) => {
+	await page.goto("/app");
+	await openDocument(page, "tests/fixtures/thf/v1.1-sequence.thf");
+	const views = page.getByRole("combobox", { name: "Diagram view" });
+	await views.selectOption("checkout-sequence");
+	const label = page.getByRole("textbox", { name: "Message 1 label" });
+	await label.fill("Submit payment");
+	const [download] = await Promise.all([
+		page.waitForEvent("download"),
+		label.press("ControlOrMeta+s"),
+	]);
+	const path = testInfo.outputPath("keyboard-save.thf");
+	await download.saveAs(path);
+	await openDocument(page, path);
+	await expect(views).toHaveValue("");
+	await views.selectOption("checkout-sequence");
+	await expect(label).toHaveValue("Submit payment");
+});
+
 test("creates and edits an ordered sequence with keyboard controls, then reopens it", async ({
 	page,
 	browser,
