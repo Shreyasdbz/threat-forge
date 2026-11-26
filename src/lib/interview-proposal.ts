@@ -9,13 +9,14 @@ export type InterviewElement = {
 	reuse: string;
 	boundary?: number;
 };
+export type InterviewBoundaryTarget = { existing: string; boundary: number };
 export type InterviewFlow = { key: number; name: string; from: string; to: string; data: string };
 export type InterviewBoundary = { key: number; name: string };
 
 export interface InterviewAnswers {
 	scope: string;
 	assets: string;
-	elements: InterviewElement[];
+	elements: (InterviewElement | InterviewBoundaryTarget)[];
 	flows: InterviewFlow[];
 	boundaries: InterviewBoundary[];
 }
@@ -31,10 +32,22 @@ export interface InterviewProposal {
 	gaps: string[];
 }
 
+export function isInterviewElementAnswer(
+	entry: InterviewAnswers["elements"][number],
+): entry is InterviewElement {
+	return "key" in entry;
+}
+
+export function interviewElementRef(entry: InterviewAnswers["elements"][number]): string {
+	if ("existing" in entry) return `existing:${entry.existing}`;
+	return entry.reuse ? `existing:${entry.reuse}` : `answer:${entry.key}`;
+}
+
 export function interviewElements(model: ThreatModel, answers: InterviewAnswers) {
 	return [
 		...model.elements.map(({ id, name }) => ({ ref: `existing:${id}`, name })),
 		...answers.elements
+			.filter(isInterviewElementAnswer)
 			.filter(({ name, reuse }) => !reuse && name.trim())
 			.map(({ key, name }) => ({ ref: `answer:${key}`, name: `${name.trim()} (new)` })),
 	];
@@ -64,6 +77,10 @@ export function buildInterviewProposal(
 	const refs = new Map(
 		model.elements.map(({ id, name }) => [`existing:${id}`, { id, name, dependency: "" }]),
 	);
+	const elementAnswers = answers.elements.filter(isInterviewElementAnswer);
+	const answeredElements = elementAnswers.filter(({ name, reuse }) =>
+		reuse ? refs.has(`existing:${reuse}`) : name.trim(),
+	);
 	const makeId = (key: string) => {
 		const id = nextSequenceId(`interview-${key}`, reserved);
 		reserved.push({ id });
@@ -71,15 +88,15 @@ export function buildInterviewProposal(
 	};
 	if (!answers.scope.trim()) gaps.push("System scope not answered.");
 	if (!answers.assets.trim()) gaps.push("Assets not answered.");
-	if (!answers.elements.some(({ role }) => role !== "data_store")) {
+	if (!answeredElements.some(({ role }) => role !== "data_store")) {
 		gaps.push("Actors and services not answered.");
 	}
-	if (!answers.elements.some(({ role }) => role === "data_store"))
+	if (!answeredElements.some(({ role }) => role === "data_store"))
 		gaps.push("Stores not answered.");
 	if (!answers.flows.length) gaps.push("Directional flows not answered.");
 	if (!answers.boundaries.length) gaps.push("Trust boundaries not answered.");
 
-	for (const answer of answers.elements) {
+	for (const answer of elementAnswers) {
 		if (answer.reuse) {
 			if (!model.elements.some(({ id }) => id === answer.reuse)) {
 				gaps.push("A selected existing element is no longer available.");
@@ -131,8 +148,8 @@ export function buildInterviewProposal(
 	const existingBoundaries = interviewExistingBoundaries(model);
 	for (const answer of answers.boundaries) {
 		const name = answer.name.trim();
-		const requested = answers.elements.flatMap(({ key, reuse, boundary }) =>
-			boundary === answer.key ? [reuse ? `existing:${reuse}` : `answer:${key}`] : [],
+		const requested = answers.elements.flatMap((entry) =>
+			entry.boundary === answer.key ? [interviewElementRef(entry)] : [],
 		);
 		const resolved = requested.flatMap((ref) => {
 			const member = refs.get(ref);

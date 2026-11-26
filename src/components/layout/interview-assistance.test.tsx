@@ -56,7 +56,10 @@ it.each([
 		"Actors, services and stores",
 		{ elements: [{ key: 1, role: "process", name: "Checkout", reuse: "" }] },
 	],
-	["Trust boundaries", { boundaries: [{ key: 2, name: "Internal", members: ["answer:1"] }] }],
+	[
+		"Trust boundaries",
+		{ boundaries: [{ key: 2, name: "Internal", members: ["answer:1", "existing:customer"] }] },
+	],
 ])(
 	"sends only the %s section even when membership is stored on an element",
 	async (section, body) => {
@@ -71,7 +74,10 @@ it.each([
 			<InterviewAssistance
 				answers={{
 					...answers,
-					elements: [{ key: 1, role: "process", name: "Checkout", reuse: "", boundary: 2 }],
+					elements: [
+						{ key: 1, role: "process", name: "Checkout", reuse: "", boundary: 2 },
+						{ existing: "customer", boundary: 2 },
+					],
 					boundaries: [{ key: 2, name: "Internal" }],
 				}}
 				stillCurrent={() => true}

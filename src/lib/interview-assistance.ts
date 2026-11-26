@@ -3,7 +3,7 @@ import { getChatTransport } from "@/lib/adapters/get-chat-transport";
 import { getKeychainAdapter } from "@/lib/adapters/get-keychain-adapter";
 import { streamConversation } from "@/lib/ai/protocol/client";
 import type { AiProvider } from "@/lib/ai/protocol/messages";
-import type { InterviewAnswers } from "./interview-proposal";
+import type { InterviewAnswers, InterviewElement } from "./interview-proposal";
 
 const questionsSchema = z.strictObject({
 	questions: z.array(z.string().trim().min(1).max(300)).max(5),
@@ -22,7 +22,7 @@ type AssistanceResult =
 	| { status: "cancelled" | "missing-key" | "unavailable" | "invalid" };
 
 type InterviewAnswerPayload = Omit<InterviewAnswers, "elements" | "boundaries"> & {
-	elements: Omit<InterviewAnswers["elements"][number], "boundary">[];
+	elements: Omit<InterviewElement, "boundary">[];
 	boundaries: (InterviewAnswers["boundaries"][number] & { members: string[] })[];
 };
 

@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { getDefaultModelId } from "@/lib/ai-models";
 import { INTERVIEW_ANSWER_SECTIONS, requestInterviewQuestions } from "@/lib/interview-assistance";
-import type { InterviewAnswers } from "@/lib/interview-proposal";
+import {
+	type InterviewAnswers,
+	interviewElementRef,
+	isInterviewElementAnswer,
+} from "@/lib/interview-proposal";
 import { useChatStore } from "@/stores/chat-store";
 import { useSettingsStore } from "@/stores/settings-store";
 
@@ -30,6 +34,7 @@ export function InterviewAssistance({
 	const [pending, setPending] = useState(false);
 	const [notice, setNotice] = useState<string>();
 	const active = useRef<AbortController | null>(null);
+	const elementAnswers = answers.elements.filter(isInterviewElementAnswer);
 	useEffect(
 		() => () => {
 			active.current?.abort();
@@ -55,11 +60,11 @@ export function InterviewAssistance({
 			getDefaultModelId(provider);
 		const sendable = {
 			...answers,
-			elements: answers.elements.map(({ key, role, name, reuse }) => ({ key, role, name, reuse })),
+			elements: elementAnswers.map(({ key, role, name, reuse }) => ({ key, role, name, reuse })),
 			boundaries: answers.boundaries.map((boundary) => ({
 				...boundary,
-				members: answers.elements.flatMap(({ key, reuse, boundary: membership }) =>
-					membership === boundary.key ? [reuse ? `existing:${reuse}` : `answer:${key}`] : [],
+				members: answers.elements.flatMap((entry) =>
+					entry.boundary === boundary.key ? [interviewElementRef(entry)] : [],
 				),
 			})),
 		};
@@ -96,7 +101,7 @@ export function InterviewAssistance({
 					<input
 						type="checkbox"
 						checked={selected.has(key)}
-						disabled={pending || !answers[key].length}
+						disabled={pending || !(key === "elements" ? elementAnswers : answers[key]).length}
 						onChange={(event) => {
 							const next = new Set(selected);
 							if (event.target.checked) next.add(key);

@@ -5,8 +5,10 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import {
 	type InterviewAnswers,
+	interviewElementRef,
 	interviewElements,
 	interviewExistingBoundaries,
+	isInterviewElementAnswer,
 } from "@/lib/interview-proposal";
 import { reviewInterview } from "@/lib/interview-review";
 import { useActiveStores } from "@/stores/document-stores";
@@ -181,9 +183,50 @@ function Questions({
 		}));
 	}
 	const endpoints = interviewElements(model, answers);
-	const rowsByRef = new Map(
-		answers.elements.map((row) => [row.reuse ? `existing:${row.reuse}` : `answer:${row.key}`, row]),
-	);
+	const rowsByRef = new Map(answers.elements.map((row) => [interviewElementRef(row), row]));
+	function reuseElement(key: number, reuse: string) {
+		edit("elements", (items) => {
+			const direct = reuse
+				? items.find((entry) => "existing" in entry && entry.existing === reuse)
+				: undefined;
+			return items.flatMap((entry) => {
+				if (entry === direct) return [];
+				if (isInterviewElementAnswer(entry) && entry.key === key) {
+					return [{ ...entry, reuse, boundary: entry.boundary ?? direct?.boundary }];
+				}
+				return [entry];
+			});
+		});
+	}
+	function assignBoundary(ref: string, boundary: number | undefined) {
+		edit("elements", (items) => {
+			const entry = items.find((item) => interviewElementRef(item) === ref);
+			if (entry) {
+				return items.flatMap((item) => {
+					if (item !== entry) return [item];
+					if (isInterviewElementAnswer(item)) return [{ ...item, boundary }];
+					return boundary === undefined ? [] : [{ ...item, boundary }];
+				});
+			}
+			const existing = model.elements.find(({ id }) => ref === `existing:${id}`);
+			return existing && boundary !== undefined
+				? [...items, { existing: existing.id, boundary }]
+				: items;
+		});
+	}
+	function removeBoundary(key: number) {
+		update((state) => ({
+			...state,
+			answers: {
+				...state.answers,
+				boundaries: state.answers.boundaries.filter((row) => row.key !== key),
+				elements: state.answers.elements.flatMap((entry) => {
+					if (entry.boundary !== key) return [entry];
+					return isInterviewElementAnswer(entry) ? [{ ...entry, boundary: undefined }] : [];
+				}),
+			},
+		}));
+	}
 	if (step === 0)
 		return (
 			<div className="grid gap-3">
@@ -209,7 +252,9 @@ function Questions({
 		);
 	if (step === 1 || step === 2) {
 		const stores = step === 2;
-		const rows = answers.elements.filter(({ role }) => (role === "data_store") === stores);
+		const rows = answers.elements
+			.filter(isInterviewElementAnswer)
+			.filter(({ role }) => (role === "data_store") === stores);
 		return (
 			<div className="space-y-3">
 				<p className="text-editor-body">
@@ -221,7 +266,11 @@ function Questions({
 					const label = stores ? `Store ${index + 1}` : `Actor or service ${index + 1}`;
 					const change = (patch: Partial<typeof row>) =>
 						edit("elements", (items) =>
-							items.map((item) => (item.key === row.key ? { ...item, ...patch } : item)),
+							items.map((item) =>
+								isInterviewElementAnswer(item) && item.key === row.key
+									? { ...item, ...patch }
+									: item,
+							),
 						);
 					return (
 						<fieldset key={row.key} className="grid gap-2 border border-editor-line p-3">
@@ -231,7 +280,7 @@ function Questions({
 									<NativeSelect
 										id={id}
 										value={row.reuse}
-										onChange={(event) => change({ reuse: event.target.value })}
+										onChange={(event) => reuseElement(row.key, event.target.value)}
 									>
 										<option value="">Create a new element</option>
 										{model.elements.map(({ id, name }) => {
@@ -240,7 +289,11 @@ function Questions({
 												<option
 													key={id}
 													value={id}
-													disabled={usedBy !== undefined && usedBy.key !== row.key}
+													disabled={
+														usedBy !== undefined &&
+														isInterviewElementAnswer(usedBy) &&
+														usedBy.key !== row.key
+													}
 												>
 													Reuse {name}
 												</option>
@@ -285,7 +338,9 @@ function Questions({
 								className="justify-self-start"
 								variant="ghost"
 								onClick={() =>
-									edit("elements", (items) => items.filter(({ key }) => key !== row.key))
+									edit("elements", (items) =>
+										items.filter((item) => !isInterviewElementAnswer(item) || item.key !== row.key),
+									)
 								}
 							>
 								Remove {label.toLowerCase()}
@@ -404,20 +459,7 @@ function Questions({
 							<Button
 								className="justify-self-start"
 								variant="ghost"
-								onClick={() =>
-									update((state) => ({
-										...state,
-										answers: {
-											...state.answers,
-											boundaries: state.answers.boundaries.filter(({ key }) => key !== row.key),
-											elements: state.answers.elements.map((element) =>
-												element.boundary === row.key
-													? { ...element, boundary: undefined }
-													: element,
-											),
-										},
-									}))
-								}
+								onClick={() => removeBoundary(row.key)}
 							>
 								Remove boundary {index + 1}
 							</Button>
@@ -446,26 +488,12 @@ function Questions({
 										<NativeSelect
 											id={id}
 											value={row?.boundary ?? ""}
-											onChange={(event) => {
-												const boundary = event.target.value
-													? Number(event.target.value)
-													: undefined;
-												if (row) {
-													edit("elements", (items) =>
-														items.map((item) =>
-															item.key === row.key ? { ...item, boundary } : item,
-														),
-													);
-												} else if (boundary !== undefined) {
-													const element = model.elements.find(({ id }) => ref === `existing:${id}`);
-													if (!element) return;
-													const role =
-														element.type === "external_entity" || element.type === "data_store"
-															? element.type
-															: "process";
-													add("elements", { key: 0, role, name: "", reuse: element.id, boundary });
-												}
-											}}
+											onChange={(event) =>
+												assignBoundary(
+													ref,
+													event.target.value ? Number(event.target.value) : undefined,
+												)
+											}
 										>
 											<option value="">No boundary</option>
 											{boundaries.map(({ key, name }, index) => (

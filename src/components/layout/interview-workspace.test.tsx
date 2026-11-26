@@ -158,10 +158,24 @@ it("keeps a single membership across the interview boundary lifecycle", () => {
 			},
 		],
 		[
+			"assign and clear an existing target without creating an answer",
+			() => {
+				choose("Checkout", "3");
+				expect(stores.interview.getState().draft?.answers.elements).toContainEqual({
+					existing: "checkout",
+					boundary: 3,
+				});
+				choose("Checkout", "");
+				expect(stores.interview.getState().draft?.answers.elements).toHaveLength(1);
+			},
+		],
+		[
 			"reuse",
 			() => {
+				choose("Checkout", "3");
 				reuse("checkout");
 				expect(membership("Checkout")).toHaveValue("2");
+				expect(stores.interview.getState().draft?.answers.elements).toHaveLength(1);
 			},
 		],
 		[
@@ -182,8 +196,11 @@ it("keeps a single membership across the interview boundary lifecycle", () => {
 		[
 			"delete boundary",
 			() => {
+				choose("Checkout", "3");
 				fireEvent.click(screen.getByRole("button", { name: "Remove boundary 2" }));
 				expect(membership("Customer")).toHaveValue("");
+				expect(membership("Checkout")).toHaveValue("");
+				expect(stores.interview.getState().draft?.answers.elements).toHaveLength(1);
 				choose("Customer", "2");
 				fireEvent.click(screen.getByRole("button", { name: "Add boundary" }));
 				fireEvent.change(screen.getAllByRole("textbox", { name: "Boundary name" })[1], {
@@ -214,6 +231,43 @@ it("keeps a single membership across the interview boundary lifecycle", () => {
 		],
 	] as const;
 	for (const [, exercise] of cases) exercise();
+});
+
+it("keeps skipped actor and store questions unanswered when linking existing model elements", () => {
+	const fixtureModel = readThreatModelText(fixture);
+	const before = {
+		...fixtureModel,
+		elements: fixtureModel.elements.map((element) =>
+			element.id === "customer" ? { ...element, type: "data_store" } : element,
+		),
+	};
+	const registry = useDocumentRegistry.getState();
+	registry.createDocument({ model: before, filePath: null, pendingLayout: null });
+	render(
+		<>
+			<InterviewControl />
+			<InterviewWorkspace>Diagram</InterviewWorkspace>
+		</>,
+	);
+	fireEvent.click(screen.getByRole("button", { name: "Guided interview" }));
+	for (let step = 0; step < 4; step++)
+		fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+	fireEvent.click(screen.getByRole("button", { name: "Add boundary" }));
+	fireEvent.change(screen.getByRole("textbox", { name: "Boundary name" }), {
+		target: { value: "Internal" },
+	});
+	for (const name of ["Customer", "Checkout"]) {
+		fireEvent.change(screen.getByRole("combobox", { name: `Boundary for ${name}` }), {
+			target: { value: "1" },
+		});
+	}
+	fireEvent.click(screen.getByRole("button", { name: "Review changes" }));
+	expect(screen.getByText("Actors and services not answered.")).toBeVisible();
+	expect(screen.getByText("Stores not answered.")).toBeVisible();
+	expect(screen.getByRole("checkbox", { name: "Internal (boundary)" })).toBeChecked();
+	fireEvent.click(screen.getByRole("button", { name: "Optional AI follow-up" }));
+	expect(screen.getByRole("checkbox", { name: "Actors, services and stores" })).toBeDisabled();
+	expect(screen.getByRole("checkbox", { name: "Trust boundaries" })).toBeEnabled();
 });
 
 it("keeps boundary dependencies separate after moving a member in the questionnaire", () => {
