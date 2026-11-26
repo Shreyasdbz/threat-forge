@@ -13,6 +13,7 @@ import {
 	X,
 } from "lucide-react";
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { KEY_STORAGE_UNREADABLE } from "@/lib/adapters/keychain-adapter";
 import {
 	extractLegacyActions,
@@ -153,13 +154,14 @@ function KeyStorageFault({ message, onConfigure }: { message: string; onConfigur
 						{message}
 					</p>
 				</div>
-				<button
+				<Button
 					type="button"
+					variant="outline"
 					onClick={onConfigure}
-					className="min-h-11 shrink-0 rounded-md border border-border px-3 text-editor-footnote hover:bg-accent active:bg-accent focus-visible:outline-1 focus-visible:outline-foreground"
+					className="h-11 text-editor-footnote"
 				>
 					Open AI settings
-				</button>
+				</Button>
 			</div>
 		</div>
 	);

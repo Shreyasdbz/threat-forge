@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { CanvasContextMenu, type ContextMenuItem } from "@/components/canvas/canvas-context-menu";
+import { Button } from "@/components/ui/button";
 import { copyTextToClipboard } from "@/lib/platform";
 import { getComponent } from "@/lib/registry/registry";
 import { serializeThreatYaml } from "@/lib/thf-yaml";
@@ -70,16 +71,13 @@ export function ThreatsTab() {
 		<div className="flex flex-col gap-4">
 			<h2 className="text-editor-title3">Threats</h2>
 			{/* Analyze button */}
-			<button
+			<Button
 				type="button"
 				data-testid="btn-stride-analyze"
+				variant="secondary"
 				disabled={!hasElements || isAnalyzing}
 				onClick={() => void analyzeThreats()}
-				className={`flex min-h-8 items-center justify-center gap-2 self-start rounded-editor-control px-3 py-1.5 text-editor-footnote transition-colors duration-120 ease-editor ${
-					hasElements
-						? "bg-editor-selection text-foreground hover:bg-editor-hover active:bg-editor-pressed"
-						: "cursor-not-allowed bg-muted text-muted-foreground"
-				}`}
+				className="self-start text-editor-footnote"
 			>
 				{isAnalyzing ? (
 					<>
@@ -92,7 +90,7 @@ export function ThreatsTab() {
 						Run STRIDE Analysis
 					</>
 				)}
-			</button>
+			</Button>
 
 			{/* Filter toggle when element is selected */}
 			{selectedElement && model.threats.length > 0 && (

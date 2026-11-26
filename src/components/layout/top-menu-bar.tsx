@@ -1,17 +1,18 @@
 import {
-	BookOpen,
-	FileOutput,
-	FilePlus,
-	FileUp,
-	FolderOpen,
-	LayoutPanelLeft,
-	type LucideIcon,
-	PanelRight,
-	Presentation,
-	Save,
-	Settings,
-} from "lucide-react";
+	type Icon,
+	IconBook,
+	IconDeviceFloppy,
+	IconFileExport,
+	IconFileImport,
+	IconFilePlus,
+	IconFolderOpen,
+	IconLayoutSidebar,
+	IconLayoutSidebarRight,
+	IconPresentation,
+	IconSettings,
+} from "@tabler/icons-react";
 import { useCallback, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { useFileOperations } from "@/hooks/use-file-operations";
 import { documentDisplayTitle } from "@/lib/document-display-title";
 import { captureCanvasIntoModel } from "@/lib/model-capture";
@@ -103,26 +104,26 @@ export function TopMenuBar() {
 			<div className="ml-1 flex shrink-0 items-center gap-0.5">
 				<MenuButton
 					testId="btn-new"
-					icon={FilePlus}
+					icon={IconFilePlus}
 					tooltip={keytipsVisible ? `New Model (${modKey}N)` : "New Model"}
 					onClick={() => void newModel()}
 				/>
 				<MenuButton
 					testId="btn-open"
-					icon={FolderOpen}
+					icon={IconFolderOpen}
 					tooltip={keytipsVisible ? `Open Model (${modKey}O)` : "Open Model"}
 					onClick={() => void openModel()}
 				/>
 				<MenuButton
 					testId="btn-save"
-					icon={Save}
+					icon={IconDeviceFloppy}
 					tooltip={keytipsVisible ? `Save (${modKey}S)` : "Save"}
 					onClick={() => void saveModel()}
 					disabled={!model}
 				/>
 				<MenuButton
 					testId="btn-export"
-					icon={FileOutput}
+					icon={IconFileExport}
 					tooltip={`Export HTML (${modKey}${isMac ? "⇧" : "Shift+"}E)`}
 					onClick={() => void exportAsHtml()}
 					disabled={!model}
@@ -130,7 +131,7 @@ export function TopMenuBar() {
 				<span aria-hidden="true" className="mx-1 h-4 w-px bg-editor-separator" />
 				<MenuButton
 					testId="btn-present"
-					icon={Presentation}
+					icon={IconPresentation}
 					tooltip="Present diagram and export SVG or PNG"
 					onClick={() => {
 						if (model)
@@ -142,7 +143,7 @@ export function TopMenuBar() {
 				/>
 				<MenuButton
 					testId="btn-import"
-					icon={FileUp}
+					icon={IconFileImport}
 					tooltip="Import Microsoft Threat Model (.tm7)"
 					onClick={() => void importModel()}
 				/>
@@ -177,13 +178,13 @@ export function TopMenuBar() {
 				{model && <span aria-hidden="true" className="mr-1 h-4 w-px bg-editor-separator" />}
 				<MenuButton
 					testId="btn-toggle-left-panel"
-					icon={LayoutPanelLeft}
+					icon={IconLayoutSidebar}
 					tooltip="Toggle component palette"
 					onClick={toggleLeftPanel}
 				/>
 				<MenuButton
 					testId="btn-toggle-right-panel"
-					icon={PanelRight}
+					icon={IconLayoutSidebarRight}
 					tooltip="Toggle properties panel"
 					onClick={toggleRightPanel}
 				/>
@@ -195,13 +196,13 @@ export function TopMenuBar() {
 			<div className="flex shrink-0 items-center gap-0.5">
 				<MenuButton
 					testId="btn-guide-picker"
-					icon={BookOpen}
+					icon={IconBook}
 					tooltip="Guided Tours"
 					onClick={() => setGuidePickerOpen(true)}
 				/>
 				<MenuButton
 					testId="btn-settings-dialog"
-					icon={Settings}
+					icon={IconSettings}
 					tooltip={`Settings (${modKey},)`}
 					onClick={openSettingsDialog}
 				/>
@@ -219,22 +220,24 @@ function MenuButton({
 	disabled,
 }: {
 	testId?: string;
-	icon: LucideIcon;
+	icon: Icon;
 	tooltip: string;
 	onClick: () => void;
 	disabled?: boolean;
 }) {
 	return (
-		<button
+		<Button
 			type="button"
+			variant="ghost"
+			size="icon"
 			data-testid={testId}
 			onClick={onClick}
 			disabled={disabled}
 			title={tooltip}
-			className="grid size-8 place-items-center rounded-editor-control text-muted-foreground hover:bg-editor-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+			className="text-muted-foreground"
 		>
-			<Icon size={16} strokeWidth={1.5} absoluteStrokeWidth aria-hidden="true" />
-		</button>
+			<Icon size={16} stroke={1.75} aria-hidden="true" />
+		</Button>
 	);
 }
 

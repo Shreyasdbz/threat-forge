@@ -2,6 +2,7 @@ import { type ReactFlowInstance, useReactFlow } from "@xyflow/react";
 import { Search, ShieldAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 import { IconRenderer } from "@/components/icons/icon-renderer";
+import { Input } from "@/components/ui/input";
 import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH, nodeToRect } from "@/lib/canvas-utils";
 import {
 	listCategories,
@@ -101,7 +102,7 @@ export function ComponentPalette() {
 						aria-hidden="true"
 						className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
 					/>
-					<input
+					<Input
 						data-testid="library-search"
 						type="text"
 						aria-label="Search components"
@@ -111,7 +112,7 @@ export function ComponentPalette() {
 							setSearchQuery(e.target.value);
 							if (e.target.value) setActiveCategory(ALL_CATEGORIES);
 						}}
-						className="w-full rounded-editor-control border border-editor-outline bg-editor-surface py-2 pl-9 pr-3 text-editor-body placeholder:text-editor-tertiary-label focus:border-editor-accent"
+						className="h-9 border-editor-outline bg-editor-surface pl-9 pr-3 text-editor-body md:text-editor-body"
 					/>
 				</div>
 			</div>

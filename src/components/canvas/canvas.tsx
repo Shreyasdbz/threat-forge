@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { GithubIcon } from "@/components/icons/github-icon";
+import { Button } from "@/components/ui/button";
 import { useFileOperations } from "@/hooks/use-file-operations";
 import { buildLayoutFromModel } from "@/lib/model-layout-utils";
 import { openExternalUrl } from "@/lib/platform";
@@ -71,23 +72,24 @@ function EmptyCanvas() {
 				</p>
 
 				<div className="mt-6 flex gap-3 [@media(max-height:850px)]:mt-4">
-					<button
+					<Button
 						type="button"
 						data-testid="btn-empty-new"
-						className="min-h-8 rounded-editor-control bg-editor-accent px-4 py-2 text-editor-headline text-editor-on-accent transition-colors duration-120 ease-editor hover:bg-editor-accent/90"
+						className="h-9 px-4 text-editor-headline"
 						onClick={() => void newModel()}
 					>
 						New Model
-					</button>
-					<button
+					</Button>
+					<Button
 						type="button"
 						data-testid="btn-empty-open"
-						className="flex min-h-8 items-center gap-2 rounded-editor-control bg-editor-fill px-4 py-2 text-editor-headline transition-colors duration-120 ease-editor hover:bg-editor-hover"
+						variant="outline"
+						className="h-9 px-4 text-editor-headline"
 						onClick={() => void openModel()}
 					>
 						<FolderOpen className="h-4 w-4" />
 						Open Existing
-					</button>
+					</Button>
 				</div>
 
 				{/* Templates */}

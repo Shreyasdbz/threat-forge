@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { GithubIcon } from "@/components/icons/github-icon";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { openExternalUrl } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { type SettingsTab, useSettingsStore } from "@/stores/settings-store";
@@ -497,25 +499,13 @@ function ToggleSwitch({
 	testId?: string;
 }) {
 	return (
-		<button
-			type="button"
-			role="switch"
+		<Switch
 			aria-label={label}
-			aria-checked={checked}
+			checked={checked}
 			data-testid={testId}
-			onClick={() => onChange(!checked)}
-			className={cn(
-				"relative h-6 w-10 shrink-0 rounded-full transition-colors",
-				checked ? "bg-primary" : "bg-muted",
-			)}
-		>
-			<span
-				className={cn(
-					"absolute left-1 top-1 h-4 w-4 rounded-full bg-background transition-transform",
-					checked && "translate-x-4",
-				)}
-			/>
-		</button>
+			onCheckedChange={onChange}
+			className="data-[size=default]:h-6 data-[size=default]:w-8 data-unchecked:border-editor-outline"
+		/>
 	);
 }
 
@@ -531,13 +521,13 @@ function TextInput({
 	onChange: (value: string) => void;
 }) {
 	return (
-		<input
+		<Input
 			type="text"
 			aria-label={label}
 			value={value}
 			placeholder={placeholder}
 			onChange={(e) => onChange(e.target.value)}
-			className="w-48 max-w-full rounded border border-border bg-background px-2 py-1.5 text-editor-body text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+			className="w-48 max-w-full border-editor-outline bg-background text-editor-body md:text-editor-body"
 		/>
 	);
 }
@@ -556,7 +546,7 @@ function NumberInput({
 	onChange: (value: number) => void;
 }) {
 	return (
-		<input
+		<Input
 			type="number"
 			aria-label={label}
 			value={value}
@@ -568,7 +558,7 @@ function NumberInput({
 					onChange(parsed);
 				}
 			}}
-			className="w-20 rounded border border-border bg-background px-2 py-1.5 text-editor-body text-foreground focus:border-primary focus:outline-none"
+			className="w-20 border-editor-outline bg-background text-editor-body md:text-editor-body"
 		/>
 	);
 }
