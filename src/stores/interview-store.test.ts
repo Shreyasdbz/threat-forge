@@ -15,12 +15,12 @@ it("maps explicit reuse and new elements deterministically without writing the g
 			...state.answers,
 			elements: [
 				{ key: 1, role: "external_entity", name: "", reuse: "customer" },
-				{ key: 2, role: "process", name: " Checkout ", reuse: "" },
+				{ key: 2, role: "process", name: " Checkout ", reuse: "", boundary: 4 },
 			],
 			flows: [
 				{ key: 3, name: "Order", from: "existing:customer", to: "answer:2", data: "order, ID" },
 			],
-			boundaries: { definitions: [{ key: 4, name: "Orders" }], memberOf: { "answer:2": 4 } },
+			boundaries: [{ key: 4, name: "Orders" }],
 		},
 	}));
 	const draft = interview.getState().draft;
@@ -50,15 +50,16 @@ it("proposes boundaries with remaining valid members when a reference is no long
 	const proposal = buildInterviewProposal(model, {
 		scope: "",
 		assets: "",
-		elements: [],
+		elements: [
+			{ key: 3, role: "process", name: "", reuse: "missing", boundary: 1 },
+			{ key: 4, role: "process", name: "", reuse: "checkout", boundary: 1 },
+			{ key: 5, role: "process", name: "", reuse: "removed", boundary: 2 },
+		],
 		flows: [],
-		boundaries: {
-			definitions: [
-				{ key: 1, name: "Internal" },
-				{ key: 2, name: "Empty" },
-			],
-			memberOf: { "answer:9": 1, "existing:checkout": 1, "existing:removed": 2 },
-		},
+		boundaries: [
+			{ key: 1, name: "Internal" },
+			{ key: 2, name: "Empty" },
+		],
 	});
 	expect(proposal.changes).toMatchObject([
 		{ kind: "boundary", value: { name: "Internal", contains: ["checkout"] }, requires: [] },
@@ -72,12 +73,12 @@ it("maps a retained boundary selection to the reused element without a create de
 	const proposal = buildInterviewProposal(model, {
 		scope: "",
 		assets: "",
-		elements: [{ key: 1, role: "process", name: "Billing", reuse: "checkout" }],
+		elements: [
+			{ key: 1, role: "process", name: "Billing", reuse: "checkout", boundary: 2 },
+			{ key: 3, role: "external_entity", name: "", reuse: "customer", boundary: 2 },
+		],
 		flows: [],
-		boundaries: {
-			definitions: [{ key: 2, name: "Internal" }],
-			memberOf: { "answer:1": 2, "existing:customer": 2 },
-		},
+		boundaries: [{ key: 2, name: "Internal" }],
 	});
 	expect(proposal.changes).toMatchObject([
 		{

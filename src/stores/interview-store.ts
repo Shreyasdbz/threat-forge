@@ -34,13 +34,7 @@ export function createInterviewStore() {
 							draft: {
 								step: 0,
 								nextKey: 1,
-								answers: {
-									scope: "",
-									assets: "",
-									elements: [],
-									flows: [],
-									boundaries: { definitions: [], memberOf: {} },
-								},
+								answers: { scope: "", assets: "", elements: [], flows: [], boundaries: [] },
 								review: null,
 							},
 						},

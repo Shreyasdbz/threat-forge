@@ -21,6 +21,11 @@ type AssistanceResult =
 	| { status: "questions"; questions: string[] }
 	| { status: "cancelled" | "missing-key" | "unavailable" | "invalid" };
 
+type InterviewAnswerPayload = Omit<InterviewAnswers, "elements" | "boundaries"> & {
+	elements: Omit<InterviewAnswers["elements"][number], "boundary">[];
+	boundaries: (InterviewAnswers["boundaries"][number] & { members: string[] })[];
+};
+
 export async function requestInterviewQuestions({
 	provider,
 	modelId,
@@ -29,7 +34,7 @@ export async function requestInterviewQuestions({
 }: {
 	provider: AiProvider;
 	modelId: string;
-	answers: Partial<InterviewAnswers>;
+	answers: Partial<InterviewAnswerPayload>;
 	signal: AbortSignal;
 }): Promise<AssistanceResult> {
 	if (signal.aborted) return { status: "cancelled" };

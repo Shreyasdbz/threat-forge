@@ -16,7 +16,7 @@ const answers = {
 	assets: "Private inventory",
 	elements: [],
 	flows: [],
-	boundaries: { definitions: [], memberOf: {} },
+	boundaries: [],
 };
 
 beforeEach(() => {
@@ -50,6 +50,39 @@ it("sends only confirmed answers through BYOK and shows inert validated question
 	fireEvent.click(openConsent());
 	expect(await screen.findByText("Where is the payment data stored?")).toBeInTheDocument();
 });
+
+it.each([
+	[
+		"Actors, services and stores",
+		{ elements: [{ key: 1, role: "process", name: "Checkout", reuse: "" }] },
+	],
+	["Trust boundaries", { boundaries: [{ key: 2, name: "Internal", members: ["answer:1"] }] }],
+])(
+	"sends only the %s section even when membership is stored on an element",
+	async (section, body) => {
+		stream.mockImplementation(async (request, _transport, { onEvent }) => {
+			expect(request.messages).toEqual([
+				{ role: "user", content: [{ type: "text", text: JSON.stringify(body) }] },
+			]);
+			onEvent({ type: "text_delta", text: '{"questions":[]}' });
+			onEvent({ type: "message_stop", stopReason: "end_turn" });
+		});
+		render(
+			<InterviewAssistance
+				answers={{
+					...answers,
+					elements: [{ key: 1, role: "process", name: "Checkout", reuse: "", boundary: 2 }],
+					boundaries: [{ key: 2, name: "Internal" }],
+				}}
+				stillCurrent={() => true}
+			/>,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Optional AI follow-up" }));
+		fireEvent.click(screen.getByRole("checkbox", { name: section }));
+		fireEvent.click(screen.getByRole("button", { name: /^Send selected answers to / }));
+		expect(await screen.findByText("No follow-up questions were suggested.")).toBeInTheDocument();
+	},
+);
 
 it("refuses a missing key without contacting the provider", async () => {
 	hasKey.mockResolvedValue(false);

@@ -170,33 +170,19 @@ function Questions({
 			answers: { ...state.answers, [key]: mutate(state.answers[key]) },
 		}));
 	}
-	function add<K extends "elements" | "flows">(key: K, row: InterviewAnswers[K][number]) {
+	function add<K extends "elements" | "flows" | "boundaries">(
+		key: K,
+		row: InterviewAnswers[K][number],
+	) {
 		update((state) => ({
 			...state,
 			nextKey: state.nextKey + 1,
 			answers: { ...state.answers, [key]: [...state.answers[key], { ...row, key: state.nextKey }] },
 		}));
 	}
-	function removeElement(key: number) {
-		update((state) => {
-			const { boundaries, elements } = state.answers;
-			const memberOf = { ...boundaries.memberOf };
-			delete memberOf[`answer:${key}`];
-			return {
-				...state,
-				answers: {
-					...state.answers,
-					elements: elements.filter((element) => element.key !== key),
-					boundaries: { ...boundaries, memberOf },
-				},
-			};
-		});
-	}
 	const endpoints = interviewElements(model, answers);
-	const reuseRows = new Map(
-		answers.elements
-			.filter(({ reuse }) => reuse)
-			.map(({ key, reuse }) => [`existing:${reuse}`, key]),
+	const rowsByRef = new Map(
+		answers.elements.map((row) => [row.reuse ? `existing:${row.reuse}` : `answer:${row.key}`, row]),
 	);
 	if (step === 0)
 		return (
@@ -249,12 +235,12 @@ function Questions({
 									>
 										<option value="">Create a new element</option>
 										{model.elements.map(({ id, name }) => {
-											const usedBy = reuseRows.get(`existing:${id}`);
+											const usedBy = rowsByRef.get(`existing:${id}`);
 											return (
 												<option
 													key={id}
 													value={id}
-													disabled={usedBy !== undefined && usedBy !== row.key}
+													disabled={usedBy !== undefined && usedBy.key !== row.key}
 												>
 													Reuse {name}
 												</option>
@@ -298,7 +284,9 @@ function Questions({
 							<Button
 								className="justify-self-start"
 								variant="ghost"
-								onClick={() => removeElement(row.key)}
+								onClick={() =>
+									edit("elements", (items) => items.filter(({ key }) => key !== row.key))
+								}
 							>
 								Remove {label.toLowerCase()}
 							</Button>
@@ -388,14 +376,14 @@ function Questions({
 			</div>
 		);
 	if (step === 4) {
-		const { definitions, memberOf } = answers.boundaries;
+		const { boundaries } = answers;
 		const existingBoundaries = interviewExistingBoundaries(model);
 		return (
 			<div className="space-y-3">
 				<p className="text-editor-body">
 					Which elements share a trust boundary? Flows between members and non-members cross it.
 				</p>
-				{definitions.map((row, index) => {
+				{boundaries.map((row, index) => {
 					return (
 						<fieldset key={row.key} className="grid gap-2 border border-editor-line p-3">
 							<legend className="px-1 text-editor-caption">Boundary {index + 1}</legend>
@@ -406,12 +394,9 @@ function Questions({
 										value={row.name}
 										onChange={(event) => {
 											const name = event.target.value;
-											edit("boundaries", (current) => ({
-												...current,
-												definitions: current.definitions.map((item) =>
-													item.key === row.key ? { ...item, name } : item,
-												),
-											}));
+											edit("boundaries", (items) =>
+												items.map((item) => (item.key === row.key ? { ...item, name } : item)),
+											);
 										}}
 									/>
 								)}
@@ -420,11 +405,17 @@ function Questions({
 								className="justify-self-start"
 								variant="ghost"
 								onClick={() =>
-									edit("boundaries", (current) => ({
-										definitions: current.definitions.filter(({ key }) => key !== row.key),
-										memberOf: Object.fromEntries(
-											Object.entries(current.memberOf).filter(([, key]) => key !== row.key),
-										),
+									update((state) => ({
+										...state,
+										answers: {
+											...state.answers,
+											boundaries: state.answers.boundaries.filter(({ key }) => key !== row.key),
+											elements: state.answers.elements.map((element) =>
+												element.boundary === row.key
+													? { ...element, boundary: undefined }
+													: element,
+											),
+										},
 									}))
 								}
 							>
@@ -433,34 +424,15 @@ function Questions({
 						</fieldset>
 					);
 				})}
-				<Button
-					variant="outline"
-					onClick={() =>
-						update((state) => ({
-							...state,
-							nextKey: state.nextKey + 1,
-							answers: {
-								...state.answers,
-								boundaries: {
-									...state.answers.boundaries,
-									definitions: [
-										...state.answers.boundaries.definitions,
-										{ key: state.nextKey, name: "" },
-									],
-								},
-							},
-						}))
-					}
-				>
+				<Button variant="outline" onClick={() => add("boundaries", { key: 0, name: "" })}>
 					Add boundary
 				</Button>
-				{definitions.length > 0 && (
+				{boundaries.length > 0 && (
 					<fieldset className="grid gap-2 border border-editor-line p-3">
 						<legend className="px-1 text-editor-caption">Boundary membership</legend>
-						{endpoints.map(({ ref: targetRef, name }) => {
-							const rowKey = reuseRows.get(targetRef);
-							const ref = rowKey === undefined ? targetRef : `answer:${rowKey}`;
-							const owner = existingBoundaries.get(targetRef);
+						{endpoints.map(({ ref, name }) => {
+							const row = rowsByRef.get(ref);
+							const owner = existingBoundaries.get(ref);
 							if (owner !== undefined) {
 								return (
 									<p key={ref} className="text-editor-caption">
@@ -473,22 +445,30 @@ function Questions({
 									{(id) => (
 										<NativeSelect
 											id={id}
-											value={memberOf[ref] ?? memberOf[targetRef] ?? ""}
+											value={row?.boundary ?? ""}
 											onChange={(event) => {
-												const value = event.target.value;
-												edit("boundaries", (current) => {
-													const memberOf = { ...current.memberOf };
-													if (value) memberOf[ref] = Number(value);
-													else {
-														delete memberOf[ref];
-														delete memberOf[targetRef];
-													}
-													return { ...current, memberOf };
-												});
+												const boundary = event.target.value
+													? Number(event.target.value)
+													: undefined;
+												if (row) {
+													edit("elements", (items) =>
+														items.map((item) =>
+															item.key === row.key ? { ...item, boundary } : item,
+														),
+													);
+												} else if (boundary !== undefined) {
+													const element = model.elements.find(({ id }) => ref === `existing:${id}`);
+													if (!element) return;
+													const role =
+														element.type === "external_entity" || element.type === "data_store"
+															? element.type
+															: "process";
+													add("elements", { key: 0, role, name: "", reuse: element.id, boundary });
+												}
 											}}
 										>
 											<option value="">No boundary</option>
-											{definitions.map(({ key, name }, index) => (
+											{boundaries.map(({ key, name }, index) => (
 												<option key={key} value={key}>
 													{name.trim() || `Boundary ${index + 1}`}
 												</option>

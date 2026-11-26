@@ -24,9 +24,9 @@ it("refuses cross-tab and stale previews and applies only selected additions in 
 	const answers = {
 		scope: "Private notes",
 		assets: "",
-		elements: [{ key: 1, role: "process" as const, name: "Billing", reuse: "" }],
+		elements: [{ key: 1, role: "process" as const, name: "Billing", reuse: "", boundary: 3 }],
 		flows: [{ key: 2, name: "Order", from: "existing:customer", to: "answer:1", data: "" }],
-		boundaries: { definitions: [{ key: 3, name: "Internal" }], memberOf: { "answer:1": 3 } },
+		boundaries: [{ key: 3, name: "Internal" }],
 	};
 	const review = reviewInterview(stores, answers);
 	if (!review) throw new Error("Missing review");
@@ -75,12 +75,12 @@ it("wraps positioned members without moving them in the diagram or exported mode
 	const review = reviewInterview(stores, {
 		scope: "",
 		assets: "",
-		elements: [],
+		elements: [
+			{ key: 2, role: "external_entity", name: "", reuse: "customer", boundary: 1 },
+			{ key: 3, role: "process", name: "", reuse: "checkout", boundary: 1 },
+		],
 		flows: [],
-		boundaries: {
-			definitions: [{ key: 1, name: "Internal" }],
-			memberOf: { "existing:customer": 1, "existing:checkout": 1 },
-		},
+		boundaries: [{ key: 1, name: "Internal" }],
 	});
 	if (!review) throw new Error("Missing review");
 	expect(applyInterviewReview(stores, review)).toBeNull();
@@ -121,17 +121,15 @@ it("keeps members in their first boundary and discloses exclusions before applyi
 		scope: "",
 		assets: "",
 		elements: [
-			{ key: 1, role: "external_entity", name: "", reuse: "customer" },
-			{ key: 2, role: "process", name: "Billing", reuse: "" },
+			{ key: 1, role: "external_entity", name: "", reuse: "customer", boundary: 3 },
+			{ key: 2, role: "process", name: "Billing", reuse: "", boundary: 4 },
+			{ key: 5, role: "process", name: "", reuse: "checkout", boundary: 3 },
 		],
 		flows: [],
-		boundaries: {
-			definitions: [
-				{ key: 3, name: "Checkout tier" },
-				{ key: 4, name: "Billing tier" },
-			],
-			memberOf: { "answer:1": 3, "existing:checkout": 3, "answer:2": 4 },
-		},
+		boundaries: [
+			{ key: 3, name: "Checkout tier" },
+			{ key: 4, name: "Billing tier" },
+		],
 	});
 	if (!review) throw new Error("Missing review");
 	expect(review.gaps).toContain(
@@ -156,15 +154,15 @@ it("retains the chosen membership when an unrelated boundary is unchecked", () =
 	const review = reviewInterview(stores, {
 		scope: "",
 		assets: "",
-		elements: [],
+		elements: [
+			{ key: 3, role: "external_entity", name: "", reuse: "customer", boundary: 1 },
+			{ key: 4, role: "process", name: "", reuse: "checkout", boundary: 2 },
+		],
 		flows: [],
-		boundaries: {
-			definitions: [
-				{ key: 1, name: "First tier" },
-				{ key: 2, name: "Second tier" },
-			],
-			memberOf: { "existing:customer": 1, "existing:checkout": 2 },
-		},
+		boundaries: [
+			{ key: 1, name: "First tier" },
+			{ key: 2, name: "Second tier" },
+		],
 	});
 	if (!review) throw new Error("Missing review");
 	const secondOnly = selectInterviewChange(review, "boundary-1", false);

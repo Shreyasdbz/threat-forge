@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 import { readThreatModelText } from "@/lib/thf-validation";
 import { useDocumentRegistry } from "@/stores/document-registry";
@@ -57,19 +57,18 @@ it("removes deleted answer references from saved boundary selections", () => {
 		nextKey: 3,
 		answers: {
 			...draft.answers,
-			elements: [{ key: 1, role: "process", name: "Billing", reuse: "" }],
-			boundaries: {
-				definitions: [{ key: 2, name: "Internal" }],
-				memberOf: { "answer:1": 2, "existing:checkout": 2 },
-			},
+			elements: [
+				{ key: 1, role: "process", name: "Billing", reuse: "", boundary: 2 },
+				{ key: 3, role: "process", name: "", reuse: "checkout", boundary: 2 },
+			],
+			boundaries: [{ key: 2, name: "Internal" }],
 		},
 	}));
 	render(<InterviewWorkspace>Diagram</InterviewWorkspace>);
 	fireEvent.click(screen.getByRole("button", { name: "Remove actor or service 1" }));
-	expect(stores.interview.getState().draft?.answers.boundaries).toEqual({
-		definitions: [{ key: 2, name: "Internal" }],
-		memberOf: { "existing:checkout": 2 },
-	});
+	expect(stores.interview.getState().draft?.answers.elements).toEqual([
+		{ key: 3, role: "process", name: "", reuse: "checkout", boundary: 2 },
+	]);
 });
 
 it("keeps a selected member visible and removable after switching to reuse", () => {
@@ -83,17 +82,22 @@ it("keeps a selected member visible and removable after switching to reuse", () 
 		nextKey: 3,
 		answers: {
 			...draft.answers,
-			elements: [{ key: 1, role: "process", name: "Billing", reuse: "" }],
-			boundaries: {
-				definitions: [{ key: 2, name: "Internal" }],
-				memberOf: { "answer:1": 2, "existing:customer": 2 },
-			},
+			elements: [
+				{ key: 1, role: "process", name: "Billing", reuse: "", boundary: 2 },
+				{ key: 3, role: "external_entity", name: "", reuse: "customer", boundary: 2 },
+			],
+			boundaries: [{ key: 2, name: "Internal" }],
 		},
 	}));
 	render(<InterviewWorkspace>Diagram</InterviewWorkspace>);
-	fireEvent.change(screen.getByRole("combobox", { name: "Create or reuse" }), {
-		target: { value: "checkout" },
-	});
+	fireEvent.change(
+		within(screen.getByRole("group", { name: "Actor or service 1" })).getByRole("combobox", {
+			name: "Create or reuse",
+		}),
+		{
+			target: { value: "checkout" },
+		},
+	);
 	for (let step = 0; step < 3; step++) {
 		fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 	}
@@ -101,12 +105,12 @@ it("keeps a selected member visible and removable after switching to reuse", () 
 	expect(checkout).toHaveValue("2");
 	expect(screen.getByRole("combobox", { name: "Boundary for Customer" })).toHaveValue("2");
 	fireEvent.change(checkout, { target: { value: "" } });
-	expect(stores.interview.getState().draft?.answers.boundaries.memberOf).toEqual({
-		"existing:customer": 2,
-	});
+	expect(
+		stores.interview.getState().draft?.answers.elements.map(({ boundary }) => boundary),
+	).toEqual([undefined, 2]);
 });
 
-it("applies the boundary assignment to the last target chosen for an answer row", () => {
+it("keeps a single membership across the interview boundary lifecycle", () => {
 	const before = readThreatModelText(fixture);
 	const registry = useDocumentRegistry.getState();
 	const id = registry.createDocument({ model: before, filePath: null, pendingLayout: null });
@@ -119,30 +123,97 @@ it("applies the boundary assignment to the last target chosen for an answer row"
 		nextKey: 4,
 		answers: {
 			...draft.answers,
-			elements: [{ key: 1, role: "process", name: "Billing", reuse: "" }],
-			boundaries: {
-				definitions: [
-					{ key: 2, name: "Internal" },
-					{ key: 3, name: "Other" },
-				],
-				memberOf: { "answer:1": 2, "existing:customer": 3 },
-			},
+			boundaries: [
+				{ key: 2, name: "Internal" },
+				{ key: 3, name: "Other" },
+			],
 		},
 	}));
 	render(<InterviewWorkspace>Diagram</InterviewWorkspace>);
-	const reuse = screen.getByRole("combobox", { name: "Create or reuse" });
-	fireEvent.change(reuse, { target: { value: "checkout" } });
-	fireEvent.change(reuse, { target: { value: "customer" } });
-	for (let step = 0; step < 3; step++) {
-		fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-	}
-	expect(screen.getByRole("combobox", { name: "Boundary for Customer" })).toHaveValue("2");
-	expect(screen.getByRole("combobox", { name: "Boundary for Checkout" })).toHaveValue("");
-	fireEvent.click(screen.getByRole("button", { name: "Review changes" }));
-	fireEvent.click(screen.getByRole("button", { name: "Apply selected changes" }));
-	expect(stores.model.getState().model?.trust_boundaries).toMatchObject([
-		{ name: "Internal", contains: ["customer"] },
-	]);
+	const navigate = (name: "Continue" | "Back") => {
+		for (let step = 0; step < 3; step++) fireEvent.click(screen.getByRole("button", { name }));
+	};
+	const membership = (name: string) =>
+		screen.getByRole("combobox", { name: `Boundary for ${name}` });
+	const choose = (name: string, value: string) =>
+		fireEvent.change(membership(name), { target: { value } });
+	const reuse = (value: string) => {
+		navigate("Back");
+		fireEvent.change(screen.getByRole("combobox", { name: "Create or reuse" }), {
+			target: { value },
+		});
+		navigate("Continue");
+	};
+	const cases = [
+		[
+			"create",
+			() => {
+				fireEvent.click(screen.getByRole("button", { name: "Add actor or service" }));
+				fireEvent.change(screen.getByRole("textbox", { name: "Actor or service 1 name" }), {
+					target: { value: "Billing" },
+				});
+				navigate("Continue");
+				choose("Billing (new)", "2");
+				expect(membership("Billing (new)")).toHaveValue("2");
+			},
+		],
+		[
+			"reuse",
+			() => {
+				reuse("checkout");
+				expect(membership("Checkout")).toHaveValue("2");
+			},
+		],
+		[
+			"reuse-change",
+			() => {
+				reuse("customer");
+				expect(membership("Customer")).toHaveValue("2");
+				expect(membership("Checkout")).toHaveValue("");
+			},
+		],
+		[
+			"move",
+			() => {
+				choose("Customer", "3");
+				expect(membership("Customer")).toHaveValue("3");
+			},
+		],
+		[
+			"delete boundary",
+			() => {
+				fireEvent.click(screen.getByRole("button", { name: "Remove boundary 2" }));
+				expect(membership("Customer")).toHaveValue("");
+				choose("Customer", "2");
+				fireEvent.click(screen.getByRole("button", { name: "Add boundary" }));
+				fireEvent.change(screen.getAllByRole("textbox", { name: "Boundary name" })[1], {
+					target: { value: "Review only" },
+				});
+				const option = within(membership("Checkout")).getByRole<HTMLOptionElement>("option", {
+					name: "Review only",
+				});
+				choose("Checkout", option.value);
+			},
+		],
+		[
+			"uncheck in review",
+			() => {
+				fireEvent.click(screen.getByRole("button", { name: "Review changes" }));
+				fireEvent.click(screen.getByRole("checkbox", { name: "Review only (boundary)" }));
+				expect(screen.getByRole("checkbox", { name: "Internal (boundary)" })).toBeChecked();
+			},
+		],
+		[
+			"apply",
+			() => {
+				fireEvent.click(screen.getByRole("button", { name: "Apply selected changes" }));
+				expect(stores.model.getState().model?.trust_boundaries).toMatchObject([
+					{ name: "Internal", contains: ["customer"] },
+				]);
+			},
+		],
+	] as const;
+	for (const [, exercise] of cases) exercise();
 });
 
 it("keeps boundary dependencies separate after moving a member in the questionnaire", () => {
@@ -159,16 +230,14 @@ it("keeps boundary dependencies separate after moving a member in the questionna
 		answers: {
 			...draft.answers,
 			elements: [
-				{ key: 1, role: "process", name: "Worker", reuse: "" },
-				{ key: 2, role: "process", name: "Gateway", reuse: "" },
+				{ key: 1, role: "process", name: "Worker", reuse: "", boundary: 4 },
+				{ key: 2, role: "process", name: "Gateway", reuse: "", boundary: 3 },
+				{ key: 5, role: "process", name: "", reuse: "checkout", boundary: 4 },
 			],
-			boundaries: {
-				definitions: [
-					{ key: 3, name: "First tier" },
-					{ key: 4, name: "Second tier" },
-				],
-				memberOf: { "answer:1": 4, "answer:2": 3, "existing:checkout": 4 },
-			},
+			boundaries: [
+				{ key: 3, name: "First tier" },
+				{ key: 4, name: "Second tier" },
+			],
 		},
 	}));
 	render(<InterviewWorkspace>Diagram</InterviewWorkspace>);

@@ -53,10 +53,20 @@ export function InterviewAssistance({
 		const modelId =
 			(provider === "openai" ? settings.aiModelOpenai : settings.aiModelAnthropic) ||
 			getDefaultModelId(provider);
+		const sendable = {
+			...answers,
+			elements: answers.elements.map(({ key, role, name, reuse }) => ({ key, role, name, reuse })),
+			boundaries: answers.boundaries.map((boundary) => ({
+				...boundary,
+				members: answers.elements.flatMap(({ key, reuse, boundary: membership }) =>
+					membership === boundary.key ? [reuse ? `existing:${reuse}` : `answer:${key}`] : [],
+				),
+			})),
+		};
 		const result = await requestInterviewQuestions({
 			provider,
 			modelId,
-			answers: Object.fromEntries([...selected].map((key) => [key, answers[key]])),
+			answers: Object.fromEntries([...selected].map((key) => [key, sendable[key]])),
 			signal: controller.signal,
 		});
 		if (active.current !== controller) return;
@@ -86,10 +96,7 @@ export function InterviewAssistance({
 					<input
 						type="checkbox"
 						checked={selected.has(key)}
-						disabled={
-							pending ||
-							!(key === "boundaries" ? answers.boundaries.definitions : answers[key]).length
-						}
+						disabled={pending || !answers[key].length}
 						onChange={(event) => {
 							const next = new Set(selected);
 							if (event.target.checked) next.add(key);

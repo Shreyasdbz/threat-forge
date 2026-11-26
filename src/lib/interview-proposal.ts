@@ -2,7 +2,13 @@ import { nextSequenceId } from "@/lib/sequence-views";
 import type { DataFlow, Element, ThreatModel, TrustBoundary } from "@/types/threat-model";
 
 export type InterviewRole = "external_entity" | "process" | "data_store";
-export type InterviewElement = { key: number; role: InterviewRole; name: string; reuse: string };
+export type InterviewElement = {
+	key: number;
+	role: InterviewRole;
+	name: string;
+	reuse: string;
+	boundary?: number;
+};
 export type InterviewFlow = { key: number; name: string; from: string; to: string; data: string };
 export type InterviewBoundary = { key: number; name: string };
 
@@ -11,10 +17,7 @@ export interface InterviewAnswers {
 	assets: string;
 	elements: InterviewElement[];
 	flows: InterviewFlow[];
-	boundaries: {
-		definitions: InterviewBoundary[];
-		memberOf: Partial<Record<string, number>>;
-	};
+	boundaries: InterviewBoundary[];
 }
 
 export type InterviewChange = (
@@ -74,7 +77,7 @@ export function buildInterviewProposal(
 	if (!answers.elements.some(({ role }) => role === "data_store"))
 		gaps.push("Stores not answered.");
 	if (!answers.flows.length) gaps.push("Directional flows not answered.");
-	if (!answers.boundaries.definitions.length) gaps.push("Trust boundaries not answered.");
+	if (!answers.boundaries.length) gaps.push("Trust boundaries not answered.");
 
 	for (const answer of answers.elements) {
 		if (answer.reuse) {
@@ -126,19 +129,11 @@ export function buildInterviewProposal(
 		});
 	}
 	const existingBoundaries = interviewExistingBoundaries(model);
-	const reuseTargets = new Map(
-		answers.elements
-			.filter(({ reuse }) => reuse)
-			.map(({ key, reuse }) => [`answer:${key}`, `existing:${reuse}`]),
-	);
-	const memberOf = new Map<string, number | undefined>();
-	for (const [ref, boundaryId] of Object.entries(answers.boundaries.memberOf)) {
-		const target = reuseTargets.get(ref);
-		if (target || !memberOf.has(ref)) memberOf.set(target ?? ref, boundaryId);
-	}
-	for (const answer of answers.boundaries.definitions) {
+	for (const answer of answers.boundaries) {
 		const name = answer.name.trim();
-		const requested = [...memberOf].flatMap(([ref, key]) => (key === answer.key ? [ref] : []));
+		const requested = answers.elements.flatMap(({ key, reuse, boundary }) =>
+			boundary === answer.key ? [reuse ? `existing:${reuse}` : `answer:${key}`] : [],
+		);
 		const resolved = requested.flatMap((ref) => {
 			const member = refs.get(ref);
 			return member ? [{ ref, ...member }] : [];
