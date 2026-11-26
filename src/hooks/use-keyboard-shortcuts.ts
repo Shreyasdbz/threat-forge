@@ -4,6 +4,7 @@ import { showingSequence } from "@/lib/sequence-views";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useClipboardStore } from "@/stores/clipboard-store";
+import { getActiveStores } from "@/stores/document-stores";
 import { useHistoryStore } from "@/stores/history-store";
 import { useModelStore } from "@/stores/model-store";
 import { useSettingsStore } from "@/stores/settings-store";
@@ -17,7 +18,8 @@ export function useKeyboardShortcuts() {
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
 			const mod = e.metaKey || e.ctrlKey;
-			const sequenceActive = showingSequence(useModelStore.getState());
+			const graphHidden =
+				getActiveStores().interview.getState().visible || showingSequence(useModelStore.getState());
 
 			// Non-modifier shortcuts (only when not focused in an input)
 			const active = document.activeElement;
@@ -36,7 +38,7 @@ export function useKeyboardShortcuts() {
 						return;
 					case "Delete":
 					case "Backspace":
-						if (sequenceActive) return;
+						if (graphHidden) return;
 						e.preventDefault();
 						useCanvasStore.getState().deleteSelected();
 						return;
@@ -80,7 +82,7 @@ export function useKeyboardShortcuts() {
 					case "ArrowLeft":
 					case "ArrowRight": {
 						if (
-							sequenceActive ||
+							graphHidden ||
 							e.defaultPrevented ||
 							(active !== document.body && !active?.closest(".react-flow"))
 						) {
@@ -223,25 +225,25 @@ export function useKeyboardShortcuts() {
 					useSettingsStore.getState().openSettingsDialog();
 					break;
 				case "a":
-					if (!isInputFocused && !sequenceActive) {
+					if (!isInputFocused && !graphHidden) {
 						e.preventDefault();
 						useClipboardStore.getState().selectAll();
 					}
 					break;
 				case "c":
-					if (!isInputFocused && !sequenceActive) {
+					if (!isInputFocused && !graphHidden) {
 						e.preventDefault();
 						useClipboardStore.getState().copySelected();
 					}
 					break;
 				case "x":
-					if (!isInputFocused && !sequenceActive) {
+					if (!isInputFocused && !graphHidden) {
 						e.preventDefault();
 						useClipboardStore.getState().cutSelected();
 					}
 					break;
 				case "v":
-					if (!isInputFocused && !sequenceActive) {
+					if (!isInputFocused && !graphHidden) {
 						e.preventDefault();
 						useClipboardStore.getState().paste();
 					}

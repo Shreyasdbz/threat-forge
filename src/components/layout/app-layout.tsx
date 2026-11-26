@@ -30,6 +30,7 @@ import { SettingsDialog } from "../panels/settings-dialog";
 import { ResizeHandle } from "../ui/resize-handle";
 import { DiagramViewControl } from "./diagram-view-control";
 import { DocumentTabStrip } from "./document-tab-strip";
+import { InterviewControl, InterviewWorkspace } from "./interview-workspace";
 import { StatusBar } from "./status-bar";
 import { TopMenuBar } from "./top-menu-bar";
 import { UpdateBar } from "./update-bar";
@@ -152,6 +153,7 @@ export function AppLayout() {
 									<DocumentTabStrip />
 								</div>
 								<DiagramViewControl />
+								{activeDocumentId && <InterviewControl />}
 							</div>
 							<div
 								className="flex-1 overflow-hidden"
@@ -163,7 +165,9 @@ export function AppLayout() {
 										}
 									: {})}
 							>
-								<Canvas />
+								<InterviewWorkspace>
+									<Canvas />
+								</InterviewWorkspace>
 							</div>
 						</main>
 

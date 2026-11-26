@@ -119,9 +119,10 @@ describe("desktop document sync", () => {
 		);
 	});
 
-	it("reloads a clean background document and clears its stale undo history", async () => {
+	it("reloads a clean background document and clears its stale undo history and interview", async () => {
 		const background = open();
 		background.history.getState().pushSnapshot(model("Undo"));
+		background.interview.getState().start();
 		const active = open(null);
 		mocks.checkDocumentUpdate.mockResolvedValueOnce(update).mockResolvedValue(null);
 		renderHook(() => useDocumentSync());
@@ -136,6 +137,7 @@ describe("desktop document sync", () => {
 			fileSync: "updated",
 		});
 		expect(background.history.getState().past).toEqual([]);
+		expect(background.interview.getState().draft).toBeNull();
 		await poll();
 		expect(mocks.checkDocumentUpdate.mock.calls).toEqual([
 			[path, "one"],

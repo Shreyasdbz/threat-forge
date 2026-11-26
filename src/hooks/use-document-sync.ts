@@ -69,6 +69,7 @@ async function refreshDocument(id: DocumentId, cancelled: () => boolean, discard
 		edges: [],
 	});
 	stores.history.getState().clear();
+	stores.interview.getState().discard();
 	disposeDocumentTurns(id);
 	state.setModel(update.model, update.path, update.revision, update.sourceYaml);
 	registry.setDocumentFileSettings(id, update.model.metadata.settings ?? null);

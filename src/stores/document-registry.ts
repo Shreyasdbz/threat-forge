@@ -323,6 +323,7 @@ export const useDocumentRegistry = create<DocumentRegistryState>((set, get) => (
 		if (!session) return;
 		chatPathSubscriptions.get(session.stores)?.();
 		chatPathSubscriptions.delete(session.stores);
+		session.stores.interview.getState().discard();
 
 		const remainingIds = state.openDocumentIds.filter((docId) => docId !== id);
 		const nextDocuments = { ...state.documents };

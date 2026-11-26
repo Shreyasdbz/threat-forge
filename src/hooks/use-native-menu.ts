@@ -5,6 +5,7 @@ import { showingSequence } from "@/lib/sequence-views";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useClipboardStore } from "@/stores/clipboard-store";
+import { getActiveStores } from "@/stores/document-stores";
 import { useHistoryStore } from "@/stores/history-store";
 import { useModelStore } from "@/stores/model-store";
 import { useUiStore } from "@/stores/ui-store";
@@ -35,6 +36,9 @@ export function useNativeMenu() {
 
 			unlistenMenu = await listen<string>("menu-action", (event) => {
 				const action = event.payload;
+				const graphHidden =
+					getActiveStores().interview.getState().visible ||
+					showingSequence(useModelStore.getState());
 
 				switch (action) {
 					// File
@@ -114,7 +118,7 @@ export function useNativeMenu() {
 							} else if (action === "edit-paste") {
 								document.execCommand("paste");
 							}
-						} else if (!showingSequence(useModelStore.getState())) {
+						} else if (!graphHidden) {
 							if (action === "edit-select-all") {
 								useClipboardStore.getState().selectAll();
 							} else if (action === "edit-copy") {
@@ -128,8 +132,7 @@ export function useNativeMenu() {
 						break;
 					}
 					case "edit-delete":
-						if (!showingSequence(useModelStore.getState()))
-							useCanvasStore.getState().deleteSelected();
+						if (!graphHidden) useCanvasStore.getState().deleteSelected();
 						break;
 
 					// View
