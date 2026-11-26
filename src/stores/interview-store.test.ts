@@ -76,7 +76,7 @@ it("maps a retained boundary selection to the reused element without a create de
 		flows: [],
 		boundaries: {
 			definitions: [{ key: 2, name: "Internal" }],
-			memberOf: { "existing:checkout": 2, "existing:customer": 2 },
+			memberOf: { "answer:1": 2, "existing:customer": 2 },
 		},
 	});
 	expect(proposal.changes).toMatchObject([

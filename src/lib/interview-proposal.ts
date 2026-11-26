@@ -126,11 +126,19 @@ export function buildInterviewProposal(
 		});
 	}
 	const existingBoundaries = interviewExistingBoundaries(model);
+	const reuseTargets = new Map(
+		answers.elements
+			.filter(({ reuse }) => reuse)
+			.map(({ key, reuse }) => [`answer:${key}`, `existing:${reuse}`]),
+	);
+	const memberOf = new Map<string, number | undefined>();
+	for (const [ref, boundaryId] of Object.entries(answers.boundaries.memberOf)) {
+		const target = reuseTargets.get(ref);
+		if (target || !memberOf.has(ref)) memberOf.set(target ?? ref, boundaryId);
+	}
 	for (const answer of answers.boundaries.definitions) {
 		const name = answer.name.trim();
-		const requested = Object.entries(answers.boundaries.memberOf).flatMap(([ref, key]) =>
-			key === answer.key ? [ref] : [],
-		);
+		const requested = [...memberOf].flatMap(([ref, key]) => (key === answer.key ? [ref] : []));
 		const resolved = requested.flatMap((ref) => {
 			const member = refs.get(ref);
 			return member ? [{ ref, ...member }] : [];

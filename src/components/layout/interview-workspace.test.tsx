@@ -106,6 +106,45 @@ it("keeps a selected member visible and removable after switching to reuse", () 
 	});
 });
 
+it("applies the boundary assignment to the last target chosen for an answer row", () => {
+	const before = readThreatModelText(fixture);
+	const registry = useDocumentRegistry.getState();
+	const id = registry.createDocument({ model: before, filePath: null, pendingLayout: null });
+	const stores = registry.getDocumentStores(id);
+	if (!stores) throw new Error("Missing document");
+	stores.interview.getState().start();
+	stores.interview.getState().update((draft) => ({
+		...draft,
+		step: 1,
+		nextKey: 4,
+		answers: {
+			...draft.answers,
+			elements: [{ key: 1, role: "process", name: "Billing", reuse: "" }],
+			boundaries: {
+				definitions: [
+					{ key: 2, name: "Internal" },
+					{ key: 3, name: "Other" },
+				],
+				memberOf: { "answer:1": 2, "existing:customer": 3 },
+			},
+		},
+	}));
+	render(<InterviewWorkspace>Diagram</InterviewWorkspace>);
+	const reuse = screen.getByRole("combobox", { name: "Create or reuse" });
+	fireEvent.change(reuse, { target: { value: "checkout" } });
+	fireEvent.change(reuse, { target: { value: "customer" } });
+	for (let step = 0; step < 3; step++) {
+		fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+	}
+	expect(screen.getByRole("combobox", { name: "Boundary for Customer" })).toHaveValue("2");
+	expect(screen.getByRole("combobox", { name: "Boundary for Checkout" })).toHaveValue("");
+	fireEvent.click(screen.getByRole("button", { name: "Review changes" }));
+	fireEvent.click(screen.getByRole("button", { name: "Apply selected changes" }));
+	expect(stores.model.getState().model?.trust_boundaries).toMatchObject([
+		{ name: "Internal", contains: ["customer"] },
+	]);
+});
+
 it("keeps boundary dependencies separate after moving a member in the questionnaire", () => {
 	const before = readThreatModelText(fixture);
 	const registry = useDocumentRegistry.getState();

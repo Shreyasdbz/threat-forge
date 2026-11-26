@@ -192,31 +192,12 @@ function Questions({
 			};
 		});
 	}
-	function changeReuse(key: number, reuse: string) {
-		update((state) => {
-			const { boundaries, elements } = state.answers;
-			const memberOf = { ...boundaries.memberOf };
-			const answerRef = `answer:${key}`;
-			const existingRef = `existing:${reuse}`;
-			const assignment = memberOf[answerRef];
-			if (reuse && assignment !== undefined) {
-				memberOf[existingRef] ??= assignment;
-				delete memberOf[answerRef];
-			}
-			return {
-				...state,
-				answers: {
-					...state.answers,
-					elements: elements.map((element) =>
-						element.key === key ? { ...element, reuse } : element,
-					),
-					boundaries: { ...boundaries, memberOf },
-				},
-			};
-		});
-	}
-
 	const endpoints = interviewElements(model, answers);
+	const reuseRows = new Map(
+		answers.elements
+			.filter(({ reuse }) => reuse)
+			.map(({ key, reuse }) => [`existing:${reuse}`, key]),
+	);
 	if (step === 0)
 		return (
 			<div className="grid gap-3">
@@ -264,14 +245,21 @@ function Questions({
 									<NativeSelect
 										id={id}
 										value={row.reuse}
-										onChange={(event) => changeReuse(row.key, event.target.value)}
+										onChange={(event) => change({ reuse: event.target.value })}
 									>
 										<option value="">Create a new element</option>
-										{model.elements.map(({ id, name }) => (
-											<option key={id} value={id}>
-												Reuse {name}
-											</option>
-										))}
+										{model.elements.map(({ id, name }) => {
+											const usedBy = reuseRows.get(`existing:${id}`);
+											return (
+												<option
+													key={id}
+													value={id}
+													disabled={usedBy !== undefined && usedBy !== row.key}
+												>
+													Reuse {name}
+												</option>
+											);
+										})}
 									</NativeSelect>
 								)}
 							</Field>
@@ -469,8 +457,10 @@ function Questions({
 				{definitions.length > 0 && (
 					<fieldset className="grid gap-2 border border-editor-line p-3">
 						<legend className="px-1 text-editor-caption">Boundary membership</legend>
-						{endpoints.map(({ ref, name }) => {
-							const owner = existingBoundaries.get(ref);
+						{endpoints.map(({ ref: targetRef, name }) => {
+							const rowKey = reuseRows.get(targetRef);
+							const ref = rowKey === undefined ? targetRef : `answer:${rowKey}`;
+							const owner = existingBoundaries.get(targetRef);
 							if (owner !== undefined) {
 								return (
 									<p key={ref} className="text-editor-caption">
@@ -483,13 +473,16 @@ function Questions({
 									{(id) => (
 										<NativeSelect
 											id={id}
-											value={memberOf[ref] ?? ""}
+											value={memberOf[ref] ?? memberOf[targetRef] ?? ""}
 											onChange={(event) => {
 												const value = event.target.value;
 												edit("boundaries", (current) => {
 													const memberOf = { ...current.memberOf };
 													if (value) memberOf[ref] = Number(value);
-													else delete memberOf[ref];
+													else {
+														delete memberOf[ref];
+														delete memberOf[targetRef];
+													}
 													return { ...current, memberOf };
 												});
 											}}

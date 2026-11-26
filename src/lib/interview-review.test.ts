@@ -130,7 +130,7 @@ it("keeps members in their first boundary and discloses exclusions before applyi
 				{ key: 3, name: "Checkout tier" },
 				{ key: 4, name: "Billing tier" },
 			],
-			memberOf: { "existing:customer": 3, "existing:checkout": 3, "answer:2": 4 },
+			memberOf: { "answer:1": 3, "existing:checkout": 3, "answer:2": 4 },
 		},
 	});
 	if (!review) throw new Error("Missing review");
