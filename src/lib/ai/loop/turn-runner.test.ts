@@ -92,6 +92,118 @@ beforeEach(() => {
 	useHistoryStore.getState().clear();
 });
 
+describe("whole-turn review", () => {
+	const add: StreamEvent = {
+		type: "tool_call_complete",
+		id: "create",
+		name: "add_element",
+		input: { action: "add_element", element: { type: "process", name: "Cache" } },
+	};
+	const start: StreamEvent = { type: "message_start", model: "m" };
+	const toolUse: StreamEvent = { type: "message_stop", stopReason: "tool_use" };
+	const end: StreamEvent = { type: "message_stop", stopReason: "end_turn" };
+
+	it("stages a dependent call using a generated ID, then commits the reviewed result once", async () => {
+		const baseline = getDocument();
+		const { stream, requests } = scriptedStream([
+			[start, add, toolUse],
+			[
+				start,
+				{
+					type: "tool_call_complete",
+					id: "connect",
+					name: "add_data_flow",
+					input: { action: "add_data_flow", data_flow: { from: "web-app", to: "comp-1" } },
+				},
+				{
+					type: "tool_call_complete",
+					id: "find",
+					name: "search_entities",
+					input: { kind: "elements" },
+				},
+				toolUse,
+			],
+			[start, end],
+		]);
+		const runner = createTurnRunner({ stream, getDocument, reviewProposals: true });
+		await runner.submit(config(createAiToolRegistry()));
+		const review = runner.getState().proposal;
+		if (!review) throw new Error("No proposal ready to review");
+		expect(requests[1].messages.flatMap(({ content }) => content)).toContainEqual(
+			expect.objectContaining({
+				type: "tool_result",
+				content: JSON.stringify({ action: "add_element", id: "comp-1", status: "staged" }),
+			}),
+		);
+		expect(review.changes.map(({ id }) => id)).toEqual(["comp-1", "flow-1"]);
+		const read = requests[2].messages
+			.flatMap(({ content }) => content)
+			.find((block) => block.type === "tool_result" && block.toolCallId === "find");
+		expect(read).toMatchObject({ content: expect.stringContaining('"id":"comp-1"') });
+		expect(getDocument()).toBe(baseline);
+		expect(useHistoryStore.getState().past).toHaveLength(0);
+		await runner.approveCall("create");
+		expect(getDocument()).toBe(baseline);
+
+		runner.applyProposal(review.token);
+		const applied = getDocument();
+		expect(applied?.elements.map(({ id }) => id)).toEqual(["web-app", "comp-1"]);
+		expect(applied?.data_flows).toMatchObject([{ id: "flow-1", from: "web-app", to: "comp-1" }]);
+		expect(runner.getState().proposalOutcome).toBe("applied");
+		runner.applyProposal(review.token);
+		expect(getDocument()).toBe(applied);
+		expect(useHistoryStore.getState().past).toHaveLength(1);
+		runner.undo();
+		expect(getDocument()).toEqual(baseline);
+	});
+
+	it.each(["rejected", "stale", "cancelled", "discarded"] as const)(
+		"leaves both the live model and history alone when the proposal is %s",
+		async (outcome) => {
+			const invalid: StreamEvent = {
+				type: "tool_call_complete",
+				id: "broken",
+				name: "delete_element",
+				input: { action: "delete_element", id: "missing" },
+			};
+			const { stream } = scriptedStream(
+				outcome === "discarded"
+					? [
+							[start, add, toolUse],
+							[start, invalid, toolUse],
+							[start, end],
+						]
+					: [
+							[start, add, toolUse],
+							[start, end],
+						],
+			);
+			const runner = createTurnRunner({ stream, getDocument, reviewProposals: true });
+			await runner.submit(config(createAiToolRegistry()));
+			const review = runner.getState().proposal;
+			if (outcome !== "discarded" && !review) throw new Error("No proposal ready to review");
+			if (outcome === "stale") {
+				const current = getDocument();
+				if (!current) throw new Error("No live document");
+				useModelStore
+					.getState()
+					.setModel({ ...current, metadata: { ...current.metadata, title: "Edited" } }, null);
+			}
+			const baseline = getDocument();
+			if (outcome === "cancelled") runner.cancel();
+			else if (review && outcome === "rejected") runner.rejectProposal(review.token);
+			else if (review && outcome === "stale") runner.applyProposal(review.token);
+			expect(runner.getState().proposalOutcome).toBe(
+				outcome === "cancelled" ? "discarded" : outcome,
+			);
+			expect(runner.getState().proposal).toBeNull();
+			expect(getDocument()).toBe(baseline);
+			expect(useHistoryStore.getState().past).toHaveLength(0);
+			assertToolPairing(runner.getState().messages);
+		},
+	);
+});
+
 describe("the corrective feedback channel", () => {
 	it("returns a committed element ID to the next iteration for an approved connection", async () => {
 		const requests: ConversationRequest[] = [];

@@ -262,21 +262,26 @@ describe("running a tool computes without committing", () => {
 		const prepared = createGraphToolRegistry().get("add_element")?.prepare(VALID_INPUT.add_element);
 		if (!prepared?.ok) throw new Error("Valid tool input was rejected");
 
-		const draft = await prepared.call.run({ ...ctx(), document: baseline, allocateId: first });
-		if (draft.status !== "ok" || !draft.document) throw new Error("Creation failed");
-		const initial = await prepared.call.run({
-			...ctx(),
-			document: draft.document,
-			allocateId: second,
-		});
-		const replay = await prepared.call.run({ ...ctx(), document: baseline, allocateId: second });
-		expect(JSON.parse(draft.result).id).toBe("comp-2");
-		expect(JSON.parse(initial.result).id).toBe("comp-3");
-		expect(replay.result).toEqual(initial.result);
-		expect(useModelStore.getState()).toBe(live);
-		expect(useHistoryStore.getState().past).toBe(history);
-		expect(useCanvasStore.getState().nodes).toBe(canvas);
-		expect(useCanvasStore.getState().nextElementId()).toBe("comp-1");
+		const nextElementId = vi.spyOn(useCanvasStore.getState(), "nextElementId");
+		try {
+			const draft = await prepared.call.run({ ...ctx(), document: baseline, allocateId: first });
+			if (draft.status !== "ok" || !draft.document) throw new Error("Creation failed");
+			const initial = await prepared.call.run({
+				...ctx(),
+				document: draft.document,
+				allocateId: second,
+			});
+			const replay = await prepared.call.run({ ...ctx(), document: baseline, allocateId: second });
+			expect(JSON.parse(draft.result).id).toBe("comp-2");
+			expect(JSON.parse(initial.result).id).toBe("comp-3");
+			expect(replay.result).toEqual(initial.result);
+			expect(useModelStore.getState()).toBe(live);
+			expect(useHistoryStore.getState().past).toBe(history);
+			expect(useCanvasStore.getState().nodes).toBe(canvas);
+			expect(nextElementId).not.toHaveBeenCalled();
+		} finally {
+			nextElementId.mockRestore();
+		}
 	});
 
 	it("leaves the model store untouched for every one of the twelve tools", async () => {

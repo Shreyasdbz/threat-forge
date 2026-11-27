@@ -51,6 +51,7 @@ export type ContentBlock = TextBlock | ToolCallBlock | ToolResultBlock;
 export interface ProtocolMessage {
 	role: ProtocolRole;
 	content: ContentBlock[];
+	origin?: "proposal";
 }
 
 /**

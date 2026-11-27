@@ -341,10 +341,32 @@ export function createModelStore(deps: ModelStoreDeps): StoreApi<ModelState> {
 		},
 
 		restoreSnapshot: (snapshot) => {
+			const {
+				selectedElementId,
+				selectedEdgeId,
+				selectedBoundaryId,
+				selectedThreatId,
+				selectedSequenceId,
+			} = get();
 			resetDebounce();
 			set({
 				model: snapshot,
 				isDirty: true,
+				selectedElementId: snapshot.elements.some(({ id }) => id === selectedElementId)
+					? selectedElementId
+					: null,
+				selectedEdgeId: snapshot.data_flows.some(({ id }) => id === selectedEdgeId)
+					? selectedEdgeId
+					: null,
+				selectedBoundaryId: snapshot.trust_boundaries.some(({ id }) => id === selectedBoundaryId)
+					? selectedBoundaryId
+					: null,
+				selectedThreatId: snapshot.threats.some(({ id }) => id === selectedThreatId)
+					? selectedThreatId
+					: null,
+				selectedSequenceId: snapshot.diagrams.some(({ id }) => id === selectedSequenceId)
+					? selectedSequenceId
+					: null,
 			});
 		},
 

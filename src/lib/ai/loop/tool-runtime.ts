@@ -199,11 +199,11 @@ function sortDeep(value: unknown): unknown {
 	if (Array.isArray(value)) return value.map(sortDeep);
 	if (value !== null && typeof value === "object") {
 		const record = value as Record<string, unknown>;
-		const sorted: Record<string, unknown> = {};
-		for (const key of Object.keys(record).sort()) {
-			sorted[key] = sortDeep(record[key]);
-		}
-		return sorted;
+		return Object.fromEntries(
+			Object.keys(record)
+				.sort()
+				.map((key) => [key, sortDeep(record[key])]),
+		);
 	}
 	return value;
 }

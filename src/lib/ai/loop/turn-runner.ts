@@ -6,7 +6,7 @@
  *  1. issue a provider request (per iteration, so budgeting re-runs as history grows);
  *  2. dispatch stream events into the reducer;
  *  3. execute the calls the reducer moved to `running`;
- *  4. commit each outcome through the transaction module.
+ *  4. review staged changes and commit through the transaction module.
  *
  * It cannot execute a call the reducer refused: it only *asks* to start a call
  * (`startCall`), runs it when the reducer answered `running`, and discards an
@@ -22,6 +22,7 @@ import type { ConversationRequest } from "@/lib/ai/protocol/client";
 import type { ProtocolError } from "@/lib/ai/protocol/errors";
 import type { StreamEvent } from "@/lib/ai/protocol/events";
 import type { AiProvider, ProtocolMessage } from "@/lib/ai/protocol/messages";
+import { type DocumentStores, getActiveStores } from "@/stores/document-stores";
 import type { ThreatModel } from "@/types/threat-model";
 import { budgetExhaustion, type TurnLimits } from "./limits";
 import type { ToolOutcome, ToolRegistry } from "./tool-runtime";
@@ -34,11 +35,13 @@ import {
 } from "./transaction";
 import {
 	createIdleTurnState,
+	type ProposalOutcome,
 	reduceTurn,
 	runnableCalls,
 	type TurnInput,
 	type TurnState,
 } from "./turn-machine";
+import { createTurnProposal } from "./turn-proposal";
 
 /** Everything a single turn needs that does not change across its iterations. */
 export interface TurnConfig {
@@ -68,6 +71,8 @@ export interface TurnRunnerDeps {
 	) => Promise<void>;
 	/** Read the live document immediately before a call runs. */
 	getDocument: () => ThreatModel | null;
+	reviewProposals?: boolean;
+	ownsDocument?: () => boolean;
 	/** Notified after every state change so a store can mirror it. */
 	onState?: (state: TurnState) => void;
 }
@@ -75,6 +80,18 @@ export interface TurnRunnerDeps {
 /** Only these codes are worth a turn-level retry; they mirror the transport's transient split. */
 function isTurnRetriable(code: ProtocolError["code"]): boolean {
 	return code === "rate_limited" || code === "transport";
+}
+
+function stagedResult(result: string): string {
+	try {
+		const value: unknown = JSON.parse(result);
+		if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+			return JSON.stringify({ ...value, status: "staged" });
+		}
+	} catch {
+		// Existing mutation tools also return plain-text results.
+	}
+	return JSON.stringify({ status: "staged", result });
 }
 
 export interface TurnRunner {
@@ -86,6 +103,9 @@ export interface TurnRunner {
 	approveCall(id: string): Promise<void>;
 	approveBatch(ids: readonly string[]): Promise<void>;
 	denyCall(id: string): Promise<void>;
+	selectProposal(token: symbol, selected: readonly string[]): Promise<void>;
+	applyProposal(token: symbol): void;
+	rejectProposal(token: symbol): void;
 	cancel(): void;
 	undo(): void;
 }
@@ -101,6 +121,13 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 	let controller: AbortController | null = null;
 	let ledger = createTurnUndoLedger();
 	let driving = false;
+	let proposal: ReturnType<typeof createTurnProposal> | null = null;
+	let baseline: {
+		stores: DocumentStores;
+		model: ThreatModel;
+		filePath: string | null;
+		fileRevision?: string;
+	} | null = null;
 
 	function setState(next: TurnState): void {
 		state = next;
@@ -108,13 +135,97 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 	}
 
 	function dispatch(input: TurnInput): void {
-		setState(
-			reduceTurn(
-				state,
-				input,
-				input.type === "tool_call_complete" ? deps.getDocument() : undefined,
-			),
+		const next = reduceTurn(
+			state,
+			input,
+			input.type === "tool_call_complete" && !deps.reviewProposals ? deps.getDocument() : undefined,
 		);
+		if (proposal && next.phase === "settled" && state.phase !== "settled") {
+			if (
+				input.type === "message_stop" &&
+				(input.stopReason === "end_turn" || input.stopReason === "stop_sequence")
+			) {
+				setState({ ...next, phase: "preparing_review", outcome: null });
+				return;
+			}
+			if (state.proposal || next.calls.some((call) => call.effect === "mutate")) {
+				settleProposal("discarded", next);
+				return;
+			}
+			proposal = null;
+		}
+		setState(next);
+	}
+
+	function baselineIsCurrent(): boolean {
+		if (!baseline || getActiveStores() !== baseline.stores || deps.ownsDocument?.() === false) {
+			return false;
+		}
+		const { filePath, fileRevision, fileSync } = baseline.stores.model.getState();
+		return (
+			deps.getDocument() === baseline.model &&
+			filePath === baseline.filePath &&
+			fileRevision === baseline.fileRevision &&
+			fileSync !== "conflict"
+		);
+	}
+
+	function settleProposal(
+		outcome: ProposalOutcome,
+		next = state,
+		selected: ReadonlySet<string> = new Set(),
+	): void {
+		proposal = null;
+		baseline = null;
+		const applied: { call_id: string; tool: string }[] = [];
+		const excluded: typeof applied = [];
+		for (const call of next.calls) {
+			if (call.effect !== "mutate" || call.status !== "succeeded") continue;
+			(selected.has(call.id) ? applied : excluded).push({ call_id: call.id, tool: call.toolName });
+		}
+		const text = JSON.stringify({
+			proposal_status: outcome,
+			applied,
+			excluded,
+		});
+		const result: ProtocolMessage = {
+			role: "assistant",
+			origin: "proposal",
+			content: [{ type: "text", text }],
+		};
+		setState({
+			...next,
+			phase: "settled",
+			outcome: next.outcome ?? "completed",
+			proposal: null,
+			updatingProposal: false,
+			proposalOutcome: outcome,
+			messages: [...next.messages, result],
+			calls: next.calls.map((call) =>
+				call.effect === "mutate" && call.status === "succeeded" && !selected.has(call.id)
+					? { ...call, status: "denied", result: "Not applied." }
+					: call,
+			),
+		});
+	}
+
+	function finishReview(): void {
+		if (state.calls.some((call) => call.status === "failed" || call.status === "denied")) {
+			settleProposal("discarded");
+			return;
+		}
+		const review = proposal?.finish();
+		if (!review) {
+			proposal = null;
+			baseline = null;
+			setState({ ...state, phase: "settled", outcome: "completed" });
+		} else if (!baselineIsCurrent()) {
+			settleProposal("stale");
+		} else if (review.changes.length === 0) {
+			settleProposal("unchanged");
+		} else {
+			setState({ ...state, phase: "awaiting_approval", proposal: review });
+		}
 	}
 
 	function signal(): AbortSignal {
@@ -127,7 +238,9 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 		return {
 			provider: cfg.provider,
 			modelId: cfg.modelId,
-			system: cfg.system,
+			system: proposal
+				? `${cfg.system}\n\nMutation tools stage changes in a private draft. Read tools report the draft, including staged edits. Until the user applies the proposal, no live document edits have been made. Summarize proposed changes without claiming they were applied.`
+				: cfg.system,
 			// The full turn history; `streamConversation` budgets it every iteration.
 			messages: state.messages,
 			tools: cfg.toolSet.list(),
@@ -144,6 +257,14 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 				if (state.phase === "requesting") {
 					await runStream();
 					continue;
+				}
+				if (state.phase === "awaiting_approval" && proposal && !state.proposal) {
+					dispatch({ type: "stageMutations" });
+					continue;
+				}
+				if (state.phase === "preparing_review") {
+					finishReview();
+					return;
 				}
 				if (state.phase === "executing") {
 					if (runnableCalls(state).length > 0) {
@@ -207,7 +328,7 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 			if (state.calls.find((c) => c.id === call.id)?.status !== "running") continue;
 
 			const prepared = call.prepared;
-			const document = deps.getDocument();
+			const document = proposal?.getDocument() ?? deps.getDocument();
 			if (prepared === null || document === null) {
 				dispatch({
 					type: "callSettled",
@@ -218,6 +339,21 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 			}
 
 			let outcome: ToolOutcome;
+			if (proposal) {
+				const tool = config?.toolSet.get(call.toolName);
+				outcome = tool
+					? await proposal.run(tool, call.id, prepared, signal())
+					: { status: "error", result: "This tool is not available in the turn." };
+				if (signal().aborted) return;
+				if (outcome.status === "ok" && call.effect === "mutate") {
+					outcome = {
+						status: "ok",
+						result: stagedResult(outcome.result),
+					};
+				}
+				dispatch({ type: "callSettled", callId: call.id, outcome });
+				continue;
+			}
 			try {
 				outcome = await prepared.run({ document, signal: signal() });
 			} catch {
@@ -246,6 +382,11 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 			config = cfg;
 			ledger = createTurnUndoLedger();
 			controller = new AbortController();
+			const model = deps.getDocument();
+			const stores = getActiveStores();
+			const { filePath, fileRevision } = stores.model.getState();
+			baseline = deps.reviewProposals && model ? { stores, model, filePath, fileRevision } : null;
+			proposal = baseline ? createTurnProposal(baseline.model) : null;
 			dispatch({
 				type: "submit",
 				text: cfg.text,
@@ -254,22 +395,74 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 				limits: cfg.limits,
 				nowMs: now(),
 			});
+			if (deps.reviewProposals && !proposal) {
+				settleProposal("stale");
+				return Promise.resolve();
+			}
 			return drive();
 		},
 
 		approveCall(id) {
+			if (deps.reviewProposals) return Promise.resolve();
 			dispatch({ type: "approveCall", callId: id });
 			return drive();
 		},
 
 		approveBatch(ids) {
+			if (deps.reviewProposals) return Promise.resolve();
 			dispatch({ type: "approveBatch", callIds: ids });
 			return drive();
 		},
 
 		denyCall(id) {
+			if (deps.reviewProposals) return Promise.resolve();
 			dispatch({ type: "denyCall", callId: id });
 			return drive();
+		},
+
+		async selectProposal(token, selected) {
+			if (!proposal || state.proposal?.token !== token || state.updatingProposal) return;
+			if (!baselineIsCurrent()) {
+				settleProposal("stale");
+				return;
+			}
+			const draft = proposal;
+			const reviewSignal = signal();
+			setState({ ...state, updatingProposal: true });
+			const review = await draft.select(token, new Set(selected), reviewSignal);
+			if (!review || reviewSignal.aborted || state.proposal?.token !== token) return;
+			if (!baselineIsCurrent()) {
+				settleProposal("stale");
+				return;
+			}
+			setState({ ...state, proposal: review, updatingProposal: false });
+		},
+
+		applyProposal(token) {
+			const review = state.proposal;
+			if (!proposal || !baseline || review?.token !== token || state.updatingProposal) return;
+			if (!baselineIsCurrent()) {
+				settleProposal("stale");
+				return;
+			}
+			const candidate = proposal.take(token);
+			if (!candidate) return;
+			const applied = commit(
+				{ status: "ok", document: candidate, result: "Applied the reviewed proposal." },
+				{ expected: baseline.model, effect: "mutate", ledger },
+				baseline.stores,
+			);
+			settleProposal(
+				applied.status === "committed" ? "applied" : "discarded",
+				state,
+				applied.status === "committed"
+					? new Set(review.operations.filter(({ included }) => included).map(({ id }) => id))
+					: undefined,
+			);
+		},
+
+		rejectProposal(token) {
+			if (proposal && state.proposal?.token === token) settleProposal("rejected");
 		},
 
 		cancel() {

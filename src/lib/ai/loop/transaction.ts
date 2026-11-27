@@ -119,20 +119,26 @@ export function commitToolOutcome(
 				"The document changed while this tool was running. Re-read the current model and try again.",
 		};
 	}
-	try {
-		validateThreatModel(outcome.document);
-	} catch (error) {
-		const message =
-			error instanceof ThfValidationError
-				? error.message
-				: "The proposed change would produce a document that cannot be reopened.";
-		return { status: "refused", refusal: "invalid_document", result: message };
+	const invalid = proposedDocumentError(outcome.document);
+	if (invalid !== null) {
+		return { status: "refused", refusal: "invalid_document", result: invalid };
 	}
 
 	pushTurnSnapshotOnce(input, stores.history);
 	stores.model.getState().restoreSnapshot(outcome.document);
 	stores.canvas.getState().syncFromModel();
 	return { status: "committed", document: outcome.document, result: outcome.result };
+}
+
+export function proposedDocumentError(document: ThreatModel): string | null {
+	try {
+		validateThreatModel(document);
+		return null;
+	} catch (error) {
+		return error instanceof ThfValidationError
+			? error.message
+			: "The proposed change would produce a document that cannot be reopened.";
+	}
 }
 
 /**
