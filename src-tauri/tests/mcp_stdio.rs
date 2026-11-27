@@ -233,6 +233,7 @@ fn mcp_server_handshakes_lists_its_tools_and_executes_one_over_stdio() {
             "delete_element",
             "delete_threat",
             "delete_trust_boundary",
+            "export_markdown",
             "export_png",
             "export_svg",
             "get_model",
@@ -271,6 +272,64 @@ fn mcp_server_handshakes_lists_its_tools_and_executes_one_over_stdio() {
         saved.contains("id: web-api"),
         "the tool call must be persisted to the .thf file, got:\n{saved}"
     );
+}
+
+#[test]
+fn markdown_export_is_read_only_and_writes_golden_bytes_only_inside_workspace() {
+    const SOURCE: &str = include_str!("../../tests/fixtures/markdown/checkout.thf");
+    const GOLDEN: &str = include_str!("../../tests/fixtures/markdown/checkout.md");
+    let parent = tempfile::tempdir().unwrap();
+    let root = parent.path().join("workspace");
+    std::fs::create_dir(&root).unwrap();
+    let model = root.join("checkout.thf");
+    std::fs::write(&model, SOURCE).unwrap();
+
+    let mut server = McpServer::spawn_workspace(&root);
+    server.start_workspace();
+    let unavailable = server.request_raw(
+        2,
+        "tools/call",
+        json!({ "name": "export_markdown", "arguments": {} }),
+    );
+    assert!(unavailable["error"].is_object() || unavailable["result"]["isError"] == true);
+    let opened = server.tool_json(3, "open_document", json!({ "path": "checkout.thf" }));
+    let text = server.tool(4, "export_markdown", json!({}));
+    assert_eq!(text["content"][0]["text"], GOLDEN);
+    let saved = server.tool(5, "export_markdown", json!({ "path": "review.md" }));
+    assert_eq!(saved["content"][1], text["content"][0]);
+    assert_eq!(
+        std::fs::read(root.join("review.md")).unwrap(),
+        GOLDEN.as_bytes()
+    );
+
+    for (index, path) in ["../escaped.md", "checkout.thf"].into_iter().enumerate() {
+        let rejected = server.request_raw(
+            6 + index as u32,
+            "tools/call",
+            json!({ "name": "export_markdown", "arguments": { "path": path } }),
+        );
+        assert!(rejected["error"].is_object() || rejected["result"]["isError"] == true);
+    }
+    assert!(!parent.path().join("escaped.md").exists());
+    assert_eq!(std::fs::read(&model).unwrap(), SOURCE.as_bytes());
+    assert_eq!(
+        server.tool_json(8, "open_document", json!({ "path": "checkout.thf" }))["revision"],
+        opened["revision"]
+    );
+
+    let mut fixed = McpServer::spawn(&model);
+    fixed.start_workspace();
+    assert_eq!(
+        fixed.tool(2, "export_markdown", json!({}))["content"],
+        text["content"]
+    );
+    let denied = fixed.request_raw(
+        3,
+        "tools/call",
+        json!({ "name": "export_markdown", "arguments": { "path": "fixed.md" } }),
+    );
+    assert!(denied["error"].is_object() || denied["result"]["isError"] == true);
+    assert!(!root.join("fixed.md").exists());
 }
 
 /// The server declares `2024-11-05` in `get_info`, but rmcp echoes back any

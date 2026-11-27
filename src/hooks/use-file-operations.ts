@@ -278,6 +278,17 @@ export function useFileOperations() {
 		await adapter.exportAsHtml(html, defaultName);
 	}, [model]);
 
+	const exportAsMarkdown = useCallback(async () => {
+		if (!model) return;
+		const defaultName = sanitizeFilename(model.metadata.title) || "threat-model-review";
+		try {
+			const adapter = await getFileAdapter();
+			await adapter.exportAsMarkdown(model, defaultName);
+		} catch {
+			window.alert("Could not export the Markdown review.");
+		}
+	}, [model]);
+
 	return {
 		newModel,
 		openModel,
@@ -287,5 +298,6 @@ export function useFileOperations() {
 		closeModel,
 		closeDocumentById,
 		exportAsHtml,
+		exportAsMarkdown,
 	};
 }

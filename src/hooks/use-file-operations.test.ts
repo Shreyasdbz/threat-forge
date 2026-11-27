@@ -16,6 +16,7 @@ const adapter = vi.hoisted(() => ({
 	openLayout: vi.fn(),
 	saveLayout: vi.fn(),
 	exportAsHtml: vi.fn(),
+	exportAsMarkdown: vi.fn(),
 	confirmDiscard: vi.fn(),
 }));
 
@@ -56,6 +57,26 @@ beforeEach(() => {
 });
 
 describe("useFileOperations lifecycle through the document registry", () => {
+	it("exports the unsaved model as a Markdown review without saving it", async () => {
+		const model = makeModel("Updated Review");
+		adapter.createNewModel.mockResolvedValue(model);
+		const { result } = renderHook(() => useFileOperations());
+		await act(async () => {
+			await result.current.newModel();
+			useModelStore.getState().updateMetadata({ description: "Unsaved review details" });
+		});
+		await act(async () => {
+			await result.current.exportAsMarkdown();
+		});
+		expect(adapter.exportAsMarkdown).toHaveBeenCalledWith(
+			expect.objectContaining({
+				metadata: expect.objectContaining({ description: "Unsaved review details" }),
+			}),
+			"updated-review",
+		);
+		expect(adapter.saveThreatModel).not.toHaveBeenCalled();
+	});
+
 	it("New opens an active registry document with a clean history and no file path", async () => {
 		adapter.createNewModel.mockResolvedValue(makeModel("Untitled Threat Model"));
 		const { result } = renderHook(() => useFileOperations());

@@ -162,6 +162,7 @@ Add to your Cursor MCP configuration:
 | `undo`, `redo` | Replay active-document edits from this MCP session, only if the file revision still matches. |
 | `analyze_stride` | Preview STRIDE suggestions. Save the latest preview as one edit with `apply: true`, its `preview_id`, and its `revision` as `expected_revision`. |
 | `export_svg`, `export_png`, `screenshot` | Render the same scene. Pass `diagram_id` for an explicit view, or omit it for the graph. SVG is returned as text, PNG and screenshot as MCP images. Optional `path` writes an artifact inside the workspace, replacing an existing artifact of the same type. Screenshot is a headless diagram capture, not a desktop window capture. |
+| `export_markdown` | Return a deterministic Markdown review of the active document's components, data flows, findings, and mitigations. An optional workspace-relative `.md` `path` writes the same bytes in workspace mode. The model is not changed. |
 
 Use `add_relationship`, `update_relationship`, or `delete_relationship` as operations
 inside `batch_transaction`. Add takes `id`, `type`, `from`, and `to`; the endpoints

@@ -1,3 +1,4 @@
+import { Menu } from "@base-ui/react/menu";
 import {
 	type Icon,
 	IconBook,
@@ -38,8 +39,15 @@ export function TopMenuBar() {
 	const toggleRightPanel = useUiStore((s) => s.toggleRightPanel);
 	const openSettingsDialog = useSettingsStore((s) => s.openSettingsDialog);
 	const keytipsVisible = useSettingsStore((s) => s.settings.keytipsVisible);
-	const { newModel, openModel, importModel, saveModel, saveModelAs, exportAsHtml } =
-		useFileOperations();
+	const {
+		newModel,
+		openModel,
+		importModel,
+		saveModel,
+		saveModelAs,
+		exportAsHtml,
+		exportAsMarkdown,
+	} = useFileOperations();
 	const [guidePickerOpen, setGuidePickerOpen] = useState(false);
 	const [editingTitle, setEditingTitle] = useState(false);
 	const [presentation, setPresentation] = useState<{ model: ThreatModel; diagramId?: string }>();
@@ -122,13 +130,36 @@ export function TopMenuBar() {
 					onClick={() => void saveModel()}
 					disabled={!model}
 				/>
-				<MenuButton
-					testId="btn-export"
-					icon={IconFileExport}
-					tooltip={`Export HTML (${modKey}${isMac ? "⇧" : "Shift+"}E)`}
-					onClick={() => void exportAsHtml()}
-					disabled={!model}
-				/>
+				<Menu.Root>
+					<Menu.Trigger
+						render={<Button type="button" variant="ghost" size="icon" />}
+						data-testid="btn-export"
+						aria-label="Export report"
+						title="Export report"
+						className="text-muted-foreground"
+						disabled={!model}
+					>
+						<IconFileExport size={16} stroke={1.75} aria-hidden="true" />
+					</Menu.Trigger>
+					<Menu.Portal>
+						<Menu.Positioner align="start" sideOffset={4} className="z-50">
+							<Menu.Popup className="min-w-44 rounded-editor-panel border border-editor-separator bg-editor-raised p-1 shadow-editor-popover">
+								<Menu.Item
+									className="cursor-default rounded px-2 py-1.5 text-editor-footnote outline-none data-[highlighted]:bg-editor-hover"
+									onClick={() => void exportAsHtml()}
+								>
+									Export as HTML
+								</Menu.Item>
+								<Menu.Item
+									className="cursor-default rounded px-2 py-1.5 text-editor-footnote outline-none data-[highlighted]:bg-editor-hover"
+									onClick={() => void exportAsMarkdown()}
+								>
+									Export as Markdown
+								</Menu.Item>
+							</Menu.Popup>
+						</Menu.Positioner>
+					</Menu.Portal>
+				</Menu.Root>
 				<span aria-hidden="true" className="mx-1 h-4 w-px bg-editor-separator" />
 				<MenuButton
 					testId="btn-present"

@@ -12,6 +12,7 @@ use super::workspace::{Workspace, MAX_RESULTS};
 use crate::file_io::{
     prepare_document, resolve_target, DocumentSnapshot, LegacyLayouts, RemovedEntities, WriteTarget,
 };
+use crate::markdown;
 use crate::scene::Scene;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use std::borrow::Cow;
@@ -427,6 +428,12 @@ struct ExportRequest {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+struct MarkdownExportRequest {
+    #[schemars(description = "Optional workspace-relative output path ending in .md")]
+    path: Option<PathBuf>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 struct SequenceReadId {
     diagram_id: String,
 }
@@ -828,6 +835,27 @@ impl ThreatForgeServer {
     }
 
     #[tool(
+        description = "Export a Markdown review of the active model; optionally save it under the workspace root."
+    )]
+    async fn export_markdown(
+        &self,
+        Parameters(req): Parameters<MarkdownExportRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let (_, snapshot) = self.read_target()?;
+        let output = self.export_target(req.path, "md")?;
+        let markdown = markdown::review(&snapshot.model);
+        let mut content = Vec::new();
+        if let Some((target, relative)) = output {
+            self.write_workspace
+                .write_export(&target, markdown.as_bytes())
+                .map_err(mcp_err)?;
+            content.push(ContentBlock::text(format!("Saved {relative}")));
+        }
+        content.push(ContentBlock::text(markdown));
+        Ok(CallToolResult::success(content))
+    }
+
+    #[tool(
         description = "Capture the active diagram as an MCP image from the canonical scene without opening the desktop app."
     )]
     async fn screenshot(
@@ -1150,19 +1178,25 @@ impl ThreatForgeServer {
 }
 
 impl ThreatForgeServer {
+    fn export_target(
+        &self,
+        path: Option<PathBuf>,
+        extension: &str,
+    ) -> Result<Option<(WriteTarget, String)>, ErrorData> {
+        path.map(|path| {
+            let workspace = self.workspace()?;
+            let output = workspace.resolve(&path, extension).map_err(mcp_err)?;
+            let relative = workspace.relative(&output).map_err(mcp_err)?;
+            let target = workspace.write_target(&output).map_err(mcp_err)?;
+            Ok((target, relative))
+        })
+        .transpose()
+    }
+
     async fn export(&self, req: ExportRequest, raster: bool) -> Result<CallToolResult, ErrorData> {
         let (model_target, snapshot) = self.read_target()?;
         let extension = if raster { "png" } else { "svg" };
-        let output = req
-            .path
-            .map(|path| {
-                let workspace = self.workspace()?;
-                let output = workspace.resolve(&path, extension).map_err(mcp_err)?;
-                let relative = workspace.relative(&output).map_err(mcp_err)?;
-                let target = workspace.write_target(&output).map_err(mcp_err)?;
-                Ok::<_, ErrorData>((target, relative))
-            })
-            .transpose()?;
+        let output = self.export_target(req.path, extension)?;
         let workspace = Arc::clone(&self.write_workspace);
         tokio::task::spawn_blocking(move || {
             let mut model = snapshot.model;

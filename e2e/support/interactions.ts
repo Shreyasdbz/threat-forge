@@ -171,12 +171,13 @@ export async function saveDocument(page: Page): Promise<Download> {
 	});
 }
 
-/** Click the toolbar Export button and return the real browser download it produces. */
+/** Choose HTML in the toolbar export menu and return the real browser download it produces. */
 export async function exportHtmlReport(page: Page): Promise<Download> {
 	return test.step("exportHtmlReport: export via the toolbar Export button", async () => {
+		await page.getByTestId("btn-export").click();
 		const [download] = await Promise.all([
 			page.waitForEvent("download"),
-			page.getByTestId("btn-export").click(),
+			page.getByRole("menuitem", { name: "Export as HTML" }).click(),
 		]);
 		return download;
 	});

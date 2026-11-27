@@ -83,6 +83,16 @@ export class BrowserFileAdapter implements FileAdapter {
 		return defaultName;
 	}
 
+	async exportAsMarkdown(model: ThreatModel, defaultName: string): Promise<string | null> {
+		const wasm = await loadThreatModelWasm();
+		const markdown = wasm.render_markdown(JSON.stringify(model));
+		downloadBlob(
+			new Blob([markdown], { type: "text/markdown;charset=utf-8" }),
+			`${defaultName}.md`,
+		);
+		return defaultName;
+	}
+
 	async confirmDiscard(documentTitle?: string): Promise<boolean> {
 		const message = documentTitle
 			? `You have unsaved changes in "${documentTitle}". Discard them?`

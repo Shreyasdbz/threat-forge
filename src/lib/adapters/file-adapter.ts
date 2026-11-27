@@ -36,6 +36,7 @@ export interface FileAdapter {
 	): Promise<string | SavedDocument | null>;
 	/** Export the threat model as a self-contained HTML report. Returns the saved path, or null if cancelled. */
 	exportAsHtml(htmlContent: string, defaultName: string): Promise<string | null>;
+	exportAsMarkdown(model: ThreatModel, defaultName: string): Promise<string | null>;
 	/**
 	 * Show a confirmation dialog for discarding unsaved changes. When a `documentTitle` is given the
 	 * prompt names the document, so a user with several tabs open can answer it correctly (`#54`

@@ -58,6 +58,10 @@ export class TauriFileAdapter implements FileAdapter {
 		return invoke<string | null>("export_html", { defaultName, content: htmlContent });
 	}
 
+	async exportAsMarkdown(model: ThreatModel, defaultName: string): Promise<string | null> {
+		return invoke<string | null>("export_markdown", { model, defaultName });
+	}
+
 	async confirmDiscard(documentTitle?: string): Promise<boolean> {
 		const message = documentTitle
 			? `You have unsaved changes in "${documentTitle}". Discard them?`

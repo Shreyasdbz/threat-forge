@@ -1,5 +1,6 @@
 use crate::errors::ThreatForgeError;
 use crate::file_io;
+use crate::markdown;
 use crate::models::ThreatModel;
 use crate::scene::Scene;
 use serde::{Deserialize, Serialize};
@@ -244,6 +245,29 @@ pub async fn export_html(
     };
     let path = selected_path(&picked.into_path().map_err(|_| UNAPPROVED)?, "html")?;
     file_io::atomic_write(&path, content.as_bytes()).map_err(|error| error.user_message())?;
+    Ok(Some(path))
+}
+
+#[tauri::command]
+pub async fn export_markdown(
+    app: AppHandle,
+    model: ThreatModel,
+    default_name: String,
+) -> Result<Option<PathBuf>, String> {
+    file_io::validate_model(&model).map_err(|error| error.user_message())?;
+    let name = default_name.rsplit(['/', '\\']).next().unwrap_or("report");
+    let Some(picked) = app
+        .dialog()
+        .file()
+        .add_filter("Markdown review", &["md"])
+        .set_file_name(format!("{name}.md"))
+        .blocking_save_file()
+    else {
+        return Ok(None);
+    };
+    let path = selected_path(&picked.into_path().map_err(|_| UNAPPROVED)?, "md")?;
+    file_io::atomic_write(&path, markdown::review(&model).as_bytes())
+        .map_err(|error| error.user_message())?;
     Ok(Some(path))
 }
 

@@ -18,8 +18,16 @@ import { useFileOperations } from "./use-file-operations";
  * No-op in web builds where Tauri APIs are unavailable.
  */
 export function useNativeMenu() {
-	const { newModel, openModel, importModel, saveModel, saveModelAs, closeModel, exportAsHtml } =
-		useFileOperations();
+	const {
+		newModel,
+		openModel,
+		importModel,
+		saveModel,
+		saveModelAs,
+		closeModel,
+		exportAsHtml,
+		exportAsMarkdown,
+	} = useFileOperations();
 
 	useEffect(() => {
 		if (!isTauri()) return;
@@ -62,6 +70,9 @@ export function useNativeMenu() {
 						break;
 					case "file-export-html":
 						void exportAsHtml();
+						break;
+					case "file-export-markdown":
+						void exportAsMarkdown();
 						break;
 
 					// Edit
@@ -186,5 +197,14 @@ export function useNativeMenu() {
 			unlistenMenu?.();
 			unlistenFile?.();
 		};
-	}, [newModel, openModel, importModel, saveModel, saveModelAs, closeModel, exportAsHtml]);
+	}, [
+		newModel,
+		openModel,
+		importModel,
+		saveModel,
+		saveModelAs,
+		closeModel,
+		exportAsHtml,
+		exportAsMarkdown,
+	]);
 }
