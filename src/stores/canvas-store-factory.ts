@@ -36,6 +36,7 @@ export interface CanvasState {
 	nodes: DfdNode[];
 	edges: DfdEdge[];
 	viewport: Viewport;
+	passiveUpdate: number;
 
 	/** Layout to apply on next syncFromModel (set before loading a model) */
 	pendingLayout: DiagramLayout | null;
@@ -47,7 +48,7 @@ export interface CanvasState {
 	) => void;
 	resizeArchitectureGroup: (id: string, size: Size) => void;
 	onEdgesChange: OnEdgesChange<DfdEdge>;
-	setViewport: (viewport: Viewport) => void;
+	setViewport: (viewport: Viewport, passive?: boolean) => void;
 	setPendingLayout: (layout: DiagramLayout | null) => void;
 
 	// Canvas actions
@@ -156,6 +157,7 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 		nodes: [],
 		edges: [],
 		viewport: { x: 0, y: 0, zoom: 1 },
+		passiveUpdate: 0,
 		pendingLayout: null,
 
 		nextElementId: () => {
@@ -204,7 +206,14 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 							return { ...change, position };
 						})
 					: changes;
-			set({ nodes: applyNodeChanges(appliedChanges, previousNodes) as DfdNode[] });
+			const passive = appliedChanges.every(
+				(change) =>
+					change.type === "select" || (change.type === "dimensions" && !change.setAttributes),
+			);
+			set((state) => ({
+				nodes: applyNodeChanges(appliedChanges, previousNodes) as DfdNode[],
+				passiveUpdate: state.passiveUpdate + Number(passive),
+			}));
 
 			// Handle drag end: push pre-drag snapshot to history, write new positions to model.
 			// Skip when altDragActive — the onNodeDragStop handler owns history for Alt+drag.
@@ -301,10 +310,21 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 					deps.model.getState().markDirty();
 				}
 			}
-			set({ edges: applyEdgeChanges(changes, get().edges) });
+			set((state) => ({
+				edges: applyEdgeChanges(changes, state.edges),
+				passiveUpdate: state.passiveUpdate + Number(changes.every((c) => c.type === "select")),
+			}));
 		},
 
-		setViewport: (viewport) => set({ viewport }),
+		setViewport: (viewport, passive = false) => {
+			const current = get().viewport;
+			if (current.x !== viewport.x || current.y !== viewport.y || current.zoom !== viewport.zoom) {
+				set((state) => ({
+					viewport,
+					passiveUpdate: state.passiveUpdate + Number(passive),
+				}));
+			}
+		},
 		setPendingLayout: (layout) => set({ pendingLayout: layout }),
 
 		addElement: (type, position, opts) => {
@@ -692,7 +712,12 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 		syncFromModel: () => {
 			const model = deps.model.getState().model;
 			if (!model) {
-				set({ nodes: [], edges: [], pendingLayout: null });
+				set((state) => ({
+					nodes: [],
+					edges: [],
+					pendingLayout: null,
+					passiveUpdate: state.passiveUpdate + 1,
+				}));
 				return;
 			}
 
@@ -719,12 +744,13 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 
 			const { nodes, edges } = projectCanvas(model, get(), layout);
 
-			set({
+			set((state) => ({
 				nodes,
 				edges,
 				pendingLayout: null,
+				passiveUpdate: state.passiveUpdate + 1,
 				...(layout ? { viewport: layout.viewport } : {}),
-			});
+			}));
 		},
 	}));
 }

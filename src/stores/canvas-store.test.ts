@@ -3,7 +3,7 @@ import { buildLayoutFromModel } from "@/lib/model-layout-utils";
 import type { ThreatModel } from "@/types/threat-model";
 import { useCanvasInstanceStore } from "./canvas-instance-store";
 import { useCanvasStore } from "./canvas-store";
-import { useHistoryStore } from "./history-store";
+import { restoreHistorySnapshot, useHistoryStore } from "./history-store";
 import { useModelStore } from "./model-store";
 
 function createTestModel(): ThreatModel {
@@ -606,6 +606,32 @@ describe("canvas-store", () => {
 		// Position should be restored to pre-drag
 		const restoredNode = useCanvasStore.getState().nodes.find((n) => n.id === "process-1");
 		expect(restoredNode?.position).toEqual({ x: 100, y: 100 });
+	});
+
+	it("keeps the live viewport when undo and redo project historical node positions", () => {
+		const original = createTestModel();
+		original.diagrams = [{ id: "main", name: "Main" }];
+		original.elements[0].position = { x: 100, y: 100 };
+		const moved = structuredClone(original);
+		moved.elements[0].position = { x: 500, y: 500 };
+		useModelStore.getState().setModel(moved, null);
+		useHistoryStore.getState().pushSnapshot(original);
+		const viewport = { x: -305, y: 41, zoom: 0.25 };
+		useCanvasStore.getState().setViewport(viewport);
+		const position = () =>
+			useCanvasStore.getState().nodes.find((node) => node.id === "process-1")?.position;
+
+		const undo = useHistoryStore.getState().undo(moved);
+		if (!undo) throw new Error("Missing undo snapshot");
+		restoreHistorySnapshot(undo);
+		expect(position()).toEqual({ x: 100, y: 100 });
+		expect(useCanvasStore.getState().viewport).toEqual(viewport);
+
+		const redo = useHistoryStore.getState().redo(undo);
+		if (!redo) throw new Error("Missing redo snapshot");
+		restoreHistorySnapshot(redo);
+		expect(position()).toEqual({ x: 500, y: 500 });
+		expect(useCanvasStore.getState().viewport).toEqual(viewport);
 	});
 
 	it("creates element with subtype and icon from opts", () => {

@@ -284,7 +284,7 @@ export const useDocumentRegistry = create<DocumentRegistryState>((set, get) => (
 				// swap. onMoveEnd only fires at the end of a user gesture, so a programmatic zoom
 				// immediately before switching would otherwise be lost.
 				if (instance.rfGetViewport) {
-					outgoing.stores.canvas.setState({ viewport: instance.rfGetViewport() });
+					outgoing.stores.canvas.getState().setViewport(instance.rfGetViewport());
 				}
 				// Remember which AI session the outgoing document was on so returning restores it.
 				set((s) => {

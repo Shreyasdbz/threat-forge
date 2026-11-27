@@ -189,8 +189,10 @@ export class IndexeddbWorkspaceStorage implements WorkspaceStorage {
 			const deletion = transaction.objectStore(STORE_META).get(deletionKey(id));
 			deletion.onerror = () => fail(deletion.error);
 
-			// 1. Find the current highest seq for this document without reading any body.
-			const highestSeqRequest = byDocument.openKeyCursor(documentSeqRange(id), "prev");
+			// Avoid minting revisions for identical snapshots produced by canvas hydration or activation.
+			const pointerRequest = documents.get(id);
+			pointerRequest.onerror = () => fail(pointerRequest.error);
+			const highestSeqRequest = byDocument.openCursor(documentSeqRange(id), "prev");
 			highestSeqRequest.onerror = () => fail(highestSeqRequest.error);
 			highestSeqRequest.onsuccess = () => {
 				try {
@@ -200,6 +202,10 @@ export class IndexeddbWorkspaceStorage implements WorkspaceStorage {
 						return;
 					}
 					const cursor = highestSeqRequest.result;
+					if (cursor && pointerRequest.result?.currentRevisionId === cursor.primaryKey) {
+						const current: DocumentRevisionRecord = cursor.value;
+						if (current.thf === thf) return;
+					}
 					const key = cursor?.key;
 					const currentSeq = Array.isArray(key) && typeof key[1] === "number" ? key[1] : 0;
 					const seq = currentSeq + 1;

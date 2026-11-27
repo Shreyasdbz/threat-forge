@@ -309,6 +309,8 @@ describe("seeding and rebinding", () => {
 		useWorkspaceStore.getState().setPersistenceAvailability(true);
 		renderHook(() => useWorkspacePersistence());
 		await act(async () => {
+			useCanvasStore.getState().syncFromModel();
+			useCanvasStore.getState().setViewport({ x: 20, y: 30, zoom: 0.8 }, true);
 			vi.advanceTimersByTime(WORKSPACE_AUTOSAVE_DEBOUNCE_MS * 2);
 		});
 

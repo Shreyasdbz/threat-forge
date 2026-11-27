@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { buildLayoutFromModel } from "@/lib/model-layout-utils";
 import { isTauri } from "@/lib/platform";
 import { showingSequence } from "@/lib/sequence-views";
 import { isTextEditing } from "@/lib/text-editing";
@@ -7,7 +6,7 @@ import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useClipboardStore } from "@/stores/clipboard-store";
 import { getActiveStores } from "@/stores/document-stores";
-import { useHistoryStore } from "@/stores/history-store";
+import { restoreHistorySnapshot, useHistoryStore } from "@/stores/history-store";
 import { useModelStore } from "@/stores/model-store";
 import { useUiStore } from "@/stores/ui-store";
 import { useFileOperations } from "./use-file-operations";
@@ -85,12 +84,7 @@ export function useNativeMenu() {
 						const currentModel = useModelStore.getState().model;
 						if (!currentModel) break;
 						const snapshot = useHistoryStore.getState().undo(currentModel);
-						if (snapshot) {
-							const layout = buildLayoutFromModel(snapshot);
-							if (layout) useCanvasStore.getState().setPendingLayout(layout);
-							useModelStore.getState().restoreSnapshot(snapshot);
-							useCanvasStore.getState().syncFromModel();
-						}
+						if (snapshot) restoreHistorySnapshot(snapshot);
 						break;
 					}
 					case "edit-redo": {
@@ -102,12 +96,7 @@ export function useNativeMenu() {
 						const currentModel = useModelStore.getState().model;
 						if (!currentModel) break;
 						const snapshot = useHistoryStore.getState().redo(currentModel);
-						if (snapshot) {
-							const layout = buildLayoutFromModel(snapshot);
-							if (layout) useCanvasStore.getState().setPendingLayout(layout);
-							useModelStore.getState().restoreSnapshot(snapshot);
-							useCanvasStore.getState().syncFromModel();
-						}
+						if (snapshot) restoreHistorySnapshot(snapshot);
 						break;
 					}
 					case "edit-cut":

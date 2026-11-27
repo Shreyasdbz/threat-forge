@@ -275,18 +275,15 @@ export function useWorkspacePersistence(): void {
 			schedule();
 		});
 
-		let { nodes: lastNodes, edges: lastEdges, viewport: lastViewport } = stores.canvas.getState();
-		const unsubscribeCanvas = stores.canvas.subscribe((state) => {
+		const unsubscribeCanvas = stores.canvas.subscribe((state, previous) => {
 			if (
-				state.nodes === lastNodes &&
-				state.edges === lastEdges &&
-				state.viewport === lastViewport
+				state.passiveUpdate !== previous.passiveUpdate ||
+				(state.nodes === previous.nodes &&
+					state.edges === previous.edges &&
+					state.viewport === previous.viewport)
 			) {
 				return;
 			}
-			lastNodes = state.nodes;
-			lastEdges = state.edges;
-			lastViewport = state.viewport;
 			schedule();
 		});
 

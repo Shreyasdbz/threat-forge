@@ -14,11 +14,9 @@
  * not deselect whatever the user had selected.
  */
 
-import { buildLayoutFromModel } from "@/lib/model-layout-utils";
 import { ThfValidationError, validateThreatModel } from "@/lib/thf-validation";
-import { useCanvasStore } from "@/stores/canvas-store";
 import { type DocumentStores, getActiveStores } from "@/stores/document-stores";
-import { useHistoryStore } from "@/stores/history-store";
+import { restoreHistorySnapshot, useHistoryStore } from "@/stores/history-store";
 import { useModelStore } from "@/stores/model-store";
 import type { ThreatModel } from "@/types/threat-model";
 import type { ToolEffect, ToolOutcome } from "./tool-runtime";
@@ -191,9 +189,6 @@ export function undoTurn(ledger: TurnUndoLedger): boolean {
 	const snapshot = useHistoryStore.getState().undo(current);
 	if (snapshot === null) return false;
 
-	const layout = buildLayoutFromModel(snapshot);
-	if (layout) useCanvasStore.getState().setPendingLayout(layout);
-	useModelStore.getState().restoreSnapshot(snapshot);
-	useCanvasStore.getState().syncFromModel();
+	restoreHistorySnapshot(snapshot);
 	return true;
 }

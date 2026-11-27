@@ -118,6 +118,10 @@ export async function hydrateDocumentById(
 		activate: options.activate,
 		insertIndex: persistedSlotIndex(id),
 	});
+	useWorkspaceStore.getState().setPersistenceState(id, {
+		status: "saved",
+		lastPersistedAt: entry?.updatedAt ?? null,
+	});
 	return true;
 }
 

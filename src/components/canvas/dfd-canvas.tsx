@@ -133,6 +133,8 @@ export function DfdCanvas() {
 	// Whether the viewport decision has already run for the current activation. Reset per activation
 	// (below) so it runs once each time a document becomes active, not once per component lifetime.
 	const initialSyncDone = useRef(false);
+	const initializingViewport = useRef(false);
+	const viewportActivation = useRef(0);
 	// The active document this canvas last ran the viewport decision for; a change is a real switch.
 	const lastActivatedIdRef = useRef(activeDocumentId);
 
@@ -162,18 +164,20 @@ export function DfdCanvas() {
 		// geometry. Property edits re-run this effect with the latch still set and never move the view.
 		if (!initialSyncDone.current) {
 			initialSyncDone.current = true;
+			const activation = ++viewportActivation.current;
 			requestAnimationFrame(() => {
+				if (activation !== viewportActivation.current) return;
 				const { nodes, viewport } = useCanvasStore.getState();
 				const isDefaultViewport = viewport.x === 0 && viewport.y === 0 && viewport.zoom === 1;
-				if (hadPendingLayout || (nodes.length > 0 && !isDefaultViewport)) {
-					// Loaded from a file/layout (apply its stored viewport) or returning to a laid-out
-					// document (restore the viewport flushed when we left it).
-					setReactFlowViewport(viewport);
-				} else {
-					// A fresh new or imported document, or one sitting at the default viewport: frame
-					// its content instead of restoring a meaningless default pan/zoom.
-					void fitViewFn(fitOptions);
-				}
+				const hasSavedViewport = useModelStore.getState().model?.diagrams[0]?.viewport;
+				initializingViewport.current = true;
+				const initialMove =
+					(hadPendingLayout && hasSavedViewport) || (nodes.length > 0 && !isDefaultViewport)
+						? setReactFlowViewport(viewport)
+						: fitViewFn(fitOptions);
+				void Promise.resolve(initialMove).finally(() => {
+					if (activation === viewportActivation.current) initializingViewport.current = false;
+				});
 			});
 		}
 	}, [syncFromModel, model, activeDocumentId, setReactFlowViewport, fitViewFn]);
@@ -544,7 +548,9 @@ export function DfdCanvas() {
 				onReconnectStart={onReconnectStart}
 				onReconnectEnd={onReconnectEnd}
 				isValidConnection={isValidConnection}
-				onMoveEnd={(_event, viewport) => setViewport(viewport)}
+				onMoveEnd={(event, viewport) =>
+					setViewport(viewport, event === null && initializingViewport.current)
+				}
 				onDragOver={onDragOver}
 				onDrop={onDrop}
 				onPaneClick={onPaneClick}
@@ -557,8 +563,6 @@ export function DfdCanvas() {
 				nodeTypes={nodeTypes}
 				edgeTypes={edgeTypes}
 				defaultEdgeOptions={defaultEdgeOptions}
-				fitView
-				fitViewOptions={fitOptions}
 				minZoom={0.01}
 				snapToGrid
 				snapGrid={[16, 16]}

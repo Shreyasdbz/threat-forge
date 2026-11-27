@@ -39,6 +39,15 @@ describe("IndexeddbWorkspaceStorage reads and writes", () => {
 		expect(await storage.readDocumentBody(DOC)).toBeNull();
 	});
 
+	it("does not write a new revision for an unchanged snapshot after reopening storage", async () => {
+		await new IndexeddbWorkspaceStorage().writeDocumentBody(DOC, "saved snapshot");
+		const reopened = new IndexeddbWorkspaceStorage();
+		await reopened.writeDocumentBody(DOC, "saved snapshot");
+		expect(await pointerFor(reopened, DOC)).toBe(`${DOC}#1`);
+		await reopened.writeDocumentBody(DOC, "edited snapshot");
+		expect(await pointerFor(reopened, DOC)).toBe(`${DOC}#2`);
+	});
+
 	it("reports availability when IndexedDB opens", async () => {
 		const storage = new IndexeddbWorkspaceStorage();
 		expect(await storage.isAvailable()).toBe(true);
