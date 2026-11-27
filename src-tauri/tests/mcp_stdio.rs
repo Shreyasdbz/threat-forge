@@ -585,6 +585,36 @@ fn architecture_relationships_use_the_batch_revision_and_undo() {
 }
 
 #[test]
+fn recreating_an_architecture_id_in_one_batch_does_not_inherit_deleted_extensions() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("replacement.thf");
+    let original = MODEL_THF.replace("elements: []", "elements:\n- id: a\n  type: process\n  name: A")
+        + "groups:\n- id: group\n  name: Old group\n  extension: group\n- id: kept\n  name: Kept\n  extension: keep\nlayers:\n- id: layer\n  name: Old layer\n  extension: layer\nrelationships:\n- id: relation\n  type: old\n  from: a\n  to: a\n  extension: relation\n";
+    std::fs::write(&path, &original).unwrap();
+    let mut server = McpServer::spawn(&path);
+    server.start_workspace();
+    server.tool(2, "batch_transaction", json!({"operations": [
+        {"tool": "delete_relationship", "arguments": {"id": "relation"}},
+        {"tool": "add_relationship", "arguments": {"id": "relation", "type": "new", "from": "a", "to": "a"}},
+        {"tool": "delete_group", "arguments": {"id": "group"}},
+        {"tool": "add_group", "arguments": {"id": "group", "name": "New group"}},
+        {"tool": "delete_layer", "arguments": {"id": "layer"}},
+        {"tool": "add_layer", "arguments": {"id": "layer", "name": "New layer"}}
+    ]}));
+    let model = server.tool_json(3, "get_model", json!({}));
+    assert_eq!(model["groups"][0]["extension"], "keep");
+    for key in ["groups", "layers", "relationships"] {
+        let replacement = model[key].as_array().unwrap().last().unwrap();
+        assert!(replacement.get("extension").is_none(), "{replacement}");
+    }
+    let replaced = std::fs::read_to_string(&path).unwrap();
+    server.tool(4, "undo", json!({}));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    server.tool(5, "redo", json!({}));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), replaced);
+}
+
+#[test]
 fn architecture_membership_batches_preserve_geometry_and_reject_occupied_deletes() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("architecture.thf");

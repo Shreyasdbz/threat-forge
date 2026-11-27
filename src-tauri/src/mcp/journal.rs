@@ -29,6 +29,7 @@ impl Journal {
         target: &WriteTarget,
         revision: &str,
         model: ThreatModel,
+        new_entities: &[(&'static str, String)],
     ) -> Result<String, String> {
         let before = target
             .read_document()
@@ -37,7 +38,7 @@ impl Journal {
             return Err(crate::errors::ThreatForgeError::DocumentConflict.user_message());
         }
         let written = target
-            .write_document(Some(revision), model)
+            .write_document_with_new_entities(revision, model, new_entities)
             .map_err(|error| error.user_message())?;
         if written.revision != revision {
             let history = self.history(target.path());

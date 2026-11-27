@@ -184,11 +184,17 @@ impl ThreatForgeServer {
         Ok((target, snapshot))
     }
 
-    fn save(&self, path: &Path, revision: &str, model: ThreatModel) -> Result<String, ErrorData> {
+    fn save(
+        &self,
+        path: &Path,
+        revision: &str,
+        model: ThreatModel,
+        new_entities: &[(&'static str, String)],
+    ) -> Result<String, ErrorData> {
         let target = self.write_workspace.write_target(path).map_err(mcp_err)?;
         self.session()?
             .journal
-            .commit(&target, revision, model)
+            .commit(&target, revision, model, new_entities)
             .map_err(mcp_err)
     }
 
@@ -277,6 +283,15 @@ enum Mutation {
 }
 
 impl Mutation {
+    fn new_architecture_entity(&self) -> Option<(&'static str, String)> {
+        match self {
+            Self::AddRelationship(req) => Some(("relationships", req.id.clone())),
+            Self::AddGroup(req) => Some(("groups", req.id.clone())),
+            Self::AddLayer(req) => Some(("layers", req.id.clone())),
+            _ => None,
+        }
+    }
+
     fn changes_layout(&self) -> bool {
         matches!(
             self,
@@ -716,7 +731,9 @@ impl ThreatForgeServer {
             ));
         }
         let mut results = Vec::with_capacity(req.operations.len());
+        let mut new_entities = Vec::new();
         for (index, mutation) in req.operations.into_iter().enumerate() {
+            new_entities.extend(mutation.new_architecture_entity());
             let result = mutation
                 .apply_prepared(&mut model, &layouts)
                 .map_err(|error| mcp_err(format!("Operation {}: {}", index + 1, error.message)))?;
@@ -725,7 +742,7 @@ impl ThreatForgeServer {
         let revision = if req.dry_run {
             preview_token
         } else {
-            document_revision(path, &self.save(path, &revision, model)?)
+            document_revision(path, &self.save(path, &revision, model, &new_entities)?)
         };
         json_result(serde_json::json!({
             "dry_run": req.dry_run, "revision": revision, "results": results
@@ -787,7 +804,7 @@ impl ThreatForgeServer {
             let target = self.write_workspace.write_target(&path).map_err(mcp_err)?;
             session
                 .journal
-                .commit(&target, &revision, model)
+                .commit(&target, &revision, model, &[])
                 .map_err(mcp_err)?
         };
         session.stride_preview = None;
@@ -1198,7 +1215,7 @@ impl ThreatForgeServer {
             LegacyLayouts::default()
         };
         let result = mutation.apply_prepared(&mut model, &layouts)?;
-        self.save(path.path(), &revision, model)?;
+        self.save(path.path(), &revision, model, &[])?;
         match result {
             serde_json::Value::String(message) => Ok(text_result(message)),
             details => json_result(details),

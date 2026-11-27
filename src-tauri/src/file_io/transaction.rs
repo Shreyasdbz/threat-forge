@@ -221,7 +221,7 @@ pub fn copy_document(
 }
 
 enum Base<'a> {
-    Destination,
+    Destination(&'a [(&'static str, String)]),
     Desktop,
     Source(Option<&'a str>),
 }
@@ -426,7 +426,21 @@ impl WriteTarget {
         expected: Option<&str>,
         proposed: ThreatModel,
     ) -> Result<WrittenDocument, ThreatForgeError> {
-        write_with_base(self, expected, proposed, Base::Destination)
+        write_with_base(self, expected, proposed, Base::Destination(&[]))
+    }
+
+    pub(crate) fn write_document_with_new_entities(
+        &self,
+        expected: &str,
+        proposed: ThreatModel,
+        new_entities: &[(&'static str, String)],
+    ) -> Result<WrittenDocument, ThreatForgeError> {
+        write_with_base(
+            self,
+            Some(expected),
+            proposed,
+            Base::Destination(new_entities),
+        )
     }
 
     pub fn copy_document(
@@ -559,7 +573,7 @@ fn write_with_base(
     let desktop = matches!(base, Base::Desktop);
     let destination = target.checked_destination(expected, desktop)?;
     let prior = match base {
-        Base::Destination | Base::Desktop => destination.as_deref(),
+        Base::Destination(_) | Base::Desktop => destination.as_deref(),
         Base::Source(source) => source.map(str::as_bytes),
     }
     .map(|bytes| parse_document(path, bytes))
@@ -573,7 +587,14 @@ fn write_with_base(
     )?;
 
     let mut value = model_value(&proposed)?;
-    if let Some(prior) = prior {
+    if let Some(mut prior) = prior {
+        if let Base::Destination(new_entities) = base {
+            for (section, id) in new_entities {
+                if let Some(items) = prior.raw.get_mut(*section).and_then(Value::as_sequence_mut) {
+                    items.retain(|item| entity_id(item) != Some(id));
+                }
+            }
+        }
         let known = model_value(&prior.model)?;
         preserve_unknown(&mut value, &known, &prior.raw);
     }

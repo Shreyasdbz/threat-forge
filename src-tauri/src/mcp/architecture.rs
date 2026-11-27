@@ -12,7 +12,7 @@ pub(super) struct ArchitectureId {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct AddRelationship {
-    id: String,
+    pub(super) id: String,
     #[serde(rename = "type")]
     kind: String,
     from: String,
@@ -188,7 +188,7 @@ impl ArchitectureId {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct AddGroup {
-    id: String,
+    pub(super) id: String,
     name: String,
     #[serde(rename = "type")]
     kind: Option<String>,
@@ -252,7 +252,7 @@ impl UpdateGroup {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct AddLayer {
-    id: String,
+    pub(super) id: String,
     name: String,
     description: Option<String>,
 }
