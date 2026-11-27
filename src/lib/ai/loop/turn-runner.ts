@@ -24,6 +24,7 @@ import type { ProtocolError } from "@/lib/ai/protocol/errors";
 import type { StreamEvent } from "@/lib/ai/protocol/events";
 import { type AiProvider, flattenText, type ProtocolMessage } from "@/lib/ai/protocol/messages";
 import { GRAPH_ACTION_TOOLS } from "@/lib/ai/tools/graph-action-tools";
+import { parseThreatModelYaml } from "@/lib/thf-yaml";
 import { type DocumentStores, getActiveStores } from "@/stores/document-stores";
 import type { ThreatModel } from "@/types/threat-model";
 import { budgetExhaustion, type TurnLimits } from "./limits";
@@ -397,9 +398,18 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 			controller = new AbortController();
 			const model = deps.getDocument();
 			const stores = getActiveStores();
-			const { filePath, fileRevision } = stores.model.getState();
+			const { filePath, fileRevision, sourceYaml } = stores.model.getState();
 			baseline = model ? { stores, model, filePath, fileRevision } : null;
-			proposal = baseline ? createTurnProposal(baseline.model) : null;
+			try {
+				proposal = baseline
+					? createTurnProposal(
+							baseline.model,
+							sourceYaml === undefined ? undefined : parseThreatModelYaml(sourceYaml),
+						)
+					: null;
+			} catch {
+				proposal = null;
+			}
 			dispatch({
 				type: "submit",
 				text: cfg.text,

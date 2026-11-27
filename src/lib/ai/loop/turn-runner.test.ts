@@ -5,6 +5,7 @@ import type { StreamEvent } from "@/lib/ai/protocol/events";
 import { assertToolPairing } from "@/lib/ai/protocol/messages";
 import { GRAPH_ACTION_TOOLS } from "@/lib/ai/tools/graph-action-tools";
 import { createAiToolRegistry } from "@/lib/ai/tools/tool-registry";
+import { serializeThreatModelYaml } from "@/lib/thf-yaml";
 import { useHistoryStore } from "@/stores/history-store";
 import { useModelStore } from "@/stores/model-store";
 import type { ThreatModel } from "@/types/threat-model";
@@ -102,6 +103,27 @@ describe("whole-turn review", () => {
 	const start: StreamEvent = { type: "message_start", model: "m" };
 	const toolUse: StreamEvent = { type: "message_stop", stopReason: "tool_use" };
 	const end: StreamEvent = { type: "message_stop", stopReason: "end_turn" };
+
+	it("never assigns a saved ID to a replacement after an unsaved deletion", async () => {
+		const original = { ...baseModel.elements[0], id: "comp-1", future: "only for the original" };
+		const saved = { ...baseModel, elements: [original] };
+		useModelStore
+			.getState()
+			.setModel(saved, "/workspace/project.thf", "revision", serializeThreatModelYaml(saved));
+		useModelStore.getState().restoreSnapshot({ ...saved, elements: [] });
+		const { stream } = scriptedStream([
+			[start, add, toolUse],
+			[start, end],
+		]);
+		const runner = createTurnRunner({ stream, getDocument });
+		await runner.submit(config(createAiToolRegistry()));
+		expect(getDocument()?.elements).toEqual([]);
+		const review = runner.getState().proposal;
+		if (!review) throw new Error("Missing review");
+		expect(review.changes).toEqual([expect.objectContaining({ id: "comp-2", kind: "added" })]);
+		runner.applyProposal(review.token);
+		expect(getDocument()?.elements.map(({ id }) => id)).toEqual(["comp-2"]);
+	});
 
 	it("stages a dependent call using a generated ID, then commits the reviewed result once", async () => {
 		const baseline = getDocument();

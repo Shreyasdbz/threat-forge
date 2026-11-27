@@ -5,6 +5,7 @@ export type AllocateActionId = (kind: ActionIdKind) => string;
 
 export function createProposalIdReservations(
 	baseline: ThreatModel,
+	saved?: ThreatModel,
 ): (document?: ThreatModel) => AllocateActionId {
 	const occupied = (kind: ActionIdKind, model: ThreatModel): readonly { id: string }[] => {
 		switch (kind) {
@@ -18,16 +19,19 @@ export function createProposalIdReservations(
 				return model.threats;
 		}
 	};
-	const sequence = (prefix: string, entities: readonly { id: string }[]) => ({
+	const sequence = (prefix: string, kind: ActionIdKind) => ({
 		prefix,
-		used: new Set(entities.map(({ id }) => id)),
+		used: new Set([
+			...occupied(kind, baseline).map(({ id }) => id),
+			...(saved ? occupied(kind, saved).map(({ id }) => id) : []),
+		]),
 		next: 1,
 	});
 	const sequences = {
-		element: sequence("comp", occupied("element", baseline)),
-		flow: sequence("flow", occupied("flow", baseline)),
-		boundary: sequence("boundary", occupied("boundary", baseline)),
-		threat: sequence("threat", baseline.threats),
+		element: sequence("comp", "element"),
+		flow: sequence("flow", "flow"),
+		boundary: sequence("boundary", "boundary"),
+		threat: sequence("threat", "threat"),
 	};
 
 	return (document = baseline) => {

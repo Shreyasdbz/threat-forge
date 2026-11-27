@@ -45,9 +45,9 @@ async function runMutation(
 	}
 }
 
-export function createTurnProposal(baseline: ThreatModel) {
+export function createTurnProposal(baseline: ThreatModel, saved?: ThreatModel) {
 	const privateBaseline = structuredClone(baseline);
-	const reserve = createProposalIdReservations(privateBaseline);
+	const reserve = createProposalIdReservations(privateBaseline, saved);
 	const operations: StagedOperation[] = [];
 	let draft = privateBaseline;
 	let reviewed: ReviewedCandidate | null = null;
