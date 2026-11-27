@@ -10,7 +10,7 @@ use super::journal::Journal;
 use super::layout;
 use super::workspace::{Workspace, MAX_RESULTS};
 use crate::file_io::{
-    prepare_document, resolve_target, DocumentSnapshot, LegacyLayouts, WriteTarget,
+    prepare_document, resolve_target, DocumentSnapshot, LegacyLayouts, RemovedEntities, WriteTarget,
 };
 use crate::scene::Scene;
 use base64::{engine::general_purpose::STANDARD, Engine};
@@ -189,12 +189,12 @@ impl ThreatForgeServer {
         path: &Path,
         revision: &str,
         model: ThreatModel,
-        new_entities: &[(&'static str, String)],
+        removed: Option<&RemovedEntities>,
     ) -> Result<String, ErrorData> {
         let target = self.write_workspace.write_target(path).map_err(mcp_err)?;
         self.session()?
             .journal
-            .commit(&target, revision, model, new_entities)
+            .commit(&target, revision, model, removed)
             .map_err(mcp_err)
     }
 
@@ -283,15 +283,6 @@ enum Mutation {
 }
 
 impl Mutation {
-    fn new_architecture_entity(&self) -> Option<(&'static str, String)> {
-        match self {
-            Self::AddRelationship(req) => Some(("relationships", req.id.clone())),
-            Self::AddGroup(req) => Some(("groups", req.id.clone())),
-            Self::AddLayer(req) => Some(("layers", req.id.clone())),
-            _ => None,
-        }
-    }
-
     fn changes_layout(&self) -> bool {
         matches!(
             self,
@@ -303,6 +294,7 @@ impl Mutation {
         self,
         model: &mut ThreatModel,
         layouts: &LegacyLayouts,
+        removed_entities: Option<&mut RemovedEntities>,
     ) -> Result<serde_json::Value, ErrorData> {
         if self.changes_layout() && layouts.has_unavailable() {
             return Err(mcp_err(
@@ -313,6 +305,9 @@ impl Mutation {
         let before = model.clone();
         let message = self.apply(model, layouts)?;
         prepare_document(Some(&before), model).map_err(|error| mcp_err(error.user_message()))?;
+        if let Some(removed) = removed_entities {
+            removed.record(&before, model);
+        }
         if !reports_cascade {
             return Ok(message);
         }
@@ -731,18 +726,17 @@ impl ThreatForgeServer {
             ));
         }
         let mut results = Vec::with_capacity(req.operations.len());
-        let mut new_entities = Vec::new();
+        let mut removed = RemovedEntities::default();
         for (index, mutation) in req.operations.into_iter().enumerate() {
-            new_entities.extend(mutation.new_architecture_entity());
             let result = mutation
-                .apply_prepared(&mut model, &layouts)
+                .apply_prepared(&mut model, &layouts, Some(&mut removed))
                 .map_err(|error| mcp_err(format!("Operation {}: {}", index + 1, error.message)))?;
             results.push(result);
         }
         let revision = if req.dry_run {
             preview_token
         } else {
-            document_revision(path, &self.save(path, &revision, model, &new_entities)?)
+            document_revision(path, &self.save(path, &revision, model, Some(&removed))?)
         };
         json_result(serde_json::json!({
             "dry_run": req.dry_run, "revision": revision, "results": results
@@ -804,7 +798,7 @@ impl ThreatForgeServer {
             let target = self.write_workspace.write_target(&path).map_err(mcp_err)?;
             session
                 .journal
-                .commit(&target, &revision, model, &[])
+                .commit(&target, &revision, model, None)
                 .map_err(mcp_err)?
         };
         session.stride_preview = None;
@@ -1214,8 +1208,8 @@ impl ThreatForgeServer {
         } else {
             LegacyLayouts::default()
         };
-        let result = mutation.apply_prepared(&mut model, &layouts)?;
-        self.save(path.path(), &revision, model, &[])?;
+        let result = mutation.apply_prepared(&mut model, &layouts, None)?;
+        self.save(path.path(), &revision, model, None)?;
         match result {
             serde_json::Value::String(message) => Ok(text_result(message)),
             details => json_result(details),

@@ -1,4 +1,4 @@
-use crate::file_io::WriteTarget;
+use crate::file_io::{RemovedEntities, WriteTarget};
 use crate::models::ThreatModel;
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
@@ -29,7 +29,7 @@ impl Journal {
         target: &WriteTarget,
         revision: &str,
         model: ThreatModel,
-        new_entities: &[(&'static str, String)],
+        removed: Option<&RemovedEntities>,
     ) -> Result<String, String> {
         let before = target
             .read_document()
@@ -38,7 +38,7 @@ impl Journal {
             return Err(crate::errors::ThreatForgeError::DocumentConflict.user_message());
         }
         let written = target
-            .write_document_with_new_entities(revision, model, new_entities)
+            .write_document_with_removals(revision, model, removed)
             .map_err(|error| error.user_message())?;
         if written.revision != revision {
             let history = self.history(target.path());

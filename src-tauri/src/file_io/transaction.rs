@@ -221,9 +221,59 @@ pub fn copy_document(
 }
 
 enum Base<'a> {
-    Destination(&'a [(&'static str, String)]),
+    Destination(Option<&'a RemovedEntities>),
     Desktop,
     Source(Option<&'a str>),
+}
+
+#[derive(Default)]
+pub(crate) struct RemovedEntities(HashMap<&'static str, HashSet<String>>);
+
+impl RemovedEntities {
+    pub(crate) fn record(&mut self, before: &ThreatModel, after: &ThreatModel) {
+        macro_rules! record_sections {
+            ($($section:ident),+ $(,)?) => {
+                $(self.record_section(
+                    stringify!($section),
+                    before.$section.iter().map(|item| item.id.as_str()),
+                    after.$section.iter().map(|item| item.id.as_str()),
+                );)+
+            };
+        }
+        record_sections!(
+            layers,
+            groups,
+            elements,
+            data_flows,
+            relationships,
+            trust_boundaries,
+            threats,
+            diagrams,
+        );
+    }
+
+    fn record_section<'a>(
+        &mut self,
+        section: &'static str,
+        before: impl Iterator<Item = &'a str> + Clone,
+        after: impl Iterator<Item = &'a str> + Clone,
+    ) {
+        if before.clone().eq(after.clone()) {
+            return;
+        }
+        let remaining: HashSet<_> = after.collect();
+        for id in before.filter(|id| !remaining.contains(id)) {
+            self.0.entry(section).or_default().insert(id.to_owned());
+        }
+    }
+
+    fn exclude_from(&self, raw: &mut Value) {
+        for (section, ids) in &self.0 {
+            if let Some(items) = raw.get_mut(*section).and_then(Value::as_sequence_mut) {
+                items.retain(|item| entity_id(item).is_none_or(|id| !ids.contains(id)));
+            }
+        }
+    }
 }
 
 pub fn destination_revision(path: &Path) -> Result<Option<String>, ThreatForgeError> {
@@ -426,21 +476,16 @@ impl WriteTarget {
         expected: Option<&str>,
         proposed: ThreatModel,
     ) -> Result<WrittenDocument, ThreatForgeError> {
-        write_with_base(self, expected, proposed, Base::Destination(&[]))
+        write_with_base(self, expected, proposed, Base::Destination(None))
     }
 
-    pub(crate) fn write_document_with_new_entities(
+    pub(crate) fn write_document_with_removals(
         &self,
         expected: &str,
         proposed: ThreatModel,
-        new_entities: &[(&'static str, String)],
+        removed: Option<&RemovedEntities>,
     ) -> Result<WrittenDocument, ThreatForgeError> {
-        write_with_base(
-            self,
-            Some(expected),
-            proposed,
-            Base::Destination(new_entities),
-        )
+        write_with_base(self, Some(expected), proposed, Base::Destination(removed))
     }
 
     pub fn copy_document(
@@ -588,12 +633,8 @@ fn write_with_base(
 
     let mut value = model_value(&proposed)?;
     if let Some(mut prior) = prior {
-        if let Base::Destination(new_entities) = base {
-            for (section, id) in new_entities {
-                if let Some(items) = prior.raw.get_mut(*section).and_then(Value::as_sequence_mut) {
-                    items.retain(|item| entity_id(item) != Some(id));
-                }
-            }
+        if let Base::Destination(Some(removed)) = base {
+            removed.exclude_from(&mut prior.raw);
         }
         let known = model_value(&prior.model)?;
         preserve_unknown(&mut value, &known, &prior.raw);
@@ -803,6 +844,33 @@ fn write_error(path: &Path, source: io::Error) -> ThreatForgeError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn same_id_threat_replacement_does_not_inherit_unknown_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("model.thf");
+        let mut raw: Value = serde_yaml::from_str(include_str!(
+            "../../../tests/fixtures/thf/architecture-canonical-full.thf"
+        ))
+        .unwrap();
+        raw["threats"][0]["future"] = Value::String("deleted".into());
+        fs::write(&path, serde_yaml::to_string(&raw).unwrap()).unwrap();
+        let snapshot = read_document(&path).unwrap();
+        let mut proposed = snapshot.model.clone();
+        let mut replacement = proposed.threats.remove(0);
+        let mut removed = RemovedEntities::default();
+        removed.record(&snapshot.model, &proposed);
+        replacement.title = "Replacement threat".into();
+        proposed.threats.push(replacement);
+        WriteTarget::from_path(&path)
+            .unwrap()
+            .write_document_with_removals(&snapshot.revision, proposed, Some(&removed))
+            .unwrap();
+        let saved = read_document(&path).unwrap();
+        assert_eq!(saved.raw["threats"][0]["id"], raw["threats"][0]["id"]);
+        assert_eq!(saved.raw["threats"][0]["title"], "Replacement threat");
+        assert!(saved.raw["threats"][0].get("future").is_none());
+    }
 
     #[test]
     fn competing_transactions_from_the_same_revision_cannot_both_commit() {

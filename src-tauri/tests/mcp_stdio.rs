@@ -585,6 +585,42 @@ fn architecture_relationships_use_the_batch_revision_and_undo() {
 }
 
 #[test]
+fn reused_legacy_graph_ids_do_not_inherit_deleted_extensions() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("legacy-ids.thf");
+    let original = MODEL_THF
+        .replace("elements: []", "elements:\n- id: service\n  name: Service\n  type: process\n  extension: deleted-element\n- id: kept\n  name: Kept\n  type: process\n  extension: surviving-element")
+        .replace("data_flows: []", "data_flows:\n- id: flow-1\n  flow_number: 1\n  from: service\n  to: kept\n  extension: deleted-flow")
+        .replace("trust_boundaries: []", "trust_boundaries:\n- id: network\n  name: Network\n  contains: [service]\n  extension: deleted-boundary");
+    std::fs::write(&path, &original).unwrap();
+    let mut server = McpServer::spawn(&path);
+    server.start_workspace();
+    server.tool(2, "batch_transaction", json!({"operations": [
+        {"tool": "delete_element", "arguments": {"id": "service"}},
+        {"tool": "add_element", "arguments": {"element_type": "external_entity", "name": "Service"}},
+        {"tool": "add_data_flow", "arguments": {"from": "kept", "to": "service"}},
+        {"tool": "delete_trust_boundary", "arguments": {"id": "network"}},
+        {"tool": "add_trust_boundary", "arguments": {"name": "Network", "contains": ["kept"]}}
+    ]}));
+    let saved = server.tool_json(3, "get_model", json!({}));
+    assert_eq!(saved["elements"][0]["extension"], "surviving-element");
+    for (section, index, id) in [
+        ("elements", 1, "service"),
+        ("data_flows", 0, "flow-1"),
+        ("trust_boundaries", 0, "network"),
+    ] {
+        let replacement = &saved[section][index];
+        assert_eq!(replacement["id"], id);
+        assert!(replacement.get("extension").is_none(), "{replacement}");
+    }
+    let written = std::fs::read_to_string(&path).unwrap();
+    server.tool(4, "undo", json!({}));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    server.tool(5, "redo", json!({}));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), written);
+}
+
+#[test]
 fn recreating_an_architecture_id_in_one_batch_does_not_inherit_deleted_extensions() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("replacement.thf");
