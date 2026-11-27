@@ -23,6 +23,8 @@ const probeDir = join(repoRoot, "e2e", "__static-analysis-probe__");
 const appProbeDir = join(repoRoot, "src", "__static-analysis-probe__");
 const biomeScript = join(repoRoot, "node_modules", "@biomejs", "biome", "bin", "biome");
 const tscScript = join(repoRoot, "node_modules", "typescript", "bin", "tsc");
+// These probes type-check whole projects while other Vitest workers may be running.
+const TYPE_CHECK_TIMEOUT_MS = 60_000;
 
 function runBiomeCheck() {
 	return spawnSync(process.execPath, [biomeScript, "check", "."], {
@@ -80,47 +82,63 @@ describe("Biome canonical project check covers e2e/", () => {
 });
 
 describe("E2E TypeScript project (tsconfig.e2e.json)", () => {
-	it("passes on the real E2E sources, including Node-typed `process.platform`", () => {
-		const result = runE2eTypeCheck();
+	it(
+		"passes on the real E2E sources, including Node-typed `process.platform`",
+		() => {
+			const result = runE2eTypeCheck();
 
-		expect(result.status).toBe(0);
-		expect(result.stdout).toBe("");
-	});
+			expect(result.status).toBe(0);
+			expect(result.stdout).toBe("");
+		},
+		TYPE_CHECK_TIMEOUT_MS,
+	);
 
-	it("fails on an intentional type error under e2e/", () => {
-		writeProbeFile(
-			probeDir,
-			"bad-type.ts",
-			'export const badTypeProbe: number = "not-a-number";\n',
-		);
+	it(
+		"fails on an intentional type error under e2e/",
+		() => {
+			writeProbeFile(
+				probeDir,
+				"bad-type.ts",
+				'export const badTypeProbe: number = "not-a-number";\n',
+			);
 
-		const result = runE2eTypeCheck();
+			const result = runE2eTypeCheck();
 
-		expect(result.status).not.toBe(0);
-		expect(result.stdout).toContain("__static-analysis-probe__/bad-type.ts");
-		expect(result.stdout).toContain("TS2322");
-	});
+			expect(result.status).not.toBe(0);
+			expect(result.stdout).toContain("__static-analysis-probe__/bad-type.ts");
+			expect(result.stdout).toContain("TS2322");
+		},
+		TYPE_CHECK_TIMEOUT_MS,
+	);
 });
 
 describe("production browser TypeScript project remains Node-free", () => {
-	it("passes on the real production sources", () => {
-		const result = runAppTypeCheck();
+	it(
+		"passes on the real production sources",
+		() => {
+			const result = runAppTypeCheck();
 
-		expect(result.status).toBe(0);
-		expect(result.stdout).toBe("");
-	});
+			expect(result.status).toBe(0);
+			expect(result.stdout).toBe("");
+		},
+		TYPE_CHECK_TIMEOUT_MS,
+	);
 
-	it("rejects an accidental Node global under src/", () => {
-		writeProbeFile(
-			appProbeDir,
-			"bad-node-global.ts",
-			"export const leakedNodeGlobal = process.platform;\n",
-		);
+	it(
+		"rejects an accidental Node global under src/",
+		() => {
+			writeProbeFile(
+				appProbeDir,
+				"bad-node-global.ts",
+				"export const leakedNodeGlobal = process.platform;\n",
+			);
 
-		const result = runAppTypeCheck();
+			const result = runAppTypeCheck();
 
-		expect(result.status).not.toBe(0);
-		expect(result.stdout).toContain("__static-analysis-probe__/bad-node-global.ts");
-		expect(result.stdout).toContain("TS2591");
-	});
+			expect(result.status).not.toBe(0);
+			expect(result.stdout).toContain("__static-analysis-probe__/bad-node-global.ts");
+			expect(result.stdout).toContain("TS2591");
+		},
+		TYPE_CHECK_TIMEOUT_MS,
+	);
 });
