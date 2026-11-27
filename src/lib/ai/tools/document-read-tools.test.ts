@@ -114,14 +114,18 @@ describe("read tool schemas", () => {
 		}
 	});
 
-	it("pins get_document_summary to a closed object with an optional description offset", () => {
+	it("pins get_document_summary to a closed object with optional description and layout offsets", () => {
 		expect(toolNamed("get_document_summary").jsonSchema()).toMatchObject({
 			type: "object",
-			properties: { description_offset: { type: "integer", minimum: 0 } },
+			properties: {
+				description_offset: { type: "integer", minimum: 0 },
+				layout_offset: { type: "integer", minimum: 0 },
+			},
 			additionalProperties: false,
 		});
 		expect(toolNamed("get_document_summary").prepare({}).ok).toBe(true);
 		expect(toolNamed("get_document_summary").prepare({ description_offset: -1 }).ok).toBe(false);
+		expect(toolNamed("get_document_summary").prepare({ layout_offset: -1 }).ok).toBe(false);
 	});
 
 	it("pins get_entity to a closed object requiring kind and id", () => {
@@ -149,6 +153,53 @@ describe("read tool schemas", () => {
 // ---------------------------------------------------------------------------
 
 describe("get_document_summary", () => {
+	it("summarizes saved canvas anchors across a large model and pages them in document order", async () => {
+		const model = baseModel();
+		model.elements = Array.from({ length: 80 }, (_, i) => ({
+			...model.elements[0],
+			id: `node-${i}`,
+			position: { x: i * 10, y: -i },
+		}));
+		model.elements[2].position = undefined;
+		model.trust_boundaries = [
+			{ id: "outer", name: "Outer", contains: ["node-79"], position: { x: 1_000, y: -100 } },
+			{ id: "unplaced", name: "Unplaced", contains: ["node-1"] },
+		];
+		const first = parseOkBody(await run("get_document_summary", { layout_offset: 0 }, model));
+		expect(first).toMatchObject({
+			anchor_bounds: { min_x: 0, min_y: -179, max_x: 1790, max_y: 0 },
+			unpositioned_count: 1,
+			unresolved_count: 1,
+			page: { next_offset: 50, total: 79 },
+		});
+		expect(first.results).toHaveLength(50);
+		expect(first.results).toContainEqual({
+			id: "node-1",
+			boundary_id: "unplaced",
+			position: { x: 10, y: -1 },
+			canvas_position: null,
+		});
+		const second = parseOkBody(await run("get_document_summary", { layout_offset: 50 }, model));
+		expect(second.page).toMatchObject({ next_offset: null, total: 79 });
+		expect(second.results).toHaveLength(29);
+		expect(second.results).toContainEqual({
+			id: "node-79",
+			boundary_id: "outer",
+			position: { x: 790, y: -79 },
+			canvas_position: { x: 1790, y: -179 },
+		});
+		expect(await run("get_document_summary", { layout_offset: 79 }, model)).toMatchObject({
+			status: "error",
+			result: expect.stringContaining("page.next_offset"),
+		});
+		expect(
+			await run("get_document_summary", { layout_offset: 0, description_offset: 0 }, model),
+		).toMatchObject({
+			status: "error",
+			result: expect.stringContaining("separately"),
+		});
+	});
+
 	it("returns every safe code point of a long description through bounded continuation pages", async () => {
 		const model = baseModel();
 		const text = `${"x".repeat(199)}😀${"漢😀".repeat(900)}tail detail`;

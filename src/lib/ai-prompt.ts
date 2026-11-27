@@ -331,7 +331,7 @@ export function buildSystemPrompt(model: ThreatModel, options: BuildSystemPrompt
 		fenced ? actionProtocolSection() : "",
 		canvasPositioningSection(
 			toolsOnly
-				? "Use get_entity to read existing positions before placing new elements relative to them."
+				? "For diagram-wide placement use get_document_summary with layout_offset: 0 for saved element anchor bounds and paged coordinates. Follow page.next_offset for more positions. These are saved anchors, not node extents or unsaved canvas positions. Use get_entity for a specific element or boundary."
 				: "Use any existing positions in the snapshot to place new elements relative to them.",
 		),
 		responseFormatSection(fenced),

@@ -217,6 +217,7 @@ describe("submitTurn against a tool-capable model", () => {
 		expect(system).toBe(buildSystemPrompt(model, { tools: requests[0].tools }));
 		expect(new TextEncoder().encode(system).length).toBeLessThanOrEqual(5 * 1024);
 		expect(system).toContain("Document read tools are the authoritative source");
+		expect(system).toContain("get_document_summary with layout_offset: 0");
 		for (const name of ["get_document_summary", "search_entities", "get_entity"]) {
 			expect(system).toContain(name);
 		}

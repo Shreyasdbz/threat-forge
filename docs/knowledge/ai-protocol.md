@@ -124,9 +124,16 @@ relying on its earlier result. The summary returns a description preview with
 `description_next_offset`. Pass that as `description_offset` until the next
 offset is null to read the rest. Each page preserves code-point boundaries,
 escapes the document markers, and strips unsafe controls as other reads do.
-`get_entity` includes saved element and boundary
-positions and boundary size where present. Only turns without the complete
-read suite use a bounded, explicitly labeled turn-start snapshot.
+`get_document_summary` with `layout_offset: 0` returns document-wide saved
+element anchor bounds and a byte-capped page of up to 50 positions. Continue
+with `page.next_offset` for more positions. Positions inside a trust boundary
+remain boundary-relative in `position`; `canvas_position` and the bounds use
+absolute coordinates where the parent has a saved position. Unpositioned
+elements and unresolved parents are counted separately. These are anchors,
+not node extents, and do not include transient canvas state.
+`get_entity` includes saved element and boundary positions and boundary size
+where present. Only turns without the complete read suite use a bounded,
+explicitly labeled turn-start snapshot.
 
 Tokens are **estimated** (characters ÷ 4 plus a fixed per-message overhead), not
 counted. The estimate is deliberately dependency-free and conservative; a request
