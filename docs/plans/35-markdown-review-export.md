@@ -67,3 +67,4 @@ version, push normally with one invocation of the local hook, then wait for host
 | Date | Change | Evidence and reason |
 |------|--------|---------------------|
 | 2026-11-27 | Initial High-effort plan | #35 acceptance criteria and owner approval of shared Rust/WASM formatter |
+| 2026-11-27 | Use literal code spans with input-dependent delimiters | The GFM parser autolinks even after character reference decoding; code spans preserve literal display without creating links. |

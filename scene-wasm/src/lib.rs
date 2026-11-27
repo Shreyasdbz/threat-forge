@@ -1,3 +1,5 @@
+#[path = "../../src-tauri/src/markdown.rs"]
+mod markdown;
 #[allow(dead_code)]
 #[path = "../../src-tauri/src/models/threat_model.rs"]
 mod models;
@@ -46,4 +48,9 @@ pub fn render_png(model: &str, diagram_id: Option<String>) -> Result<Vec<u8>, Js
     scene::Scene::select(&parse_model(model)?, diagram_id.as_deref())
         .and_then(|scene| scene.png())
         .map_err(JsError::new)
+}
+
+#[wasm_bindgen]
+pub fn render_markdown(model: &str) -> Result<String, JsError> {
+    Ok(markdown::review(&parse_model(model)?))
 }

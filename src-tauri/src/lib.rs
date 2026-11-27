@@ -3,6 +3,7 @@ mod commands;
 mod errors;
 mod file_io;
 mod importers;
+pub mod markdown;
 pub mod mcp;
 mod menu;
 pub mod models;
