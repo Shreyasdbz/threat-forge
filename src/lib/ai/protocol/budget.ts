@@ -36,6 +36,8 @@ export interface BudgetLimits {
 	maxInputTokens: number;
 	/** Tokens to hold back for the model's answer, subtracted from the window. */
 	reserveOutputTokens: number;
+	/** Composed system prompt sent with every request. */
+	system?: string;
 }
 
 export type BudgetResult =
@@ -72,6 +74,10 @@ function estimateMessageTokens(message: ProtocolMessage): number {
 	for (const block of message.content) {
 		chars += blockChars(block);
 	}
+	return estimateFramedTokens(chars);
+}
+
+function estimateFramedTokens(chars: number): number {
 	return Math.ceil(chars / CHARS_PER_TOKEN) + PER_MESSAGE_OVERHEAD_TOKENS;
 }
 
@@ -151,9 +157,9 @@ export function budgetMessages(
 	messages: readonly ProtocolMessage[],
 	limits: BudgetLimits,
 ): BudgetResult {
-	if (messages.length === 0) return { ok: true, messages: [] };
-
-	const available = limits.maxInputTokens - limits.reserveOutputTokens;
+	const systemTokens = limits.system ? estimateFramedTokens(limits.system.length) : 0;
+	const available = limits.maxInputTokens - limits.reserveOutputTokens - systemTokens;
+	if (messages.length === 0 && available >= 0) return { ok: true, messages: [] };
 	const groups = groupMessages(messages);
 	const kept = keepNewestGroups(groups, estimateGroupTokens, available);
 

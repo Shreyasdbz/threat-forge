@@ -210,6 +210,7 @@ export async function streamConversation(
 		const budget = budgetMessages(request.messages, {
 			maxInputTokens: resolution.capabilities.maxInputTokens,
 			reserveOutputTokens: request.maxOutputTokens,
+			system: request.system,
 		});
 		if (!budget.ok) {
 			dispatch({ type: "error", error: budget.error });
