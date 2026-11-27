@@ -1,4 +1,4 @@
-use crate::models::{Relationship, ThreatModel};
+use crate::models::{Group, Layer, Relationship, ThreatModel};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -148,5 +148,212 @@ impl ArchitectureId {
         })?;
         model.relationships.remove(index);
         Ok(outcome("delete_relationship", &self.id))
+    }
+
+    pub(super) fn delete_group(self, model: &mut ThreatModel) -> Result<Value, String> {
+        let index = index(&model.groups, &self.id, "Group", |item| &item.id)?;
+        let id = Some(self.id.as_str());
+        if model
+            .groups
+            .iter()
+            .any(|group| group.parent.as_deref() == id)
+            || model
+                .elements
+                .iter()
+                .any(|element| element.group.as_deref() == id)
+        {
+            return Err(format!(
+                "Group {} still has child groups or elements.",
+                self.id
+            ));
+        }
+        model.groups.remove(index);
+        Ok(outcome("delete_group", &self.id))
+    }
+
+    pub(super) fn delete_layer(self, model: &mut ThreatModel) -> Result<Value, String> {
+        let index = index(&model.layers, &self.id, "Layer", |item| &item.id)?;
+        if model
+            .elements
+            .iter()
+            .any(|element| element.layer.as_deref() == Some(&self.id))
+        {
+            return Err(format!("Layer {} still has elements.", self.id));
+        }
+        model.layers.remove(index);
+        Ok(outcome("delete_layer", &self.id))
+    }
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub(super) struct AddGroup {
+    id: String,
+    name: String,
+    #[serde(rename = "type")]
+    kind: Option<String>,
+    description: Option<String>,
+}
+
+impl AddGroup {
+    pub(super) fn apply(self, model: &mut ThreatModel) -> Result<Value, String> {
+        nonblank(&self.id, "id")?;
+        nonblank(&self.name, "name")?;
+        if let Some(kind) = &self.kind {
+            nonblank(kind, "type")?;
+        }
+        let result = outcome("add_group", &self.id);
+        model.groups.push(Group {
+            id: self.id,
+            name: self.name,
+            r#type: self.kind,
+            description: self.description,
+            parent: None,
+            position: None,
+            size: None,
+            fill_color: None,
+            stroke_color: None,
+            fill_opacity: None,
+            stroke_opacity: None,
+        });
+        Ok(result)
+    }
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub(super) struct UpdateGroup {
+    id: String,
+    name: Option<String>,
+    #[serde(rename = "type")]
+    kind: Option<String>,
+    description: Option<String>,
+}
+
+impl UpdateGroup {
+    pub(super) fn apply(self, model: &mut ThreatModel) -> Result<Value, String> {
+        let index = index(&model.groups, &self.id, "Group", |item| &item.id)?;
+        let group = &mut model.groups[index];
+        if let Some(name) = self.name {
+            nonblank(&name, "name")?;
+            group.name = name;
+        }
+        if let Some(kind) = self.kind {
+            nonblank(&kind, "type")?;
+            group.r#type = Some(kind);
+        }
+        if let Some(description) = self.description {
+            group.description = Some(description);
+        }
+        Ok(outcome("update_group", &self.id))
+    }
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub(super) struct AddLayer {
+    id: String,
+    name: String,
+    description: Option<String>,
+}
+
+impl AddLayer {
+    pub(super) fn apply(self, model: &mut ThreatModel) -> Result<Value, String> {
+        nonblank(&self.id, "id")?;
+        nonblank(&self.name, "name")?;
+        let result = outcome("add_layer", &self.id);
+        model.layers.push(Layer {
+            id: self.id,
+            name: self.name,
+            description: self.description,
+        });
+        Ok(result)
+    }
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub(super) struct UpdateLayer {
+    id: String,
+    name: Option<String>,
+    description: Option<String>,
+}
+
+impl UpdateLayer {
+    pub(super) fn apply(self, model: &mut ThreatModel) -> Result<Value, String> {
+        let index = index(&model.layers, &self.id, "Layer", |item| &item.id)?;
+        let layer = &mut model.layers[index];
+        if let Some(name) = self.name {
+            nonblank(&name, "name")?;
+            layer.name = name;
+        }
+        if let Some(description) = self.description {
+            layer.description = Some(description);
+        }
+        Ok(outcome("update_layer", &self.id))
+    }
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(untagged)]
+enum Destination {
+    Id(String),
+    Clear,
+}
+
+impl Destination {
+    fn into_id(self) -> Result<Option<String>, String> {
+        match self {
+            Self::Id(id) => {
+                nonblank(&id, "destination")?;
+                Ok(Some(id))
+            }
+            Self::Clear => Ok(None),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ReparentGroup {
+    id: String,
+    parent: Destination,
+}
+
+impl ReparentGroup {
+    pub(super) fn apply(self, model: &mut ThreatModel) -> Result<Value, String> {
+        let index = index(&model.groups, &self.id, "Group", |item| &item.id)?;
+        model.groups[index].parent = self.parent.into_id()?;
+        Ok(outcome("reparent_group", &self.id))
+    }
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub(super) struct SetElementGroup {
+    id: String,
+    group: Destination,
+}
+
+impl SetElementGroup {
+    pub(super) fn apply(self, model: &mut ThreatModel) -> Result<Value, String> {
+        let index = index(&model.elements, &self.id, "Element", |item| &item.id)?;
+        model.elements[index].group = self.group.into_id()?;
+        Ok(outcome("set_element_group", &self.id))
+    }
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub(super) struct SetElementLayer {
+    id: String,
+    layer: Destination,
+}
+
+impl SetElementLayer {
+    pub(super) fn apply(self, model: &mut ThreatModel) -> Result<Value, String> {
+        let index = index(&model.elements, &self.id, "Element", |item| &item.id)?;
+        model.elements[index].layer = self.layer.into_id()?;
+        Ok(outcome("set_element_layer", &self.id))
     }
 }

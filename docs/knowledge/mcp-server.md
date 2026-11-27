@@ -119,6 +119,16 @@ and `stroke_opacity` (0–1). Update takes the existing `id` and changes only th
 supplied values. Changing an endpoint clears its old handle. Each result contains
 the operation's `action` and `id`. Relationships do not feed STRIDE analysis.
 
+Groups and layers also use batch operations. `add_group` and `add_layer` take
+`id` and `name`, plus optional `description` (and `type` for groups).
+`update_group` and `update_layer` take the existing `id` and any metadata to
+change. Use `reparent_group` with `id` and `parent`, and `set_element_group`
+or `set_element_layer` with the element `id` and `group` or `layer`. Supply
+the destination ID or explicit `null` to clear it. These operations do not
+change geometry or security boundaries. Before `delete_group` or `delete_layer`
+(both take `id`), move or clear any members and child groups; this can be done
+in the same batch, before the delete.
+
 Use `create_sequence_view` or `update_sequence_view` inside `batch_transaction` with
 `diagram_id`, `name`, `participants`, and `messages`. Update replaces the ordered lists.
 `delete_sequence_view` takes only `diagram_id` and does not remove graph items. Preview

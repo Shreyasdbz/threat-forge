@@ -300,6 +300,56 @@
           ],
           "type": "object"
         },
+        "AddGroup": {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ],
+          "type": "object"
+        },
+        "AddLayer": {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ],
+          "type": "object"
+        },
         "AddRelationship": {
           "additionalProperties": false,
           "properties": {
@@ -435,6 +485,16 @@
             "id"
           ],
           "type": "object"
+        },
+        "Destination": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "GetModelRequest": {
           "type": "object"
@@ -765,6 +825,150 @@
                 "arguments"
               ],
               "type": "object"
+            },
+            {
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/AddGroup"
+                },
+                "tool": {
+                  "const": "add_group",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tool",
+                "arguments"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/UpdateGroup"
+                },
+                "tool": {
+                  "const": "update_group",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tool",
+                "arguments"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/ArchitectureId"
+                },
+                "tool": {
+                  "const": "delete_group",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tool",
+                "arguments"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/AddLayer"
+                },
+                "tool": {
+                  "const": "add_layer",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tool",
+                "arguments"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/UpdateLayer"
+                },
+                "tool": {
+                  "const": "update_layer",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tool",
+                "arguments"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/ArchitectureId"
+                },
+                "tool": {
+                  "const": "delete_layer",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tool",
+                "arguments"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/ReparentGroup"
+                },
+                "tool": {
+                  "const": "reparent_group",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tool",
+                "arguments"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/SetElementGroup"
+                },
+                "tool": {
+                  "const": "set_element_group",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tool",
+                "arguments"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/SetElementLayer"
+                },
+                "tool": {
+                  "const": "set_element_layer",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tool",
+                "arguments"
+              ],
+              "type": "object"
             }
           ]
         },
@@ -786,6 +990,22 @@
             "id",
             "x",
             "y"
+          ],
+          "type": "object"
+        },
+        "ReparentGroup": {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "parent": {
+              "$ref": "#/$defs/Destination"
+            }
+          },
+          "required": [
+            "id",
+            "parent"
           ],
           "type": "object"
         },
@@ -894,6 +1114,38 @@
           ],
           "type": "object"
         },
+        "SetElementGroup": {
+          "additionalProperties": false,
+          "properties": {
+            "group": {
+              "$ref": "#/$defs/Destination"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "group"
+          ],
+          "type": "object"
+        },
+        "SetElementLayer": {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "layer": {
+              "$ref": "#/$defs/Destination"
+            }
+          },
+          "required": [
+            "id",
+            "layer"
+          ],
+          "type": "object"
+        },
         "UpdateElementRequest": {
           "properties": {
             "description": {
@@ -923,6 +1175,60 @@
             },
             "trust_zone": {
               "description": "New trust zone",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "type": "object"
+        },
+        "UpdateGroup": {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "type": "object"
+        },
+        "UpdateLayer": {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
               "type": [
                 "string",
                 "null"

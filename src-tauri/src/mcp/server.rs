@@ -2,7 +2,10 @@
 //! to external AI assistants (Claude Code, VS Code Copilot, Cursor, etc.)
 //! via the Model Context Protocol over stdio.
 
-use super::architecture::{AddRelationship, ArchitectureId, UpdateRelationship};
+use super::architecture::{
+    AddGroup, AddLayer, AddRelationship, ArchitectureId, ReparentGroup, SetElementGroup,
+    SetElementLayer, UpdateGroup, UpdateLayer, UpdateRelationship,
+};
 use super::journal::Journal;
 use super::layout;
 use super::workspace::{Workspace, MAX_RESULTS};
@@ -262,6 +265,15 @@ enum Mutation {
     AddRelationship(AddRelationship),
     UpdateRelationship(UpdateRelationship),
     DeleteRelationship(ArchitectureId),
+    AddGroup(AddGroup),
+    UpdateGroup(UpdateGroup),
+    DeleteGroup(ArchitectureId),
+    AddLayer(AddLayer),
+    UpdateLayer(UpdateLayer),
+    DeleteLayer(ArchitectureId),
+    ReparentGroup(ReparentGroup),
+    SetElementGroup(SetElementGroup),
+    SetElementLayer(SetElementLayer),
 }
 
 impl Mutation {
@@ -351,6 +363,15 @@ impl Mutation {
             Self::DeleteRelationship(req) => {
                 return req.delete_relationship(model).map_err(mcp_err);
             }
+            Self::AddGroup(req) => return req.apply(model).map_err(mcp_err),
+            Self::UpdateGroup(req) => return req.apply(model).map_err(mcp_err),
+            Self::DeleteGroup(req) => return req.delete_group(model).map_err(mcp_err),
+            Self::AddLayer(req) => return req.apply(model).map_err(mcp_err),
+            Self::UpdateLayer(req) => return req.apply(model).map_err(mcp_err),
+            Self::DeleteLayer(req) => return req.delete_layer(model).map_err(mcp_err),
+            Self::ReparentGroup(req) => return req.apply(model).map_err(mcp_err),
+            Self::SetElementGroup(req) => return req.apply(model).map_err(mcp_err),
+            Self::SetElementLayer(req) => return req.apply(model).map_err(mcp_err),
         }?;
         Ok(message.into())
     }

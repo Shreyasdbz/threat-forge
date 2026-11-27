@@ -585,6 +585,120 @@ fn architecture_relationships_use_the_batch_revision_and_undo() {
 }
 
 #[test]
+fn architecture_membership_batches_preserve_geometry_and_reject_occupied_deletes() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("architecture.thf");
+    let original = MODEL_THF.replace("elements: []",
+        "elements:\n- id: service\n  name: Service\n  type: process\n  position: { x: 20, y: 30 }")
+        .replace("trust_boundaries: []", "trust_boundaries:\n- id: network\n  name: Network\n  contains: [service]")
+        + "groups:\n- id: parent\n  name: Parent\n  position: { x: 50, y: 60 }\n  extension: true\n";
+    std::fs::write(&path, &original).unwrap();
+    let mut server = McpServer::spawn(&path);
+    server.start_workspace();
+    let operations = json!([
+        {"tool": "add_group", "arguments": {"id": "child", "name": "Child"}},
+        {"tool": "update_group", "arguments": {"id": "parent", "name": "Renamed"}},
+        {"tool": "reparent_group", "arguments": {"id": "child", "parent": "parent"}},
+        {"tool": "add_layer", "arguments": {"id": "runtime", "name": "Runtime"}},
+        {"tool": "update_layer", "arguments": {"id": "runtime", "description": "Live"}},
+        {"tool": "set_element_group", "arguments": {"id": "service", "group": "child"}},
+        {"tool": "set_element_layer", "arguments": {"id": "service", "layer": "runtime"}}
+    ]);
+    let preview = server.tool_json(
+        2,
+        "batch_transaction",
+        json!({
+            "operations": operations, "dry_run": true
+        }),
+    );
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    let applied = server.tool_json(
+        3,
+        "batch_transaction",
+        json!({
+            "operations": operations, "expected_revision": preview["revision"]
+        }),
+    );
+    assert_eq!(applied["results"], preview["results"]);
+    let saved = std::fs::read_to_string(&path).unwrap();
+    let model = server.tool_json(4, "get_model", json!({}));
+    assert_eq!(model["version"], "1.0");
+    assert_eq!(model["groups"][0]["name"], "Renamed");
+    assert_eq!(model["groups"][0]["position"]["x"], 50.0);
+    assert_eq!(model["groups"][0]["extension"], true);
+    assert_eq!(model["groups"][1]["parent"], "parent");
+    assert_eq!(model["elements"][0]["group"], "child");
+    assert_eq!(model["elements"][0]["layer"], "runtime");
+    assert_eq!(model["elements"][0]["position"]["x"], 20.0);
+    assert_eq!(model["layers"][0]["description"], "Live");
+    assert_eq!(model["trust_boundaries"][0]["contains"], json!(["service"]));
+
+    for (operation, error) in [
+        (
+            json!({"tool": "delete_group", "arguments": {"id": "parent"}}),
+            "still has",
+        ),
+        (
+            json!({"tool": "delete_group", "arguments": {"id": "child"}}),
+            "still has",
+        ),
+        (
+            json!({"tool": "delete_layer", "arguments": {"id": "runtime"}}),
+            "still has",
+        ),
+        (
+            json!({"tool": "reparent_group", "arguments": {"id": "parent", "parent": "child"}}),
+            "circular",
+        ),
+        (
+            json!({"tool": "set_element_group", "arguments": {"id": "service", "group": "missing"}}),
+            "missing",
+        ),
+        (
+            json!({"tool": "set_element_layer", "arguments": {"id": "service"}}),
+            "layer",
+        ),
+    ] {
+        let failed = server.request_raw(
+            5,
+            "tools/call",
+            json!({
+                "name": "batch_transaction", "arguments": {"operations": [operation]}
+            }),
+        );
+        assert!(
+            failed.get("error").is_some() || failed["result"]["isError"] == true,
+            "{failed}"
+        );
+        assert!(
+            failed.to_string().to_lowercase().contains(error),
+            "{failed}"
+        );
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), saved);
+    }
+    server.tool(
+        6,
+        "batch_transaction",
+        json!({"operations": [
+            {"tool": "set_element_group", "arguments": {"id": "service", "group": null}},
+            {"tool": "set_element_layer", "arguments": {"id": "service", "layer": null}},
+            {"tool": "reparent_group", "arguments": {"id": "child", "parent": null}},
+            {"tool": "delete_group", "arguments": {"id": "parent"}},
+            {"tool": "delete_layer", "arguments": {"id": "runtime"}}
+        ]}),
+    );
+    let model = server.tool_json(7, "get_model", json!({}));
+    assert_eq!(model["groups"].as_array().unwrap().len(), 1);
+    assert!(model["groups"][0].get("parent").is_none());
+    assert!(model["elements"][0].get("group").is_none());
+    assert!(model["elements"][0].get("layer").is_none());
+    server.tool(8, "undo", json!({}));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), saved);
+    server.tool(9, "undo", json!({}));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+}
+
+#[test]
 fn workspace_relative_moves_use_sidecar_and_scene_fallback_positions() {
     let dir = tempfile::tempdir().unwrap();
     let original = MODEL_THF
