@@ -23,6 +23,7 @@ export interface ModelState {
 	filePath: string | null;
 	fileRevision?: string;
 	sourceYaml?: string;
+	savedModel?: ThreatModel;
 	fileSync?: "updated" | "conflict" | "unavailable" | "layout-unavailable";
 	/** Whether the model has unsaved changes */
 	isDirty: boolean;
@@ -146,6 +147,12 @@ export function createModelStore(deps: ModelStoreDeps): StoreApi<ModelState> {
 				fileRevision:
 					fileRevision ?? (state.filePath === filePath ? state.fileRevision : undefined),
 				sourceYaml: sourceYaml ?? (state.filePath === filePath ? state.sourceYaml : undefined),
+				savedModel:
+					sourceYaml === undefined
+						? state.filePath === filePath
+							? state.savedModel
+							: undefined
+						: model,
 				fileSync:
 					state.filePath === filePath &&
 					(fileRevision == null || state.fileRevision === fileRevision)
@@ -164,6 +171,7 @@ export function createModelStore(deps: ModelStoreDeps): StoreApi<ModelState> {
 				filePath: null,
 				fileRevision: undefined,
 				sourceYaml: undefined,
+				savedModel: undefined,
 				fileSync: undefined,
 				isDirty: false,
 				selectedElementId: null,

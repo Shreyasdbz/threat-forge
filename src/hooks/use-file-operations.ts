@@ -156,6 +156,7 @@ export function useFileOperations() {
 					filePath: path,
 					fileRevision: revision,
 					sourceYaml: savedYaml,
+					savedModel: savedYaml === undefined ? undefined : captured,
 					fileSync: undefined,
 				});
 			}

@@ -355,6 +355,23 @@ describe("the corrective feedback channel", () => {
 });
 
 describe("a read-only turn", () => {
+	it("uses the native snapshot without parsing opaque extensions in its source YAML", async () => {
+		const sourceYaml = `${serializeThreatModelYaml(baseModel)}x-future: !MyExtension tagged\n`;
+		useModelStore.getState().setModel(baseModel, "/workspace/opaque.thf", "revision", sourceYaml);
+		const { stream, requests } = scriptedStream([
+			[
+				{ type: "message_start", model: "m" },
+				{ type: "text_delta", text: "I can read this document." },
+				{ type: "message_stop", stopReason: "end_turn" },
+			],
+		]);
+		const runner = createTurnRunner({ stream, getDocument });
+		await runner.submit(config(createAiToolRegistry()));
+		expect(requests).toHaveLength(1);
+		expect(runner.getState().outcome).toBe("completed");
+		expect(runner.getState().proposalOutcome).toBeUndefined();
+	});
+
 	it("auto-grants a read call, never pauses for approval, and pushes no undo entry", async () => {
 		const registry = createAiToolRegistry();
 		const { stream, requests } = scriptedStream([
