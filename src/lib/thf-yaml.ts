@@ -2,11 +2,10 @@ import {
 	binaryTag,
 	CORE_SCHEMA,
 	type DumpOptions,
+	defineScalarTag,
 	dump,
 	floatCoreTag,
-	floatYaml11Tag,
 	intCoreTag,
-	intYaml11Tag,
 	load,
 	mergeTag,
 	NOT_RESOLVED,
@@ -52,21 +51,24 @@ const thfFloatTag = {
 	},
 };
 
+const legacyScalarTags = YAML11_SCHEMA.implicitScalarTags.filter(
+	(tag) => tag.tagName !== TIMESTAMP_TAG,
+);
+const legacyTextTag = defineScalarTag("tag:threatforge.dev,2026:legacy-text", {
+	implicit: true,
+	resolve(source, isExplicit) {
+		return !isExplicit &&
+			legacyScalarTags.some((tag) => tag.resolve(source, false, tag.tagName) !== NOT_RESOLVED)
+			? source
+			: NOT_RESOLVED;
+	},
+});
+
 /**
- * Read schema: js-yaml's core scalar resolution, with serde_yaml's handling of
- * base-prefixed integers and leading-zero decimal strings, plus the non-scalar YAML 1.1
- * extensions the pre-upgrade schema carried — merge keys and `!!binary`/`!!omap`/`!!pairs`/`!!set`.
- *
- * js-yaml 5 split its single `DEFAULT_SCHEMA` into a conservative load default (`CORE_SCHEMA`)
- * and a defensive dump default (`YAML11_SCHEMA` + int/float fallback). The core resolver reads
- * `2026-03-15` and bare `y`/`no`/`on` as the strings the desktop writer intends, never a `Date`
- * or a boolean, so a desktop document opened and saved in the browser still reopens on the
- * desktop. The five explicit extension tags are re-added so a file using them resolves exactly
- * as it did before the upgrade; a plain `.thf` never uses them, but dropping them would be a
- * silent read-path behavior change.
- *
- * The timestamp type is deliberately absent: it is the one tag whose presence would coerce a
- * calendar date, so it stays out of both the read and the write schema.
+ * One schema for reading and writing. The numeric resolvers match serde_yaml's handling of
+ * base-prefixed integers and leading-zero decimal strings. The last resolver keeps YAML 1.1
+ * ambiguities such as bare `y` and `on` as text on read while making the dumper quote them.
+ * Timestamps stay plain strings so desktop calendar dates round-trip.
  */
 export const THF_YAML_SCHEMA = new Schema([
 	...CORE_SCHEMA.tags,
@@ -77,42 +79,8 @@ export const THF_YAML_SCHEMA = new Schema([
 	omapTag,
 	pairsTag,
 	setTag,
+	legacyTextTag,
 ]);
-
-/**
- * Write schema: js-yaml 5's YAML 1.1 schema without timestamps, also quoting scalars that
- * would otherwise be read as numbers by the desktop reader (e.g. `+0o10` or `1e5`).
- *
- * The dumper quotes a plain scalar exactly when it would implicitly resolve to a non-string
- * under the schema it is given. Two consequences hold this format together:
- *
- * - With the timestamp type absent, a `created: 2026-03-15` string dumps unquoted and time-free,
- *   so chrono's `NaiveDate` on the desktop still accepts it. (js-yaml 5's own dump default keeps
- *   the timestamp type, which would quote the date — this schema is why it does not.)
- * - With the YAML 1.1 boolean type present, the ambiguous key `y` (a coordinate axis) is quoted
- *   as `"y"`, so a YAML 1.1 reader cannot mistake it for `true`. The read schema resolves `y` as
- *   a plain string, so the two schemas still round-trip.
- *
- * The write path never emits a `Date`, `Map`, `Set`, or binary value, so the extension tags this
- * schema carries are inert here; they exist only to mirror the read schema's tag set.
- */
-export const THF_YAML_DUMP_SCHEMA = new Schema(
-	YAML11_SCHEMA.tags
-		.filter((tag) => tag.tagName !== TIMESTAMP_TAG)
-		.map((tag) => {
-			if (tag === intYaml11Tag || tag === floatYaml11Tag) {
-				const thfTag = tag === intYaml11Tag ? thfIntegerTag : thfFloatTag;
-				return {
-					...tag,
-					resolve(source: string, isExplicit: boolean, tagName: string) {
-						const value = tag.resolve(source, isExplicit, tagName);
-						return value === NOT_RESOLVED ? thfTag.resolve(source, isExplicit, tagName) : value;
-					},
-				};
-			}
-			return tag;
-		}),
-);
 
 /** Options the browser writer passes to `dump` for every `.thf` document. */
 export const THF_YAML_DUMP_OPTIONS: DumpOptions = {
@@ -120,7 +88,7 @@ export const THF_YAML_DUMP_OPTIONS: DumpOptions = {
 	noRefs: true,
 	sortKeys: false,
 	quoteStyle: "double",
-	schema: THF_YAML_DUMP_SCHEMA,
+	schema: THF_YAML_SCHEMA,
 };
 
 /**

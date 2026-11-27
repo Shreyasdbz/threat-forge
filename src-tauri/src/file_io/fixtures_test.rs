@@ -490,6 +490,13 @@ fn reads_scalar_parity_fixtures() {
             );
             assert_eq!(model.elements[1].name, "+0o10");
             assert_eq!(model.elements[1].description, "1e5");
+            assert_eq!(
+                model.elements[1].tags,
+                [
+                    "+0o10", "0x10", "-0x10", "00123", "1e3", ".inf", "~", "null", "yes", "on",
+                    "true", "12:30", ""
+                ]
+            );
         }
     }
 }

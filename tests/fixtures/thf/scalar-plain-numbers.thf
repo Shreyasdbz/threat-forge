@@ -16,3 +16,4 @@ elements:
     name: "+0o10"
     description: "1e5"
     position: { x: -0b10, y: 1e2 }
+    tags: ["+0o10", "0x10", "-0x10", 00123, "1e3", ".inf", "~", "null", yes, on, "true", 12:30, ""]

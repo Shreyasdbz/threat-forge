@@ -270,6 +270,22 @@ describe("browser `.thf` read validation — parity with read_threat_model", () 
 		expect(model.elements[1]).toMatchObject({ name: "+0o10", description: "1e5" });
 		const reopened = readThreatModelText(serializeThreatModelYaml(model));
 		expect(reopened.elements[1]).toMatchObject({ name: "+0o10", description: "1e5" });
+		expect(model.elements[1].tags).toEqual([
+			"+0o10",
+			"0x10",
+			"-0x10",
+			"00123",
+			"1e3",
+			".inf",
+			"~",
+			"null",
+			"yes",
+			"on",
+			"true",
+			"12:30",
+			"",
+		]);
+		expect(reopened.elements[1].tags).toEqual(model.elements[1].tags);
 		expect(reopened.elements[0].size).toEqual({ width: 256, height: 125 });
 	});
 
