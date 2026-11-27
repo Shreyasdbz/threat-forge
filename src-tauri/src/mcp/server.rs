@@ -1596,7 +1596,7 @@ mod tests {
 
     /// The tool names external assistants bind to. Renaming or dropping one is a
     /// breaking change for every already-configured MCP client.
-    const EXPECTED_TOOL_NAMES: [&str; 28] = [
+    const EXPECTED_TOOL_NAMES: [&str; 29] = [
         "add_data_flow",
         "add_element",
         "add_threat",
@@ -1609,6 +1609,7 @@ mod tests {
         "delete_element",
         "delete_threat",
         "delete_trust_boundary",
+        "export_markdown",
         "export_png",
         "export_svg",
         "get_model",

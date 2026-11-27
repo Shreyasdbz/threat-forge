@@ -1399,6 +1399,23 @@
     }
   },
   {
+    "name": "export_markdown",
+    "description": "Export a Markdown review of the active model; optionally save it under the workspace root.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "path": {
+          "description": "Optional workspace-relative output path ending in .md",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
     "name": "export_png",
     "description": "Render the active diagram as PNG; optionally save it under the workspace root.",
     "inputSchema": {
