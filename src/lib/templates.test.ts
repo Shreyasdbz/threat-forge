@@ -6,6 +6,16 @@ import { readThreatModelText } from "@/lib/thf-validation";
 import { serializeThreatModelYaml } from "@/lib/thf-yaml";
 
 describe("architecture starters", () => {
+	it("records the worker as the event queue subscriber", () => {
+		const model = loadTemplate("event-pipeline");
+		if (!model) throw new Error("Missing event-driven starter");
+		const worker = model.elements.find((element) => element.name === "Fulfillment Worker");
+		const queue = model.elements.find((element) => element.name === "Order Queue");
+		expect(model.relationships).toEqual([
+			expect.objectContaining({ type: "subscribes_to", from: worker?.id, to: queue?.id }),
+		]);
+	});
+
 	it.each(ARCHITECTURE_STARTERS)(
 		"opens and round-trips $name without findings",
 		({ id, source }) => {

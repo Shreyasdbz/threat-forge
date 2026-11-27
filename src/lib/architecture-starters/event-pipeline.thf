@@ -70,8 +70,8 @@ data_flows:
 relationships:
   - id: dependency
     type: subscribes_to
-    from: processor
-    to: destination
+    from: destination
+    to: processor
     name: Queue subscription
 diagrams:
   - id: architecture
