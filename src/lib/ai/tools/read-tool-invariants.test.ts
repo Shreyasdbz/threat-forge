@@ -210,6 +210,7 @@ describe("read tool output-key allowlist", () => {
 		"created",
 		"modified",
 		"description",
+		"description_next_offset",
 		"threat_analysis_enabled",
 		// counts / breakdowns
 		"elements",

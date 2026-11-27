@@ -114,12 +114,14 @@ describe("read tool schemas", () => {
 		}
 	});
 
-	it("pins get_document_summary to a closed, argument-free object", () => {
-		expect(toolNamed("get_document_summary").jsonSchema()).toEqual({
+	it("pins get_document_summary to a closed object with an optional description offset", () => {
+		expect(toolNamed("get_document_summary").jsonSchema()).toMatchObject({
 			type: "object",
-			properties: {},
+			properties: { description_offset: { type: "integer", minimum: 0 } },
 			additionalProperties: false,
 		});
+		expect(toolNamed("get_document_summary").prepare({}).ok).toBe(true);
+		expect(toolNamed("get_document_summary").prepare({ description_offset: -1 }).ok).toBe(false);
 	});
 
 	it("pins get_entity to a closed object requiring kind and id", () => {
@@ -147,6 +149,43 @@ describe("read tool schemas", () => {
 // ---------------------------------------------------------------------------
 
 describe("get_document_summary", () => {
+	it("returns every safe code point of a long description through bounded continuation pages", async () => {
+		const model = baseModel();
+		const text = `${"x".repeat(199)}😀${"漢😀".repeat(900)}tail detail`;
+		model.metadata.description = text;
+		const summary = parseOkBody(await run("get_document_summary", {}, model));
+		const metadata = summary.metadata as {
+			description: string;
+			description_next_offset: number | null;
+		};
+		expect(metadata.description).toBe(`${"x".repeat(199)}😀`);
+		expect(metadata.description_next_offset).toBe(201);
+
+		let description = metadata.description;
+		let offset = metadata.description_next_offset;
+		for (let page = 0; page < 10 && offset !== null; page++) {
+			const outcome = await run("get_document_summary", { description_offset: offset }, model);
+			const body = parseOkBody(outcome) as {
+				description: string;
+				description_next_offset: number | null;
+			};
+			expect(new TextEncoder().encode(JSON.stringify(body)).length).toBeLessThanOrEqual(
+				READ_RESULT_MAX_BYTES,
+			);
+			expect(body.description_next_offset === null || body.description_next_offset > offset).toBe(
+				true,
+			);
+			description += body.description;
+			offset = body.description_next_offset;
+		}
+		expect(offset).toBeNull();
+		expect(description).toBe(text);
+		expect(await run("get_document_summary", { description_offset: 200 }, model)).toMatchObject({
+			status: "error",
+			result: expect.stringContaining("description_next_offset"),
+		});
+	});
+
 	it("returns fixed-order breakdown arrays even when a bucket is empty", async () => {
 		const body = parseOkBody(await run("get_document_summary", {}, baseModel({ threats: [] })));
 

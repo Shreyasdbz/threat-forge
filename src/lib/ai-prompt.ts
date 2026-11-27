@@ -168,7 +168,10 @@ function untrustedDataPreambleSection(): string {
 }
 
 const DOCUMENT_READ_GUIDANCE = [
-	["get_document_summary", "orient with metadata and counts"],
+	[
+		"get_document_summary",
+		"orient with metadata and counts; page the description with description_offset",
+	],
 	["search_entities", "find and page through entities by kind"],
 	["get_entity", "read a specific entity by kind and ID"],
 ] as const;

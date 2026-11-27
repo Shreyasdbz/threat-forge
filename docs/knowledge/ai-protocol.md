@@ -120,7 +120,11 @@ When all three document read tools are offered, the system prompt contains no
 inline document data. `get_document_summary`, `search_entities`, and `get_entity`
 read the current document, including approved changes from earlier iterations
 of the turn. They are authoritative; refresh a read after an edit instead of
-relying on its earlier result. `get_entity` includes saved element and boundary
+relying on its earlier result. The summary returns a description preview with
+`description_next_offset`. Pass that as `description_offset` until the next
+offset is null to read the rest. Each page preserves code-point boundaries,
+escapes the document markers, and strips unsafe controls as other reads do.
+`get_entity` includes saved element and boundary
 positions and boundary size where present. Only turns without the complete
 read suite use a bounded, explicitly labeled turn-start snapshot.
 

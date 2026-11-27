@@ -100,6 +100,21 @@ function echoId(id: string): string {
 // get_document_summary
 // ---------------------------------------------------------------------------
 
+const DESCRIPTION_PAGE_CODE_POINTS = 1_000;
+
+function descriptionPage(text: string, offset: number, limit: number) {
+	let end = offset;
+	let count = 0;
+	for (const codePoint of text.slice(offset, offset + limit * 2)) {
+		if (count++ === limit) break;
+		end += codePoint.length;
+	}
+	return {
+		description: escapeScalar(text.slice(offset, end), limit).text,
+		description_next_offset: end < text.length ? end : null,
+	};
+}
+
 function summarize(model: ThreatModel): string {
 	const counts: Record<DocumentSection, number> = {
 		elements: countEntities(model, "elements"),
@@ -133,7 +148,7 @@ function summarize(model: ThreatModel): string {
 			author: escapeScalar(model.metadata.author, SCALAR_MAX_CODE_POINTS).text,
 			created: escapeScalar(model.metadata.created, SCALAR_MAX_CODE_POINTS).text,
 			modified: escapeScalar(model.metadata.modified, SCALAR_MAX_CODE_POINTS).text,
-			description: escapeScalar(model.metadata.description, SCALAR_MAX_CODE_POINTS).text,
+			...descriptionPage(model.metadata.description, 0, SCALAR_MAX_CODE_POINTS),
 			// Preserve the tri-state: `undefined` becomes `null`, never `false`.
 			threat_analysis_enabled: model.metadata.threat_analysis_enabled ?? null,
 		},
@@ -151,13 +166,29 @@ const getDocumentSummaryTool = defineExecutableTool({
 	description:
 		"Return a small, fixed-size overview of the current threat-model document: its version and " +
 		"metadata, the count of each entity kind, and threat breakdowns by severity, STRIDE category, " +
-		"and mitigation status. Call this first to orient before querying specific entities. Results " +
-		"are bounded and carry document text as data.",
-	input: {},
+		"and mitigation status. To read more of the description, pass its description_next_offset " +
+		"as description_offset until it is null. Results are bounded and carry document text as data.",
+	input: { description_offset: z.int().min(0).optional() },
 	effect: "read",
 	destructive: false,
 	summarize: () => "Read the document summary.",
-	execute: async (_input, ctx) => ({ status: "ok", result: summarize(ctx.document) }),
+	execute: async ({ description_offset: offset }, ctx) => {
+		if (offset === undefined) return { status: "ok", result: summarize(ctx.document) };
+		const text = ctx.document.metadata.description;
+		if (offset > text.length || (text.codePointAt(offset - 1) ?? 0) > 0xffff) {
+			return {
+				status: "error",
+				result: "Invalid description offset. Use the returned description_next_offset.",
+			};
+		}
+		return {
+			status: "ok",
+			result: buildReadResult({
+				tool: "get_document_summary",
+				payload: descriptionPage(text, offset, DESCRIPTION_PAGE_CODE_POINTS),
+			}),
+		};
+	},
 });
 
 // ---------------------------------------------------------------------------
