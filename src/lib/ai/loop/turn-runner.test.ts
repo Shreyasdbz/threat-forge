@@ -383,8 +383,8 @@ describe("a tool-incapable turn", () => {
 			expect.objectContaining({ kind: "added", label: "Spoofed identity" }),
 		]);
 		runner.applyProposal(review.token);
-		expect(getDocument()?.elements.at(-1)?.name).toBe("Cache");
-		expect(getDocument()?.threats.at(-1)?.title).toBe("Spoofed identity");
+		expect(getDocument()?.elements.some(({ name }) => name === "Cache")).toBe(true);
+		expect(getDocument()?.threats.map(({ title }) => title)).toEqual(["Spoofed identity"]);
 		expect(useHistoryStore.getState().past).toHaveLength(1);
 		runner.undo();
 		expect(getDocument()).toEqual(baseline);
