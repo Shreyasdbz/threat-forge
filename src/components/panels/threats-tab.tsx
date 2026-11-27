@@ -191,51 +191,52 @@ function ThreatCard({
 				});
 			}}
 		>
-			{/* Header - clickable to expand/collapse */}
-			<button
-				ref={menuTrigger}
-				type="button"
-				onClick={onSelect}
-				aria-keyshortcuts="Shift+F10 ContextMenu"
-				onKeyDown={(event) => {
-					if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
-					event.preventDefault();
-					const { left, bottom } = event.currentTarget.getBoundingClientRect();
-					setContextMenu({ x: left, y: bottom, trigger: event.currentTarget });
-				}}
-				aria-expanded={isSelected}
-				className="grid w-full grid-cols-[1rem_minmax(0,1fr)] items-start gap-2 px-1 py-1.5 text-left hover:bg-editor-hover"
-			>
-				{isSelected ? (
-					<ChevronDown className="mt-0.5 size-4 text-muted-foreground" />
-				) : (
-					<ChevronRight className="mt-0.5 size-4 text-muted-foreground" />
-				)}
-				<div className="flex min-w-0 flex-col gap-0.5">
-					<span className="text-editor-headline">{threat.title}</span>
-					<div className="flex flex-wrap items-center gap-2">
-						<CategoryBadge category={threat.category} />
-						<SeverityBadge severity={threat.severity} />
-						{threat.mitigation && <MitigationBadge status={threat.mitigation.status} />}
+			<div className="flex items-end">
+				{/* Header - clickable to expand/collapse */}
+				<button
+					ref={menuTrigger}
+					type="button"
+					onClick={onSelect}
+					aria-keyshortcuts="Shift+F10 ContextMenu"
+					onKeyDown={(event) => {
+						if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
+						event.preventDefault();
+						const { left, bottom } = event.currentTarget.getBoundingClientRect();
+						setContextMenu({ x: left, y: bottom, trigger: event.currentTarget });
+					}}
+					aria-expanded={isSelected}
+					className="grid min-w-0 flex-1 grid-cols-[1rem_minmax(0,1fr)] items-start gap-2 px-1 py-1.5 text-left hover:bg-editor-hover"
+				>
+					{isSelected ? (
+						<ChevronDown className="mt-0.5 size-4 text-muted-foreground" />
+					) : (
+						<ChevronRight className="mt-0.5 size-4 text-muted-foreground" />
+					)}
+					<div className="flex min-w-0 flex-col gap-0.5">
+						<span className="break-words text-editor-headline">{threat.title}</span>
+						<div className="flex flex-wrap items-center gap-x-2">
+							<CategoryBadge category={threat.category} />
+							<SeverityBadge severity={threat.severity} />
+							{threat.mitigation && <MitigationBadge status={threat.mitigation.status} />}
+						</div>
 					</div>
-				</div>
-			</button>
+				</button>
 
-			{/* Linked element link */}
-			{linkedElement && !isSelected && (
-				<div>
+				{/* Linked element link */}
+				{linkedElement && !isSelected && (
 					<button
 						type="button"
 						onClick={() => {
 							setSelectedElement(linkedElement.id);
 							setRightPanelTab("properties");
 						}}
-						className="min-h-editor-icon w-full pl-7 pr-2 text-left text-editor-caption text-editor-secondary-label hover:bg-editor-hover hover:text-editor-accent"
+						title={linkedElement.name}
+						className="min-h-editor-icon max-w-[35%] shrink-0 truncate px-1 text-left text-editor-caption text-editor-secondary-label hover:bg-editor-hover hover:text-editor-accent"
 					>
 						{linkedElement.name}
 					</button>
-				</div>
-			)}
+				)}
+			</div>
 
 			{/* Expanded detail editor */}
 			{isSelected && <ThreatEditor threat={threat} />}
