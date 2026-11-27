@@ -23,8 +23,8 @@ const probeDir = join(repoRoot, "e2e", "__static-analysis-probe__");
 const appProbeDir = join(repoRoot, "src", "__static-analysis-probe__");
 const biomeScript = join(repoRoot, "node_modules", "@biomejs", "biome", "bin", "biome");
 const tscScript = join(repoRoot, "node_modules", "typescript", "bin", "tsc");
-// These probes type-check whole projects while other Vitest workers may be running.
-const TYPE_CHECK_TIMEOUT_MS = 60_000;
+// These probes check whole projects while other Vitest workers may be running.
+const PROJECT_CHECK_TIMEOUT_MS = 60_000;
 
 function runBiomeCheck() {
 	return spawnSync(process.execPath, [biomeScript, "check", "."], {
@@ -58,27 +58,35 @@ afterEach(() => {
 });
 
 describe("Biome canonical project check covers e2e/", () => {
-	it("passes on a clean e2e-shaped probe file", () => {
-		writeProbeFile(probeDir, "clean.ts", 'export const probeValue = "ok";\n');
+	it(
+		"passes on a clean e2e-shaped probe file",
+		() => {
+			writeProbeFile(probeDir, "clean.ts", 'export const probeValue = "ok";\n');
 
-		const result = runBiomeCheck();
+			const result = runBiomeCheck();
 
-		expect(result.status).toBe(0);
-	});
+			expect(result.status).toBe(0);
+		},
+		PROJECT_CHECK_TIMEOUT_MS,
+	);
 
-	it("fails on an intentional unused-import violation under e2e/", () => {
-		writeProbeFile(
-			probeDir,
-			"bad-lint.ts",
-			'import { readFileSync } from "node:fs";\n\nexport function unusedProbeExport(): void {}\n',
-		);
+	it(
+		"fails on an intentional unused-import violation under e2e/",
+		() => {
+			writeProbeFile(
+				probeDir,
+				"bad-lint.ts",
+				'import { readFileSync } from "node:fs";\n\nexport function unusedProbeExport(): void {}\n',
+			);
 
-		const result = runBiomeCheck();
+			const result = runBiomeCheck();
 
-		expect(result.status).not.toBe(0);
-		expect(result.stderr).toContain("__static-analysis-probe__/bad-lint.ts");
-		expect(result.stderr).toContain("lint/correctness/noUnusedImports");
-	});
+			expect(result.status).not.toBe(0);
+			expect(result.stderr).toContain("__static-analysis-probe__/bad-lint.ts");
+			expect(result.stderr).toContain("lint/correctness/noUnusedImports");
+		},
+		PROJECT_CHECK_TIMEOUT_MS,
+	);
 });
 
 describe("E2E TypeScript project (tsconfig.e2e.json)", () => {
@@ -90,7 +98,7 @@ describe("E2E TypeScript project (tsconfig.e2e.json)", () => {
 			expect(result.status).toBe(0);
 			expect(result.stdout).toBe("");
 		},
-		TYPE_CHECK_TIMEOUT_MS,
+		PROJECT_CHECK_TIMEOUT_MS,
 	);
 
 	it(
@@ -108,7 +116,7 @@ describe("E2E TypeScript project (tsconfig.e2e.json)", () => {
 			expect(result.stdout).toContain("__static-analysis-probe__/bad-type.ts");
 			expect(result.stdout).toContain("TS2322");
 		},
-		TYPE_CHECK_TIMEOUT_MS,
+		PROJECT_CHECK_TIMEOUT_MS,
 	);
 });
 
@@ -121,7 +129,7 @@ describe("production browser TypeScript project remains Node-free", () => {
 			expect(result.status).toBe(0);
 			expect(result.stdout).toBe("");
 		},
-		TYPE_CHECK_TIMEOUT_MS,
+		PROJECT_CHECK_TIMEOUT_MS,
 	);
 
 	it(
@@ -139,6 +147,6 @@ describe("production browser TypeScript project remains Node-free", () => {
 			expect(result.stdout).toContain("__static-analysis-probe__/bad-node-global.ts");
 			expect(result.stdout).toContain("TS2591");
 		},
-		TYPE_CHECK_TIMEOUT_MS,
+		PROJECT_CHECK_TIMEOUT_MS,
 	);
 });
