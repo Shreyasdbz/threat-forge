@@ -1,0 +1,79 @@
+version: "1.0"
+metadata:
+  title: Data Platform
+  author: ""
+  created: 2026-01-01
+  modified: 2026-01-01
+  description: An ingest job transforms source records and writes partitioned data.
+layers:
+  - id: entry
+    name: Source
+  - id: backend
+    name: Analytics
+groups:
+  - id: subsystem
+    name: Analytics
+    description: Data processing and storage
+    position: { x: 324, y: 32 }
+    size: { width: 620, height: 336 }
+elements:
+  - id: entrypoint
+    type: file_storage
+    name: Source Bucket
+    trust_zone: external
+    layer: entry
+    description: Source records entry point
+    position: { x: 36, y: 120 }
+  - id: processor
+    type: serverless_function
+    name: Ingest Job
+    trust_zone: internal
+    layer: backend
+    group: subsystem
+    description: Source records processing
+    position: { x: 360, y: 120 }
+  - id: destination
+    type: data_store
+    name: Reporting Warehouse
+    trust_zone: restricted
+    layer: backend
+    group: subsystem
+    position: { x: 684, y: 120 }
+    description: Reporting rows destination
+  - id: note
+    type: text
+    name: "Batch window: hourly"
+    position: { x: 360, y: 300 }
+    trust_zone: ""
+    description: ""
+data_flows:
+  - id: request
+    name: Read source objects
+    data: [Source records]
+    flow_number: 1
+    from: entrypoint
+    to: processor
+    protocol: HTTPS
+    authenticated: false
+    source_handle: right-source
+    target_handle: left-target
+  - id: exchange
+    name: Write reporting tables
+    data: [Reporting rows]
+    flow_number: 2
+    from: processor
+    to: destination
+    protocol: SQL / TLS
+    authenticated: true
+    source_handle: right-source
+    target_handle: left-target
+relationships:
+  - id: dependency
+    type: writes_to
+    from: processor
+    to: destination
+    name: Warehouse schema
+diagrams:
+  - id: architecture
+    name: Analytics pipeline
+    kind: architecture

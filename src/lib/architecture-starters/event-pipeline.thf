@@ -1,0 +1,79 @@
+version: "1.0"
+metadata:
+  title: Event-Driven System
+  author: ""
+  created: 2026-01-01
+  modified: 2026-01-01
+  description: A producer publishes jobs for a worker through a durable queue.
+layers:
+  - id: entry
+    name: Producer
+  - id: backend
+    name: Fulfillment
+groups:
+  - id: subsystem
+    name: Fulfillment
+    description: Queue and consumer ownership
+    position: { x: 324, y: 32 }
+    size: { width: 620, height: 336 }
+elements:
+  - id: entrypoint
+    type: process
+    name: Order Producer
+    trust_zone: external
+    layer: entry
+    description: Order job entry point
+    position: { x: 36, y: 120 }
+  - id: processor
+    type: message_queue
+    name: Order Queue
+    trust_zone: internal
+    layer: backend
+    group: subsystem
+    description: Order job processing
+    position: { x: 360, y: 120 }
+  - id: destination
+    type: serverless_function
+    name: Fulfillment Worker
+    trust_zone: restricted
+    layer: backend
+    group: subsystem
+    position: { x: 684, y: 120 }
+    description: Fulfillment job destination
+  - id: note
+    type: text
+    name: "Retry from the durable queue"
+    position: { x: 360, y: 300 }
+    trust_zone: ""
+    description: ""
+data_flows:
+  - id: request
+    name: Publish order event
+    data: [Order job]
+    flow_number: 1
+    from: entrypoint
+    to: processor
+    protocol: AMQP
+    authenticated: false
+    source_handle: right-source
+    target_handle: left-target
+  - id: exchange
+    name: Consume fulfillment jobs
+    data: [Fulfillment job]
+    flow_number: 2
+    from: processor
+    to: destination
+    protocol: AMQP
+    authenticated: true
+    source_handle: right-source
+    target_handle: left-target
+relationships:
+  - id: dependency
+    type: subscribes_to
+    from: processor
+    to: destination
+    name: Queue subscription
+diagrams:
+  - id: architecture
+    name: Event pipeline
+    kind: architecture

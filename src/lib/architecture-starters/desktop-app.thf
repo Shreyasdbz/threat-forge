@@ -1,0 +1,79 @@
+version: "1.0"
+metadata:
+  title: Desktop App
+  author: ""
+  created: 2026-01-01
+  modified: 2026-01-01
+  description: A local desktop UI calls a service that keeps data on the device.
+layers:
+  - id: entry
+    name: Presentation
+  - id: backend
+    name: Local storage
+groups:
+  - id: subsystem
+    name: Local storage
+    description: Local service and storage
+    position: { x: 324, y: 32 }
+    size: { width: 620, height: 336 }
+elements:
+  - id: entrypoint
+    type: desktop_app
+    name: Notes Desktop
+    trust_zone: external
+    layer: entry
+    description: Workspace command entry point
+    position: { x: 36, y: 120 }
+  - id: processor
+    type: process
+    name: Workspace Service
+    trust_zone: internal
+    layer: backend
+    group: subsystem
+    description: Workspace command processing
+    position: { x: 360, y: 120 }
+  - id: destination
+    type: file_storage
+    name: Local Notes Store
+    trust_zone: restricted
+    layer: backend
+    group: subsystem
+    position: { x: 684, y: 120 }
+    description: Notes document destination
+  - id: note
+    type: text
+    name: "Works without a cloud account"
+    position: { x: 360, y: 300 }
+    trust_zone: ""
+    description: ""
+data_flows:
+  - id: request
+    name: Request workspace change
+    data: [Workspace command]
+    flow_number: 1
+    from: entrypoint
+    to: processor
+    protocol: IPC
+    authenticated: false
+    source_handle: right-source
+    target_handle: left-target
+  - id: exchange
+    name: Read and write notes
+    data: [Notes document]
+    flow_number: 2
+    from: processor
+    to: destination
+    protocol: Filesystem
+    authenticated: true
+    source_handle: right-source
+    target_handle: left-target
+relationships:
+  - id: dependency
+    type: depends_on
+    from: processor
+    to: destination
+    name: Local storage format
+diagrams:
+  - id: architecture
+    name: On-device workspace
+    kind: architecture

@@ -16,6 +16,29 @@ const FIXTURE_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/fixtur
 /// Canonical fixtures are `serde_yaml` output and are subject to byte-identity assertions.
 const CANONICAL_FIXTURES: &[&str] = &["v1.0-canonical-full.thf"];
 
+#[test]
+fn architecture_starters_round_trip_without_findings() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/lib/architecture-starters");
+    let output = tempfile::tempdir().unwrap();
+    for id in [
+        "cloud-service",
+        "event-pipeline",
+        "data-platform",
+        "desktop-app",
+        "ai-application",
+    ] {
+        let filename = format!("{id}.thf");
+        let model = read_threat_model(&root.join(&filename)).unwrap();
+        assert!(model.threats.is_empty(), "{id}");
+        assert_eq!(model.layers.len(), 2, "{id}");
+        assert_eq!(model.groups.len(), 1, "{id}");
+        assert_eq!(model.relationships.len(), 1, "{id}");
+        let path = output.path().join(filename);
+        write_threat_model(&path, &model).unwrap();
+        assert_eq!(read_threat_model(&path).unwrap(), model, "{id}");
+    }
+}
+
 /// Legacy fixtures are hand-authored, non-canonical, and assert semantic round trips only.
 const LEGACY_FIXTURES: &[&str] = &[
     "v1.0-minimal.thf",

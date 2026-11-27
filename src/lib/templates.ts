@@ -1,11 +1,50 @@
 import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH, getSmartHandlePair } from "@/lib/canvas-utils";
+import { readThreatModelText } from "@/lib/thf-validation";
 import type { ThreatModel } from "@/types/threat-model";
+import aiApplication from "./architecture-starters/ai-application.thf?raw";
+import cloudService from "./architecture-starters/cloud-service.thf?raw";
+import dataPlatform from "./architecture-starters/data-platform.thf?raw";
+import desktopApp from "./architecture-starters/desktop-app.thf?raw";
+import eventPipeline from "./architecture-starters/event-pipeline.thf?raw";
 
 export interface TemplateInfo {
 	id: string;
 	name: string;
 	description: string;
 }
+
+export const ARCHITECTURE_STARTERS = [
+	{
+		id: "cloud-service",
+		name: "Cloud Service",
+		description: "Browser, API, and database",
+		source: cloudService,
+	},
+	{
+		id: "event-pipeline",
+		name: "Event-Driven System",
+		description: "Producer, durable queue, and worker",
+		source: eventPipeline,
+	},
+	{
+		id: "data-platform",
+		name: "Data Platform",
+		description: "Source bucket, ingest job, and warehouse",
+		source: dataPlatform,
+	},
+	{
+		id: "desktop-app",
+		name: "Desktop App",
+		description: "Local UI, service, and file store",
+		source: desktopApp,
+	},
+	{
+		id: "ai-application",
+		name: "AI Application",
+		description: "Assistant UI, inference gateway, and hosted model",
+		source: aiApplication,
+	},
+] satisfies (TemplateInfo & { source: string })[];
 
 export const TEMPLATES: TemplateInfo[] = [
 	{
@@ -46,10 +85,18 @@ const TEMPLATE_BOUNDARY_PADDING = 48;
 /** Load a template by ID. Returns a ThreatModel with today's date.
  *  Post-processes flows to assign flow numbers and smart connection handles. */
 export function loadTemplate(id: string): ThreatModel | null {
+	const today = new Date().toISOString().split("T")[0];
+	const starter = ARCHITECTURE_STARTERS.find((entry) => entry.id === id);
+	if (starter) {
+		const model = readThreatModelText(starter.source);
+		model.metadata.created = today;
+		model.metadata.modified = today;
+		return model;
+	}
+
 	const builder = TEMPLATE_BUILDERS[id];
 	if (!builder) return null;
 
-	const today = new Date().toISOString().split("T")[0];
 	const model = builder(today);
 
 	const posMap = new Map<string, { x: number; y: number }>();

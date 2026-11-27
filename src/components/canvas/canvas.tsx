@@ -2,12 +2,15 @@ import {
 	Building2,
 	Cloud,
 	CreditCard,
+	Database,
 	FolderOpen,
 	HeartPulse,
 	type LucideIcon,
+	Monitor,
 	Radio,
 	ShoppingCart,
 	Smartphone,
+	Sparkles,
 } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { GithubIcon } from "@/components/icons/github-icon";
@@ -16,7 +19,7 @@ import { useFileOperations } from "@/hooks/use-file-operations";
 import { buildLayoutFromModel } from "@/lib/model-layout-utils";
 import { openExternalUrl } from "@/lib/platform";
 import { sequenceDiagrams } from "@/lib/sequence-views";
-import { loadTemplate, TEMPLATES, type TemplateInfo } from "@/lib/templates";
+import { ARCHITECTURE_STARTERS, loadTemplate, TEMPLATES, type TemplateInfo } from "@/lib/templates";
 import { TIPS } from "@/lib/tips";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useDocumentRegistry } from "@/stores/document-registry";
@@ -113,7 +116,7 @@ function EmptyCanvas() {
 	return (
 		<div data-testid="empty-canvas" className="flex h-full flex-col items-center bg-editor-canvas">
 			{/* Main content — centered with upward bias */}
-			<div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center-safe overflow-y-auto px-4 pb-12 [@media(max-height:850px)]:pb-0">
+			<div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center-safe overflow-y-auto px-4">
 				<img
 					src="/logo_square.png"
 					alt="Threat Forge"
@@ -146,23 +149,43 @@ function EmptyCanvas() {
 				</div>
 
 				{/* Templates */}
-				<div className="@container mt-8 w-full max-w-2xl">
-					<p
-						data-testid="empty-canvas-contrast-target"
-						className="mb-3 text-center text-editor-footnote text-foreground opacity-95"
-					>
-						Start from a template
-					</p>
-					<div className="grid grid-cols-2 gap-px rounded-editor-panel bg-editor-separator p-px @min-[40rem]:grid-cols-3">
-						{TEMPLATES.map((t) => (
-							<TemplateCard key={t.id} template={t} onSelect={openTemplate} />
-						))}
+				<div className="@container mt-8 w-full max-w-5xl">
+					<div className="grid gap-5 @min-[42rem]:grid-cols-2">
+						<section>
+							<h3 className="text-center text-editor-footnote text-foreground">
+								Architecture starters
+							</h3>
+							<p className="mb-3 mt-1 text-center text-editor-caption text-muted-foreground">
+								Start without findings. When ready, open Threats and choose Run STRIDE Analysis.
+							</p>
+							<div className="grid grid-cols-2 gap-px rounded-editor-panel bg-editor-separator p-px">
+								{ARCHITECTURE_STARTERS.map((t) => (
+									<TemplateCard key={t.id} template={t} onSelect={openTemplate} />
+								))}
+							</div>
+						</section>
+						<section>
+							<h3
+								data-testid="empty-canvas-contrast-target"
+								className="text-center text-editor-footnote text-foreground opacity-95"
+							>
+								Start from a template
+							</h3>
+							<p className="mb-3 mt-1 text-center text-editor-caption text-muted-foreground">
+								Explore examples that already include findings.
+							</p>
+							<div className="grid grid-cols-2 gap-px rounded-editor-panel bg-editor-separator p-px">
+								{TEMPLATES.map((t) => (
+									<TemplateCard key={t.id} template={t} onSelect={openTemplate} />
+								))}
+							</div>
+						</section>
 					</div>
 				</div>
+			</div>
 
-				<div className="mt-8 h-12 max-w-md [@media(max-height:850px)]:mt-4 [@media(max-height:850px)]:h-8">
-					<RotatingTip />
-				</div>
+			<div className="mt-4 h-12 w-full max-w-md shrink-0 px-4 [@media(max-height:850px)]:h-8">
+				<RotatingTip />
 			</div>
 
 			{/* Footer */}
@@ -196,6 +219,11 @@ function EmptyCanvas() {
 }
 
 const TEMPLATE_ICONS: Record<string, LucideIcon> = {
+	"cloud-service": Cloud,
+	"event-pipeline": Radio,
+	"data-platform": Database,
+	"desktop-app": Monitor,
+	"ai-application": Sparkles,
 	"ecommerce-platform": ShoppingCart,
 	"cloud-microservices": Cloud,
 	"mobile-banking": Smartphone,
