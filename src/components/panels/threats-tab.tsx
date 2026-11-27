@@ -1,13 +1,4 @@
-import {
-	AlertTriangle,
-	ChevronDown,
-	ChevronRight,
-	Copy,
-	Loader2,
-	Shield,
-	Trash2,
-	Zap,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, Loader2, Shield, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { CanvasContextMenu, type ContextMenuItem } from "@/components/canvas/canvas-context-menu";
 import { Button } from "@/components/ui/button";
@@ -75,29 +66,34 @@ export function ThreatsTab() {
 	const selectedFlow = model.data_flows.find((flow) => flow.id === selectedEdgeId);
 
 	return (
-		<div className="flex flex-col gap-4">
-			<h2 className="text-editor-title3">Threats</h2>
-			{/* Analyze button */}
-			<Button
-				type="button"
-				data-testid="btn-stride-analyze"
-				variant="secondary"
-				disabled={!hasElements || isAnalyzing}
-				onClick={() => void analyzeThreats()}
-				className="self-start text-editor-footnote"
-			>
-				{isAnalyzing ? (
-					<>
-						<Loader2 className="size-4 animate-spin" />
-						Analyzing...
-					</>
-				) : (
-					<>
-						<Zap className="size-4" />
-						Run STRIDE Analysis
-					</>
-				)}
-			</Button>
+		<div className="flex flex-col gap-3">
+			<div className="flex flex-wrap items-center justify-between gap-2">
+				<h2 className="flex items-baseline gap-2 text-editor-title3">
+					Threats
+					{model.threats.length > 0 && (
+						<span className="text-editor-caption text-muted-foreground">
+							{model.threats.length}
+						</span>
+					)}
+				</h2>
+				<Button
+					type="button"
+					data-testid="btn-stride-analyze"
+					variant="secondary"
+					disabled={!hasElements || isAnalyzing}
+					onClick={() => void analyzeThreats()}
+					className="h-editor-control rounded-editor-control text-editor-footnote"
+				>
+					{isAnalyzing ? (
+						<>
+							<Loader2 className="size-4 animate-spin" />
+							Analyzing...
+						</>
+					) : (
+						"Run STRIDE Analysis"
+					)}
+				</Button>
+			</div>
 
 			{/* Filter toggle when element is selected */}
 			{(selectedElement || selectedFlow) && model.threats.length > 0 && (
@@ -117,12 +113,9 @@ export function ThreatsTab() {
 
 			{/* Empty states */}
 			{!hasElements && (
-				<div className="flex flex-col items-center gap-2 py-6 text-center">
-					<AlertTriangle className="h-8 w-8 text-muted-foreground/50" />
-					<p className="text-editor-caption text-muted-foreground">
-						Add elements to the canvas, then run STRIDE analysis to identify threats.
-					</p>
-				</div>
+				<p className="text-editor-caption text-muted-foreground">
+					Add elements to the canvas, then run STRIDE analysis to identify threats.
+				</p>
 			)}
 
 			{hasElements && threats.length === 0 && (
@@ -134,14 +127,16 @@ export function ThreatsTab() {
 			)}
 
 			{/* Threat list */}
-			{threats.map((threat) => (
-				<ThreatCard
-					key={threat.id}
-					threat={threat}
-					isSelected={selectedThreatId === threat.id}
-					onSelect={() => setSelectedThreat(selectedThreatId === threat.id ? null : threat.id)}
-				/>
-			))}
+			<div className="divide-y divide-editor-line">
+				{threats.map((threat) => (
+					<ThreatCard
+						key={threat.id}
+						threat={threat}
+						isSelected={selectedThreatId === threat.id}
+						onSelect={() => setSelectedThreat(selectedThreatId === threat.id ? null : threat.id)}
+					/>
+				))}
+			</div>
 		</div>
 	);
 }
@@ -182,10 +177,7 @@ function ThreatCard({
 	return (
 		<div
 			data-testid="threat-card"
-			className={cn(
-				"rounded-editor-panel border border-editor-separator bg-editor-surface text-editor-caption transition-colors",
-				isSelected && "border-editor-accent",
-			)}
+			className={cn("text-editor-caption", isSelected && "bg-editor-surface")}
 			onContextMenu={(event) => {
 				if (event.target instanceof Element && event.target.closest("input, textarea, select")) {
 					return;
@@ -212,14 +204,14 @@ function ThreatCard({
 					setContextMenu({ x: left, y: bottom, trigger: event.currentTarget });
 				}}
 				aria-expanded={isSelected}
-				className="grid w-full grid-cols-[1rem_minmax(0,1fr)] items-start gap-2 rounded-t-editor-panel px-3 py-2.5 text-left hover:bg-editor-hover"
+				className="grid w-full grid-cols-[1rem_minmax(0,1fr)] items-start gap-2 px-1 py-1.5 text-left hover:bg-editor-hover"
 			>
 				{isSelected ? (
 					<ChevronDown className="mt-0.5 size-4 text-muted-foreground" />
 				) : (
 					<ChevronRight className="mt-0.5 size-4 text-muted-foreground" />
 				)}
-				<div className="flex min-w-0 flex-col gap-2">
+				<div className="flex min-w-0 flex-col gap-0.5">
 					<span className="text-editor-headline">{threat.title}</span>
 					<div className="flex flex-wrap items-center gap-2">
 						<CategoryBadge category={threat.category} />
@@ -231,14 +223,14 @@ function ThreatCard({
 
 			{/* Linked element link */}
 			{linkedElement && !isSelected && (
-				<div className="border-t border-editor-separator">
+				<div>
 					<button
 						type="button"
 						onClick={() => {
 							setSelectedElement(linkedElement.id);
 							setRightPanelTab("properties");
 						}}
-						className="min-h-8 w-full rounded-b-editor-panel pl-9 pr-3 text-left text-editor-caption text-editor-secondary-label hover:bg-editor-hover hover:text-editor-accent"
+						className="min-h-editor-icon w-full pl-7 pr-2 text-left text-editor-caption text-editor-secondary-label hover:bg-editor-hover hover:text-editor-accent"
 					>
 						{linkedElement.name}
 					</button>
@@ -412,50 +404,35 @@ function FieldGroup({ label, children }: { label: string; children: React.ReactN
 	);
 }
 
-const BADGE = "inline-flex items-center rounded-full px-2 py-0.5 text-editor-caption2";
+const BADGE = "text-editor-caption";
 
 function SeverityBadge({ severity }: { severity: string }) {
 	const colorMap: Record<string, string> = {
-		critical: "bg-editor-danger/10 text-editor-danger",
-		high: "bg-editor-warning/10 text-editor-warning",
-		medium: "bg-editor-warning/10 text-editor-warning",
-		low: "bg-editor-fill text-editor-secondary-label",
-		info: "bg-editor-fill text-editor-secondary-label",
+		critical: "text-editor-danger",
+		high: "text-editor-warning",
+		medium: "text-editor-warning",
+		low: "text-editor-secondary-label",
+		info: "text-editor-secondary-label",
 	};
 
 	return (
-		<span
-			className={`${BADGE} capitalize ${colorMap[severity] ?? "bg-editor-fill text-editor-secondary-label"}`}
-		>
+		<span className={`${BADGE} capitalize ${colorMap[severity] ?? "text-editor-secondary-label"}`}>
 			{severity}
 		</span>
 	);
 }
 
 function CategoryBadge({ category }: { category: StrideCategory }) {
-	const initial =
-		category === "Information Disclosure"
-			? "ID"
-			: category === "Denial of Service"
-				? "DoS"
-				: category === "Elevation of Privilege"
-					? "EoP"
-					: category.charAt(0);
-
-	return (
-		<span className={`${BADGE} bg-editor-fill text-editor-secondary-label`} title={category}>
-			{initial}
-		</span>
-	);
+	return <span className="text-editor-secondary-label">{category}</span>;
 }
 
 function MitigationBadge({ status }: { status: MitigationStatus }) {
 	const colorMap: Record<MitigationStatus, string> = {
-		not_started: "bg-editor-fill text-editor-secondary-label",
-		in_progress: "bg-editor-fill text-editor-secondary-label",
-		mitigated: "bg-editor-success/10 text-editor-success",
-		accepted: "bg-editor-fill text-editor-secondary-label",
-		transferred: "bg-editor-fill text-editor-secondary-label",
+		not_started: "text-editor-secondary-label",
+		in_progress: "text-editor-secondary-label",
+		mitigated: "text-editor-success",
+		accepted: "text-editor-secondary-label",
+		transferred: "text-editor-secondary-label",
 	};
 
 	return <span className={`${BADGE} ${colorMap[status]}`}>{formatMitigationStatus(status)}</span>;

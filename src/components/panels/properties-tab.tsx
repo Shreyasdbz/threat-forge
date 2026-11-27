@@ -1,4 +1,3 @@
-import { MousePointer2 } from "lucide-react";
 import { useModelStore } from "@/stores/model-store";
 import { EdgeProperties } from "./properties/edge-properties";
 import { ElementProperties } from "./properties/element-properties";
@@ -35,8 +34,7 @@ export function PropertiesTab() {
 	}
 
 	return (
-		<div className="px-2 py-8 text-left">
-			<MousePointer2 className="mb-3 size-4 text-muted-foreground" aria-hidden="true" />
+		<div className="py-2">
 			<h2 className="text-editor-footnote">Nothing selected</h2>
 			<p className="mt-1 text-editor-caption text-muted-foreground">
 				Select an element or connector on the canvas to view its properties.

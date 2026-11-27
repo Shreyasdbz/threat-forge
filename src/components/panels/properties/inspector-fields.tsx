@@ -3,18 +3,16 @@ import { type ReactNode, useCallback, useEffect, useId, useLayoutEffect, useStat
 import { useActiveStores } from "@/stores/document-stores";
 
 export const ROW =
-	"grid min-h-11 grid-cols-[minmax(0,2fr)_minmax(0,3fr)] items-center gap-2 px-3 py-1.5";
+	"grid min-h-editor-row grid-cols-[minmax(0,2fr)_minmax(0,3fr)] items-center gap-2 py-1 [&_select]:rounded-editor-control [&_select]:border-0 [&_select]:pl-2 [&_select]:text-editor-body";
 export const LABEL = "text-editor-footnote text-editor-secondary-label";
 export const INPUT =
-	"min-h-7 w-full min-w-0 rounded-editor-control border-0 bg-transparent px-[13px] py-1 text-left text-editor-body text-foreground placeholder:text-editor-secondary-label hover:bg-editor-hover focus:bg-editor-fill";
+	"min-h-editor-icon w-full min-w-0 rounded-editor-control border-0 bg-transparent px-2 py-1 text-left text-editor-body text-foreground placeholder:text-editor-secondary-label hover:bg-editor-hover focus:bg-editor-fill";
 
 export function InspectorGroup({ title, children }: { title: string; children: ReactNode }) {
 	return (
-		<section className="space-y-2">
-			<h3 className="px-3 text-editor-footnote text-editor-secondary-label">{title}</h3>
-			<div className="divide-y divide-editor-separator rounded-editor-panel bg-editor-surface">
-				{children}
-			</div>
+		<section>
+			<h3 className="text-editor-headline">{title}</h3>
+			{children}
 		</section>
 	);
 }
@@ -114,7 +112,7 @@ export function ReadOnlyField({ label, value }: { label: string; value: string }
 		<dl className={ROW}>
 			<dt className={LABEL}>{label}</dt>
 			<dd
-				className={`min-w-0 wrap-anywhere px-[13px] text-left ${
+				className={`min-w-0 wrap-anywhere px-2 text-left ${
 					label === "ID" ? "break-all font-editor-mono text-editor-caption" : "text-editor-body"
 				}`}
 			>
@@ -160,7 +158,7 @@ export function EditableTextarea({
 	onChange: (value: string) => void;
 }) {
 	return (
-		<label className="grid gap-1.5 px-3 py-2.5">
+		<label className="grid gap-1 py-2">
 			<span className={LABEL}>{label}</span>
 			<textarea
 				value={value}

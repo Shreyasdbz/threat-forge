@@ -13,6 +13,15 @@ test.describe("Canvas Elements", () => {
 		await expect(node).toBeVisible();
 	});
 
+	test("starts a blank diagram from the canvas with the keyboard", async ({ page }) => {
+		const add = page.getByRole("button", { name: "Add a process" });
+		await add.press("Enter");
+		const nodes = page.locator(".react-flow__node-dfdElement");
+		await expect(nodes).toHaveCount(1);
+		await expect(nodes.first()).toBeInViewport({ ratio: 1 });
+		await expect(add).toBeHidden();
+	});
+
 	test("adds a typed component from the library", async ({ page }) => {
 		await addPaletteItem(page, "palette-item-web-server");
 		const node = page.locator("[data-testid^='node-']").first();

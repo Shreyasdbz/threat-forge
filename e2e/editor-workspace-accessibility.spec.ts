@@ -100,9 +100,7 @@ test("uses the same native select treatment and exposes switch state", async ({ 
 
 	await page.getByTestId("btn-settings-dialog").click();
 	const settings = page.getByRole("dialog", { name: "Settings" });
-	const language = settings.getByRole("combobox", { name: "Language" });
-	await expect(language).toHaveAttribute("data-slot", "native-select");
-	await expect(language).toBeDisabled();
+	await expect(settings.getByRole("combobox", { name: "Language" })).toHaveCount(0);
 	const autosave = settings.getByRole("switch", { name: "Autosave" });
 	const indicator = autosave.locator("..");
 	await expect(autosave).not.toBeChecked();

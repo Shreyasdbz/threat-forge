@@ -38,8 +38,11 @@ export function SequenceEditor({
 	};
 
 	return (
-		<section aria-label="Sequence editor" className="h-full overflow-auto bg-editor-canvas p-4">
-			<div className="mx-auto grid max-w-4xl gap-5">
+		<section
+			aria-label="Sequence editor"
+			className="@container/sequence h-full overflow-auto bg-editor-canvas px-4 py-6"
+		>
+			<div className="mx-auto grid max-w-5xl gap-6">
 				<header className="flex flex-wrap items-end justify-between gap-2">
 					<Field label="Sequence name">
 						{(id) => (
@@ -60,11 +63,11 @@ export function SequenceEditor({
 					<h2 id="sequence-lifelines" className="mb-2 text-editor-headline">
 						Lifelines
 					</h2>
-					<ol className="grid gap-1">
+					<ol className="divide-y divide-editor-line border-y border-editor-line">
 						{participants.map((participant, index) => (
 							<li
 								key={participant.id}
-								className="flex flex-wrap items-center justify-between gap-2 border border-editor-line bg-editor-surface px-2 py-1"
+								className="flex min-h-editor-row flex-wrap items-center justify-between gap-2 py-1"
 							>
 								<span>
 									{index + 1}. {nameOf(participant.id)}
@@ -116,11 +119,11 @@ export function SequenceEditor({
 					<h2 id="sequence-messages" className="mb-2 text-editor-headline">
 						Messages
 					</h2>
-					<ol className="grid gap-2">
+					<ol className="divide-y divide-editor-line border-y border-editor-line">
 						{messages.map((message, index) => (
 							<li
 								key={message.id}
-								className="grid gap-2 border border-editor-line bg-editor-surface p-2"
+								className="grid gap-2 py-2 @min-[42rem]/sequence:grid-cols-[minmax(0,1fr)_auto] @min-[42rem]/sequence:items-end"
 							>
 								<MessageFields
 									message={message}
@@ -207,7 +210,7 @@ function MessageFields({
 		</option>
 	));
 	return (
-		<div className="grid gap-2 sm:grid-cols-2">
+		<div className="grid min-w-0 grid-cols-2 items-end gap-2 @min-[42rem]/sequence:grid-cols-[1.3fr_1fr_1fr_1fr]">
 			<Field label={`Message ${number} label`}>
 				{(id) => (
 					<CommitInput
@@ -220,6 +223,7 @@ function MessageFields({
 			<Field label={`Message ${number} linked flow`}>
 				{(id) => (
 					<NativeSelect
+						className="h-editor-control rounded-editor-control"
 						id={id}
 						value={message.flow_id ?? ""}
 						onChange={(event) => {
@@ -255,6 +259,7 @@ function MessageFields({
 				<Button
 					variant="ghost"
 					size="sm"
+					className="col-span-full justify-self-start"
 					onClick={() => {
 						if (message.flow_id) onOpenFlow(message.flow_id);
 					}}
@@ -269,7 +274,7 @@ function MessageFields({
 function Field({ label, children }: { label: string; children: (id: string) => ReactNode }) {
 	const id = useId();
 	return (
-		<label htmlFor={id} className="grid gap-1 text-editor-caption">
+		<label htmlFor={id} className="grid min-w-0 gap-1 text-editor-caption">
 			{label}
 			{children(id)}
 		</label>
@@ -288,6 +293,7 @@ function CommitInput({
 	return (
 		<Input
 			id={id}
+			className="h-editor-control rounded-editor-control"
 			data-sequence-draft
 			key={value}
 			defaultValue={value}
@@ -317,7 +323,7 @@ function RowActions({
 	removeDisabled?: boolean;
 }) {
 	return (
-		<div className="flex flex-wrap gap-1">
+		<div className="flex flex-wrap gap-1 self-start">
 			<Button
 				variant="ghost"
 				size="sm"

@@ -36,7 +36,7 @@ export function InterviewReviewPanel({
 					{review.changes.map((change) => {
 						const { key, kind, value, requires } = change;
 						return (
-							<li key={key} className="border border-editor-line p-2">
+							<li key={key} className="border-t border-editor-line py-2">
 								<label className="flex items-center gap-2 font-medium">
 									<input
 										type="checkbox"

@@ -103,6 +103,7 @@ test.describe("AI tool loop", () => {
 		await openAiPanelWithModel(page);
 		await send(page, "Add a cache and database");
 		const review = page.getByRole("region", { name: "Review proposed changes" });
+		await review.getByText("2 of 2 operations included").press("Enter");
 		const cache = review.getByRole("checkbox", { name: /Cache/ });
 		await expect(cache).toBeChecked();
 		await cache.press("Space");

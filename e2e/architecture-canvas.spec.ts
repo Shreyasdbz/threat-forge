@@ -24,7 +24,7 @@ test("document undo and redo work with the flow authentication checkbox focused"
 	await expect(authenticated).not.toBeChecked();
 });
 
-test("fits equal-width icon-only inspector tabs at the default panel width", async ({ page }) => {
+test("fits equal-width, labeled inspector tabs at default width", async ({ page }) => {
 	const tabs = page.getByRole("tablist", { name: "Inspector" }).getByRole("tab");
 	await expect(tabs).toHaveCount(4);
 	await page.evaluate(() => document.fonts.ready);
@@ -37,10 +37,11 @@ test("fits equal-width icon-only inspector tabs at the default panel width", asy
 		.poll(() =>
 			tabs.evaluateAll((buttons) =>
 				buttons.map((button) => {
-					const icon = button.querySelector("svg[aria-hidden=true]");
+					const label = document.createRange();
+					label.selectNodeContents(button);
 					return (
-						icon !== null &&
-						icon.getBoundingClientRect().width <= button.clientWidth &&
+						!!label.toString().trim() &&
+						label.getBoundingClientRect().width <= button.clientWidth &&
 						button.clientHeight >= 24
 					);
 				}),
@@ -48,14 +49,14 @@ test("fits equal-width icon-only inspector tabs at the default panel width", asy
 		)
 		.toEqual([true, true, true, true]);
 	const properties = page.getByRole("tab", { name: "Properties", exact: true });
-	await expect(properties).toHaveText("");
+	await expect(properties).toHaveText("Properties");
 	await properties.hover();
 	const tooltip = page.locator('[data-slot="tooltip-content"]');
 	await expect(tooltip).toBeVisible();
 	await expect(tooltip).toHaveText("Properties");
 	await page.mouse.move(0, 0);
 	const threats = page.getByRole("tab", { name: "Threats", exact: true });
-	await expect(threats).toHaveText(/^\d+$/);
+	await expect(threats).toHaveText("Threats");
 	await expect(threats).toHaveAccessibleDescription(/^\d+ identified$/);
 });
 

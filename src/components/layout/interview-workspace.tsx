@@ -61,7 +61,7 @@ export function InterviewWorkspace({ children }: { children: ReactNode }) {
 			{applied && (
 				<section
 					aria-label="Interview additions applied"
-					className="absolute inset-0 space-y-4 overflow-auto bg-editor-surface p-5"
+					className="absolute inset-0 space-y-4 overflow-auto bg-editor-surface p-6"
 				>
 					<h2 className="text-editor-title3">Interview additions applied</h2>
 					<p className="text-editor-body">
@@ -89,9 +89,9 @@ export function InterviewWorkspace({ children }: { children: ReactNode }) {
 			{draft && model && (
 				<section
 					aria-label="Guided interview"
-					className="absolute inset-0 overflow-auto bg-editor-surface p-5"
+					className="absolute inset-0 overflow-auto bg-editor-surface p-6"
 				>
-					<div className="mx-auto max-w-3xl space-y-4">
+					<div className="mx-auto max-w-2xl space-y-4">
 						<div className="flex flex-wrap items-start justify-between gap-2">
 							<div>
 								<p className="text-editor-caption text-muted-foreground">
@@ -262,8 +262,8 @@ function Questions({
 							),
 						);
 					return (
-						<fieldset key={row.key} className="grid gap-2 border border-editor-line p-3">
-							<legend className="px-1 text-editor-caption">{label}</legend>
+						<fieldset key={row.key} className="grid gap-2 border-t border-editor-line pt-2">
+							<legend className="pr-2 text-editor-headline">{label}</legend>
 							<Field label="Create or reuse">
 								{(id) => (
 									<NativeSelect
@@ -359,8 +359,8 @@ function Questions({
 							items.map((item) => (item.key === row.key ? { ...item, ...patch } : item)),
 						);
 					return (
-						<fieldset key={row.key} className="grid gap-2 border border-editor-line p-3">
-							<legend className="px-1 text-editor-caption">Flow {index + 1}</legend>
+						<fieldset key={row.key} className="grid gap-2 border-t border-editor-line pt-2">
+							<legend className="pr-2 text-editor-headline">Flow {index + 1}</legend>
 							<Field label="Flow name">
 								{(id) => (
 									<Input
@@ -425,8 +425,8 @@ function Questions({
 				</p>
 				{boundaries.map((row, index) => {
 					return (
-						<fieldset key={row.key} className="grid gap-2 border border-editor-line p-3">
-							<legend className="px-1 text-editor-caption">Boundary {index + 1}</legend>
+						<fieldset key={row.key} className="grid gap-2 border-t border-editor-line pt-2">
+							<legend className="pr-2 text-editor-headline">Boundary {index + 1}</legend>
 							<Field label="Boundary name">
 								{(id) => (
 									<Input
@@ -455,8 +455,8 @@ function Questions({
 					Add boundary
 				</Button>
 				{boundaries.length > 0 && (
-					<fieldset className="grid gap-2 border border-editor-line p-3">
-						<legend className="px-1 text-editor-caption">Boundary membership</legend>
+					<fieldset className="grid gap-2 border-t border-editor-line pt-2">
+						<legend className="pr-2 text-editor-headline">Boundary membership</legend>
 						{endpoints.map(({ ref, name }) => {
 							const membership = membershipByRef.get(ref);
 							const hasOverride = membership?.direct && membership.answer?.boundary !== undefined;

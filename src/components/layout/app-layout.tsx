@@ -1,6 +1,7 @@
 import { ReactFlowProvider } from "@xyflow/react";
 import { LucideProvider } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useStore } from "zustand";
 import { useAutosave } from "@/hooks/use-autosave";
 import { useCloseGuard } from "@/hooks/use-close-guard";
 import { useDocumentSync } from "@/hooks/use-document-sync";
@@ -13,6 +14,7 @@ import { useWorkspaceRestore } from "@/hooks/use-workspace-restore";
 import { getKeychainAdapter } from "@/lib/adapters/get-keychain-adapter";
 import { isTauri } from "@/lib/platform";
 import { useDocumentRegistry } from "@/stores/document-registry";
+import { useActiveStores } from "@/stores/document-stores";
 import { RESIDUE_PROVIDERS, useKeyResidueStore } from "@/stores/key-residue-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useUiStore } from "@/stores/ui-store";
@@ -45,6 +47,8 @@ export function AppLayout() {
 	const [recoveryOpen, setRecoveryOpen] = useState(false);
 	const openRecovery = useCallback(() => setRecoveryOpen(true), []);
 	const activeDocumentId = useDocumentRegistry((s) => s.activeDocumentId);
+	const { interview } = useActiveStores();
+	const interviewVisible = useStore(interview, (state) => state.visible);
 	const keyboardShortcutsDialogOpen = useUiStore((s) => s.keyboardShortcutsDialogOpen);
 	const settingsDialogOpen = useSettingsStore((s) => s.settingsDialogOpen);
 	useKeyboardShortcuts();
@@ -136,6 +140,7 @@ export function AppLayout() {
 						{/* Left sidebar — Component palette */}
 						{leftPanelOpen && (
 							<aside
+								hidden={interviewVisible}
 								className="relative w-full shrink-0 border-b border-editor-separator bg-editor-grouped-background md:w-(--pane-width) md:border-b-0 md:border-r"
 								style={{ "--pane-width": `${leftPanelWidth}px` } as React.CSSProperties}
 							>
@@ -176,6 +181,7 @@ export function AppLayout() {
 						{/* Right panel — Properties / Threats */}
 						{rightPanelOpen && (
 							<aside
+								hidden={interviewVisible}
 								className="relative h-96 w-full shrink-0 border-t border-editor-separator bg-editor-grouped-background md:h-auto md:w-(--pane-width) md:border-t-0 md:border-l"
 								style={{ "--pane-width": `${rightPanelWidth}px` } as React.CSSProperties}
 							>

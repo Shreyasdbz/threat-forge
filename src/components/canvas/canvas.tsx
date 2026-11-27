@@ -1,17 +1,4 @@
-import {
-	Building2,
-	Cloud,
-	CreditCard,
-	Database,
-	FolderOpen,
-	HeartPulse,
-	type LucideIcon,
-	Monitor,
-	Radio,
-	ShoppingCart,
-	Smartphone,
-	Sparkles,
-} from "lucide-react";
+import { ArrowUpRight, FolderOpen } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { GithubIcon } from "@/components/icons/github-icon";
 import { Button } from "@/components/ui/button";
@@ -114,77 +101,66 @@ function EmptyCanvas() {
 	}, []);
 
 	return (
-		<div data-testid="empty-canvas" className="flex h-full flex-col items-center bg-editor-canvas">
-			{/* Main content — centered with upward bias */}
-			<div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center-safe overflow-y-auto px-4">
-				<img
-					src="/logo_square.png"
-					alt="Threat Forge"
-					className="mb-4 size-12 [@media(max-height:850px)]:mb-3 [@media(max-height:850px)]:size-10"
-				/>
-				<h2 className="text-editor-title2">Threat Forge</h2>
-				<p className="mt-2 max-w-sm text-center text-editor-body text-muted-foreground">
-					Nothing open. Start a new model, or open one you saved earlier.
-				</p>
+		<div data-testid="empty-canvas" className="flex h-full flex-col bg-editor-canvas">
+			<div className="min-h-0 flex-1 overflow-y-auto">
+				<div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-8 sm:py-8">
+					<h2 className="text-editor-title2">Open a workspace</h2>
+					<div className="mt-4 flex flex-wrap gap-2">
+						<Button
+							type="button"
+							data-testid="btn-empty-new"
+							className="h-editor-primary rounded-editor-control px-4 text-editor-headline"
+							onClick={() => void newModel()}
+						>
+							New Model
+						</Button>
+						<Button
+							type="button"
+							data-testid="btn-empty-open"
+							variant="outline"
+							className="h-editor-primary rounded-editor-control px-4 text-editor-headline"
+							onClick={() => void openModel()}
+						>
+							<FolderOpen className="h-4 w-4" />
+							Open Existing
+						</Button>
+					</div>
 
-				<div className="mt-6 flex gap-3 [@media(max-height:850px)]:mt-4">
-					<Button
-						type="button"
-						data-testid="btn-empty-new"
-						className="h-9 px-4 text-editor-headline"
-						onClick={() => void newModel()}
-					>
-						New Model
-					</Button>
-					<Button
-						type="button"
-						data-testid="btn-empty-open"
-						variant="outline"
-						className="h-9 px-4 text-editor-headline"
-						onClick={() => void openModel()}
-					>
-						<FolderOpen className="h-4 w-4" />
-						Open Existing
-					</Button>
-				</div>
-
-				{/* Templates */}
-				<div className="@container mt-8 w-full max-w-5xl">
-					<div className="grid gap-5 @min-[42rem]:grid-cols-2">
-						<section>
-							<h3 className="text-center text-editor-footnote text-foreground">
-								Architecture starters
-							</h3>
-							<p className="mb-3 mt-1 text-center text-editor-caption text-muted-foreground">
-								Start without findings. When ready, open Threats and choose Run STRIDE Analysis.
-							</p>
-							<div className="grid grid-cols-2 gap-px rounded-editor-panel bg-editor-separator p-px">
-								{ARCHITECTURE_STARTERS.map((t) => (
-									<TemplateCard key={t.id} template={t} onSelect={openTemplate} />
-								))}
-							</div>
-						</section>
-						<section>
-							<h3
-								data-testid="empty-canvas-contrast-target"
-								className="text-center text-editor-footnote text-foreground opacity-95"
-							>
-								Start from a template
-							</h3>
-							<p className="mb-3 mt-1 text-center text-editor-caption text-muted-foreground">
-								Explore examples that already include findings.
-							</p>
-							<div className="grid grid-cols-2 gap-px rounded-editor-panel bg-editor-separator p-px">
-								{TEMPLATES.map((t) => (
-									<TemplateCard key={t.id} template={t} onSelect={openTemplate} />
-								))}
-							</div>
-						</section>
+					{/* Templates */}
+					<div className="@container mt-6">
+						<div className="grid gap-6 @min-[37rem]:grid-cols-2">
+							<section>
+								<h3 className="text-editor-title3 text-foreground">Architecture starters</h3>
+								<p className="mt-1 mb-2 text-editor-caption text-muted-foreground">
+									Start without findings. When ready, open Threats and choose Run STRIDE Analysis.
+								</p>
+								<div className="divide-y divide-editor-line border-y border-editor-line">
+									{ARCHITECTURE_STARTERS.map((t) => (
+										<TemplateRow key={t.id} template={t} onSelect={openTemplate} />
+									))}
+								</div>
+							</section>
+							<section>
+								<h3
+									data-testid="empty-canvas-contrast-target"
+									className="text-editor-title3 text-foreground opacity-95"
+								>
+									Templates with findings
+								</h3>
+								<p className="mt-1 mb-2 text-editor-caption text-muted-foreground">
+									Explore examples that already include findings.
+								</p>
+								<div className="divide-y divide-editor-line border-y border-editor-line">
+									{TEMPLATES.map((t) => (
+										<TemplateRow key={t.id} template={t} onSelect={openTemplate} />
+									))}
+								</div>
+							</section>
+						</div>
 					</div>
 				</div>
 			</div>
-
-			<div className="mt-4 h-12 w-full max-w-md shrink-0 px-4 [@media(max-height:850px)]:h-8">
+			<div className="mx-auto mt-2 h-12 w-full max-w-md shrink-0 px-4 [@media(max-height:850px)]:h-8">
 				<RotatingTip />
 			</div>
 
@@ -218,41 +194,23 @@ function EmptyCanvas() {
 	);
 }
 
-const TEMPLATE_ICONS: Record<string, LucideIcon> = {
-	"cloud-service": Cloud,
-	"event-pipeline": Radio,
-	"data-platform": Database,
-	"desktop-app": Monitor,
-	"ai-application": Sparkles,
-	"ecommerce-platform": ShoppingCart,
-	"cloud-microservices": Cloud,
-	"mobile-banking": Smartphone,
-	"saas-platform": CreditCard,
-	"iot-smart-building": Building2,
-	"healthcare-system": HeartPulse,
-};
-
-function TemplateCard({
+function TemplateRow({
 	template,
 	onSelect,
 }: {
 	template: TemplateInfo;
 	onSelect: (id: string) => void;
 }) {
-	const Icon = TEMPLATE_ICONS[template.id] ?? Radio;
-
 	return (
 		<button
 			type="button"
 			data-testid={`template-${template.id}`}
 			onClick={() => onSelect(template.id)}
-			className="grid grid-cols-[1rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 bg-editor-surface p-3 text-left transition-colors duration-120 ease-editor first:rounded-tl-editor-panel last:rounded-br-editor-panel hover:bg-editor-hover"
+			className="grid min-h-editor-row w-full grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-2 px-2 py-1.5 text-left hover:bg-editor-hover focus-visible:-outline-offset-2"
 		>
-			<Icon className="size-4 text-muted-foreground" />
-			<span className="text-editor-footnote text-foreground">{template.name}</span>
-			<span className="col-start-2 text-editor-caption text-muted-foreground">
-				{template.description}
-			</span>
+			<span className="text-editor-headline">{template.name}</span>
+			<ArrowUpRight className="row-span-2 size-4 text-muted-foreground" aria-hidden="true" />
+			<span className="text-editor-caption text-muted-foreground">{template.description}</span>
 		</button>
 	);
 }

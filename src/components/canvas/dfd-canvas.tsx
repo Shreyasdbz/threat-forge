@@ -15,6 +15,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { Layers3, Map as MapIcon } from "lucide-react";
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import type { DfdEdge, DfdNode } from "@/stores/canvas-store";
 import { useCanvasStore } from "@/stores/canvas-store";
@@ -483,9 +484,32 @@ export function DfdCanvas() {
 	}, [contextMenu, duplicateElement, reverseEdge]);
 
 	const minimapVisible = useSettingsStore((s) => s.settings.minimapVisible);
+	const canvasRef = useRef<HTMLDivElement>(null);
 
 	return (
-		<div className="@container/diagram relative h-full w-full">
+		<div ref={canvasRef} className="@container/diagram relative h-full w-full">
+			{model && nodes.length === 0 && (
+				<div className="absolute top-6 left-6 z-10 grid justify-items-start gap-2">
+					<h2 className="text-editor-title3">Start the diagram</h2>
+					<Button
+						type="button"
+						className="h-editor-primary rounded-editor-control"
+						onClick={() => {
+							const bounds = canvasRef.current?.getBoundingClientRect();
+							if (!bounds) return;
+							addElement(
+								"process",
+								screenToFlowPosition({
+									x: bounds.left + bounds.width / 2,
+									y: bounds.top + bounds.height / 2,
+								}),
+							);
+						}}
+					>
+						Add a process
+					</Button>
+				</div>
+			)}
 			{(groups.length > 0 || layerCount > 0) && (
 				<button
 					type="button"

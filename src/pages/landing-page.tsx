@@ -1,4 +1,4 @@
-import { Download, FileCode, Globe, Monitor, Shield, Sparkles } from "lucide-react";
+import { ArrowRight, Download, FileCode, Globe, Monitor, Shield, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PageShell } from "./shared/page-shell";
 
@@ -76,39 +76,65 @@ export function LandingPage() {
 
 function HeroSection() {
 	return (
-		<section className="px-6 py-24 text-center" data-testid="hero">
-			<div className="mx-auto max-w-4xl">
-				<div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border/50 bg-secondary/50 px-4 py-1.5 text-xs text-muted-foreground">
-					<span className="inline-block h-1.5 w-1.5 rounded-full bg-tf-signal" />
-					Open source &middot; Apache 2.0
+		<section className="px-6 py-12 md:py-20" data-testid="hero">
+			<div className="mx-auto grid max-w-6xl items-center gap-8 lg:grid-cols-2">
+				<div>
+					<h1 className="max-w-lg text-[2rem]/10 font-semibold tracking-tight text-balance sm:text-[2.25rem]/11">
+						Draw your architecture. Review its threats.
+					</h1>
+					<p className="mt-4 max-w-md text-sm/6 text-muted-foreground">
+						Connect components, run STRIDE, and save the architecture as a portable .thf file. No
+						account required.
+					</p>
+					<div className="mt-6 flex flex-wrap gap-2">
+						<Link
+							to="/app"
+							className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-tf-signal px-6 py-3 text-sm font-medium text-tf-zero transition-opacity hover:opacity-90 sm:w-auto"
+						>
+							<Globe className="h-4 w-4" />
+							Try it in the browser
+						</Link>
+						<Link
+							to="/downloads"
+							className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary sm:w-auto"
+						>
+							<Download className="h-4 w-4" />
+							Download
+						</Link>
+					</div>
 				</div>
-				<h1 className="text-3xl font-bold tracking-tight text-balance text-foreground sm:text-4xl lg:text-5xl">
-					Threat modeling for people who <br className="hidden sm:inline" />
-					<span className="text-tf-signal-ink">hate threat modeling tools</span>
-				</h1>
-				<p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-					You know the drill. Install something Windows-only, drag boxes around for an afternoon,
-					export a report, never open it again. This is boxes and arrows too — it just saves to
-					YAML, opens in your editor, and turns up in code review like everything else you own.
-				</p>
-				<div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-					<Link
-						to="/app"
-						className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-tf-signal px-6 py-3 text-sm font-medium text-tf-zero transition-opacity hover:opacity-90 sm:w-auto"
-					>
-						<Globe className="h-4 w-4" />
-						Try it in the browser
-					</Link>
-					<Link
-						to="/downloads"
-						className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary sm:w-auto"
-					>
-						<Download className="h-4 w-4" />
-						Download
-					</Link>
-				</div>
+				<CloudServicePreview />
 			</div>
 		</section>
+	);
+}
+
+function CloudServicePreview() {
+	return (
+		<figure className="border border-border bg-card text-card-foreground">
+			<figcaption className="border-b border-border px-4 py-3 text-sm font-semibold">
+				Cloud Service{" "}
+				<span className="ml-2 text-xs font-medium text-muted-foreground">Architecture starter</span>
+			</figcaption>
+			<div className="grid gap-3 px-4 py-6 text-center sm:grid-cols-[1fr_auto_1fr_auto_1fr] sm:items-center">
+				{["Orders Browser", "Orders API", "Orders Database"].map((name, index) => (
+					<div className="contents" key={name}>
+						{index > 0 && (
+							<ArrowRight
+								className="mx-auto size-4 rotate-90 text-muted-foreground sm:rotate-0"
+								aria-hidden="true"
+							/>
+						)}
+						<span className="border border-border bg-background px-2 py-3 text-sm font-medium">
+							{name}
+						</span>
+					</div>
+				))}
+			</div>
+			<p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
+				In the editor: open Cloud Service, then select Threats → Run STRIDE Analysis.
+			</p>
+		</figure>
 	);
 }
 
@@ -209,11 +235,10 @@ function CtaSection() {
 		<section className="border-t border-border/50 px-6 py-24 text-center">
 			<div className="mx-auto max-w-2xl">
 				<h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-					That&apos;s the pitch
+					Open the editor
 				</h2>
 				<p className="mt-4 text-muted-foreground">
-					Free, open source, no account. Your models stay on your machine unless you point it at an
-					AI provider yourself. If you hate it, you&apos;re out ten minutes.
+					Free and open source. Your models stay on your machine unless you connect an AI provider.
 				</p>
 				<div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
 					<Link
