@@ -229,10 +229,10 @@ authoritative for content:
 |-------|---------|-------|-------|
 | `documents` | `id` | `{ id, currentRevisionId, updatedAt }` — pointer only, no body | — |
 | `revisions` | `revisionId` (`${id}#${seq}`) | `{ revisionId, documentId, thf, seq, createdAt }` | `by_document` on `[documentId, seq]` |
-| `meta` | `key` | schema markers and migration bookkeeping | — |
+| `meta` | `key` | schema markers, migration bookkeeping, and cleared document IDs | — |
 
-Bodies are the exact text of `serializeThreatModelYaml`, so every stored revision is itself a
-portable `.thf` file. Retention is a bounded ring of `MAX_REVISIONS_PER_DOCUMENT` full snapshots,
+Bodies are text: an unedited import retains its source YAML and subsequent edits use
+`serializeThreatModelYaml`. Retention is a bounded ring of `MAX_REVISIONS_PER_DOCUMENT` full snapshots,
 never deltas. No `.thf` schema change is involved and a `DocumentId` never enters a `.thf`.
 
 **Crash safety.** `writeDocumentBody` puts the new revision, flips `documents.currentRevisionId`,
@@ -242,8 +242,8 @@ ordered migrations inside the single `versionchange` transaction; one that throw
 and leaves the database at its prior version. The database is never deleted to clear an error.
 
 **Restore without blocking first paint.** `useWorkspaceRestore` runs after mount: it reconciles the
-manifest against `listDocuments()` (manifest entries with no record are dropped; records with no
-manifest entry become `recoverableDocumentIds`), then reads **only** the active document's body (or
+manifest against `listDocuments()` (manifest entries with no record move to recovery; records with
+no manifest entry become `recoverableDocumentIds`), then reads **only** the active document's body (or
 the first viable manifest entry when the pointer is missing) and calls `hydrateDocument`. Restore
 uses the lightweight YAML parser because these are app-authored, potentially in-progress models,
 but still applies ADR-009's exact schema-version gate so an older cached build cannot silently
@@ -269,10 +269,12 @@ record after a real autosave cycle.
 
 ### Handoff seams
 
-- **`#55` (recovery and export):** stored revisions are export-ready `.thf` text. The states to
-  render are `DocumentPersistenceState.status` (`error` / `corrupt`), `errorKind`,
-  `unavailableReason`, and `recoverableDocumentIds`. `#56` never deletes; `deleteDocument` exists
-  for a user-confirmed `#55` action.
+- **`#55` (recovery and export):** open **Workspace recovery** from the status bar to inspect
+  stored or missing documents. Standalone downloads are validated `.thf` text; the versioned JSON
+  recovery bundle also includes readable revision history and flags unavailable content. Imported
+  files retain their workspace ID across reload without adding it to the YAML. Clearing a
+  document or the workspace requires explicit confirmation, never happens automatically after
+  a read failure, and does not touch the key store or settings.
 - **`#54` (tab UX):** render tabs from the manifest (`documents`, `order`, `activeDocumentId`) and
   call `hydrateDocumentById(id)` when the user activates an un-hydrated tab.
 - **`#63` (AI conversation persistence):** chat content is not stored here. Reuse `DocumentId` as

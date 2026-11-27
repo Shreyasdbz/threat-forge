@@ -13,6 +13,7 @@ import { useDocumentRegistry } from "@/stores/document-registry";
 import { useWorkspaceStore } from "@/stores/workspace-store";
 import type { DocumentId } from "@/types/document";
 import type { ThreatModel } from "@/types/threat-model";
+import { workspaceDocumentRemoved } from "./use-workspace-persistence";
 
 /** Map a storage failure to the availability reason the ephemeral-mode notice renders. */
 function unavailableReasonFor(error: unknown): WorkspaceUnavailableReason {
@@ -74,7 +75,7 @@ export async function hydrateDocumentById(
 		markUnreadable(id, error);
 		return false;
 	}
-	if (thf === null) return false;
+	if (thf === null || workspaceDocumentRemoved(id)) return false;
 
 	// The read is async, so re-read the current state now that it has resolved.
 	const current = useDocumentRegistry.getState();

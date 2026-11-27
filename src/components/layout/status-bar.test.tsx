@@ -238,7 +238,7 @@ describe("StatusBar local persistence indicator", () => {
 		expect(indicator).toHaveTextContent("Recovery needed");
 		// Nothing has been deleted: the indicator reports state and offers no destructive action.
 		expect(indicator.title).toContain("Nothing has been deleted");
-		expect(screen.queryByRole("button")).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Workspace recovery" })).toBeInTheDocument();
 	});
 
 	it("asks for recovery when the database itself could not be opened", () => {

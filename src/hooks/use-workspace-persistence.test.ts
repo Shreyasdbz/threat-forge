@@ -14,6 +14,7 @@ import { useWorkspaceStore } from "@/stores/workspace-store";
 import type { DocumentId } from "@/types/document";
 import type { ThreatModel } from "@/types/threat-model";
 import {
+	clearStoredWorkspace,
 	useWorkspacePersistence,
 	WORKSPACE_AUTOSAVE_DEBOUNCE_MS,
 } from "./use-workspace-persistence";
@@ -94,6 +95,17 @@ it("stores an unedited import under its registry identity without rewriting the 
 	expect(useWorkspaceStore.getState().documents).toEqual([
 		expect.objectContaining({ id, title: "Imported" }),
 	]);
+});
+
+it("does not recreate a cleared document from a pending autosave", async () => {
+	const { id } = mountWithDocument();
+	await runDebounce();
+	act(() => useModelStore.getState().updateMetadata({ title: "Queued edit" }));
+	await act(async () => clearStoredWorkspace(id, () => {}));
+	await act(async () => vi.advanceTimersByTimeAsync(WORKSPACE_AUTOSAVE_DEBOUNCE_MS));
+	expect(await readStoredBody(id)).toBeNull();
+	expect(useDocumentRegistry.getState().documents[id]).toBeUndefined();
+	expect(useWorkspaceStore.getState().documents).toEqual([]);
 });
 
 // One IndexedDB factory serves the whole file: the storage factory caches its instance and that

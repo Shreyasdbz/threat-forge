@@ -1,10 +1,11 @@
 import type { DocumentId } from "@/types/document";
 import { mapWorkspaceError, openWorkspaceDb } from "./indexeddb";
-import { INDEX_BY_DOCUMENT, STORE_DOCUMENTS, STORE_REVISIONS } from "./migrations";
+import { INDEX_BY_DOCUMENT, STORE_DOCUMENTS, STORE_META, STORE_REVISIONS } from "./migrations";
 import {
 	type DocumentRevisionRecord,
 	MAX_REVISIONS_PER_DOCUMENT,
 	type PersistedDocumentRecord,
+	WORKSPACE_STORAGE_NAMESPACE,
 	WorkspaceStorageError,
 } from "./types";
 import type { WorkspaceStorage } from "./workspace-storage";
@@ -25,6 +26,10 @@ export interface WorkspaceWriteHooks {
 /** Build the unique, monotonic revision id for a document/seq pair. */
 function revisionIdFor(documentId: DocumentId, seq: number): string {
 	return `${documentId}#${seq}`;
+}
+
+function deletionKey(id: DocumentId): string {
+	return `deleted:${id}`;
 }
 
 /** Key range covering every `[documentId, seq]` index entry for one document. */
@@ -107,7 +112,7 @@ export class IndexeddbWorkspaceStorage implements WorkspaceStorage {
 					.get(pointer.currentRevisionId);
 				revisionRequest.onsuccess = () => {
 					const revision: DocumentRevisionRecord | undefined = revisionRequest.result;
-					if (!revision) {
+					if (!revision || revision.documentId !== id || typeof revision.thf !== "string") {
 						// The pointer references a missing revision: a corrupt record, never a
 						// silent empty body. #55 recovers it; #56 surfaces it.
 						reject(
@@ -161,7 +166,7 @@ export class IndexeddbWorkspaceStorage implements WorkspaceStorage {
 
 			let transaction: IDBTransaction;
 			try {
-				transaction = db.transaction([STORE_DOCUMENTS, STORE_REVISIONS], "readwrite");
+				transaction = db.transaction([STORE_DOCUMENTS, STORE_REVISIONS, STORE_META], "readwrite");
 			} catch (error) {
 				fail(error);
 				return;
@@ -181,12 +186,19 @@ export class IndexeddbWorkspaceStorage implements WorkspaceStorage {
 			const documents = transaction.objectStore(STORE_DOCUMENTS);
 			const revisions = transaction.objectStore(STORE_REVISIONS);
 			const byDocument = revisions.index(INDEX_BY_DOCUMENT);
+			const deletion = transaction.objectStore(STORE_META).get(deletionKey(id));
+			deletion.onerror = () => fail(deletion.error);
 
 			// 1. Find the current highest seq for this document without reading any body.
 			const highestSeqRequest = byDocument.openKeyCursor(documentSeqRange(id), "prev");
 			highestSeqRequest.onerror = () => fail(highestSeqRequest.error);
 			highestSeqRequest.onsuccess = () => {
 				try {
+					if (deletion.result) {
+						fail(new WorkspaceStorageError("not-found", "This browser document was cleared."));
+						safeAbort(transaction);
+						return;
+					}
 					const cursor = highestSeqRequest.result;
 					const key = cursor?.key;
 					const currentSeq = Array.isArray(key) && typeof key[1] === "number" ? key[1] : 0;
@@ -244,7 +256,7 @@ export class IndexeddbWorkspaceStorage implements WorkspaceStorage {
 		await new Promise<void>((resolve, reject) => {
 			let transaction: IDBTransaction;
 			try {
-				transaction = db.transaction([STORE_DOCUMENTS, STORE_REVISIONS], "readwrite");
+				transaction = db.transaction([STORE_DOCUMENTS, STORE_REVISIONS, STORE_META], "readwrite");
 			} catch (error) {
 				reject(mapWorkspaceError(error));
 				return;
@@ -255,12 +267,33 @@ export class IndexeddbWorkspaceStorage implements WorkspaceStorage {
 
 			const revisions = transaction.objectStore(STORE_REVISIONS);
 			transaction.objectStore(STORE_DOCUMENTS).delete(id);
+			transaction.objectStore(STORE_META).put({ key: deletionKey(id) });
 			const keysRequest = revisions.index(INDEX_BY_DOCUMENT).getAllKeys(documentSeqRange(id));
 			keysRequest.onsuccess = () => {
 				for (const key of keysRequest.result) {
 					revisions.delete(key);
 				}
 			};
+		});
+	}
+
+	async reset(onBlocked: () => void): Promise<void> {
+		if (this.connection) {
+			await this.connection.then(
+				(db) => db.close(),
+				() => undefined,
+			);
+			this.connection = null;
+		}
+		await new Promise<void>((resolve, reject) => {
+			try {
+				const request = globalThis.indexedDB.deleteDatabase(WORKSPACE_STORAGE_NAMESPACE);
+				request.onblocked = onBlocked;
+				request.onsuccess = () => resolve();
+				request.onerror = () => reject(mapWorkspaceError(request.error));
+			} catch (error) {
+				reject(mapWorkspaceError(error));
+			}
 		});
 	}
 }

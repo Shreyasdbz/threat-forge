@@ -31,6 +31,8 @@ export class NoopWorkspaceStorage implements WorkspaceStorage {
 		// No stored workspace document to delete on desktop.
 	}
 
+	async reset(_onBlocked: () => void): Promise<void> {}
+
 	async listRevisions(_id: DocumentId): Promise<DocumentRevisionRecord[]> {
 		return [];
 	}

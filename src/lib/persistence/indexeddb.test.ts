@@ -21,6 +21,26 @@ afterEach(() => {
 });
 
 describe("openWorkspaceDb schema creation", () => {
+	it("maps a throwing IndexedDB accessor to the authored private-mode error", async () => {
+		const original = Object.getOwnPropertyDescriptor(globalThis, "indexedDB");
+		if (!original) throw new Error("Missing IndexedDB fixture");
+		Object.defineProperty(globalThis, "indexedDB", {
+			configurable: true,
+			get: () => {
+				throw new DOMException("Private browser detail", "SecurityError");
+			},
+		});
+		try {
+			await expect(openWorkspaceDb()).rejects.toMatchObject({
+				kind: "private-mode",
+				message:
+					"Local storage is blocked in this browser mode, so this workspace cannot be saved.",
+			});
+		} finally {
+			Object.defineProperty(globalThis, "indexedDB", original);
+		}
+	});
+
 	it("creates the documents, revisions, and meta stores with the by_document index", async () => {
 		const db = await openWorkspaceDb();
 

@@ -17,6 +17,71 @@ import type { DocumentId } from "@/types/document";
  */
 export const WORKSPACE_AUTOSAVE_DEBOUNCE_MS = 1000;
 
+const activeWrites = new Set<Promise<void>>();
+const removedIds = new Set<DocumentId>();
+let clearBarrier: Promise<void> | undefined;
+
+export function workspaceDocumentRemoved(id: DocumentId): boolean {
+	return removedIds.has(id);
+}
+
+async function writeWorkspaceDocument(id: DocumentId, stores: DocumentStores): Promise<void> {
+	while (clearBarrier) await clearBarrier;
+	if (removedIds.has(id)) return;
+	const write = persistDocument(id, stores);
+	activeWrites.add(write);
+	try {
+		await write;
+	} finally {
+		activeWrites.delete(write);
+	}
+}
+
+export async function clearStoredWorkspace(
+	id: DocumentId | null,
+	onBlocked: () => void,
+): Promise<void> {
+	if (clearBarrier) throw new Error("A workspace clear is already in progress.");
+	let resumeWrites = () => {};
+	clearBarrier = new Promise<void>((resolve) => {
+		resumeWrites = resolve;
+	});
+	try {
+		await Promise.all(activeWrites);
+		const storage = await getWorkspaceStorage();
+		if (id) await storage.deleteDocument(id);
+		else await storage.reset(onBlocked);
+
+		const workspace = useWorkspaceStore.getState();
+		const registry = useDocumentRegistry.getState();
+		const ids = id
+			? [id]
+			: new Set([
+					...registry.openDocumentIds,
+					...workspace.documents.map((entry) => entry.id),
+					...(workspace.missingDocuments ?? []).map((entry) => entry.id),
+					...workspace.recoverableDocumentIds,
+				]);
+		for (const deleted of ids) {
+			removedIds.add(deleted);
+			registry.closeDocument(deleted);
+			workspace.removeManifestEntry(deleted);
+		}
+		const { persistence, recoverableDocumentIds } = useWorkspaceStore.getState();
+		const remaining = { ...persistence };
+		if (id) delete remaining[id];
+		useWorkspaceStore.setState({
+			persistence: id ? remaining : {},
+			recoverableDocumentIds: id ? recoverableDocumentIds.filter((value) => value !== id) : [],
+			activeDocumentId: useDocumentRegistry.getState().activeDocumentId,
+		});
+		if (!id) workspace.setPersistenceAvailability(true);
+	} finally {
+		clearBarrier = undefined;
+		resumeWrites();
+	}
+}
+
 /**
  * The manifest fields a write must carry forward rather than recompute: order and creation time.
  *
@@ -176,7 +241,7 @@ export function useWorkspacePersistence(): void {
 			if (timer !== null) clearTimeout(timer);
 			timer = setTimeout(() => {
 				timer = null;
-				void persistDocument(activeDocumentId, stores);
+				void writeWorkspaceDocument(activeDocumentId, stores);
 			}, WORKSPACE_AUTOSAVE_DEBOUNCE_MS);
 		};
 
@@ -185,7 +250,7 @@ export function useWorkspacePersistence(): void {
 			if (timer === null) return;
 			clearTimeout(timer);
 			timer = null;
-			void persistDocument(activeDocumentId, stores);
+			void writeWorkspaceDocument(activeDocumentId, stores);
 		};
 
 		const knownDocument = useWorkspaceStore

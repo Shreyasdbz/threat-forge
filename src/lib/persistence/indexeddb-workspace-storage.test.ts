@@ -52,6 +52,18 @@ describe("IndexeddbWorkspaceStorage reads and writes", () => {
 		expect(await storage.readDocumentBody(DOC)).toBe("doc-1-body");
 		expect(await storage.readDocumentBody(OTHER)).toBe("doc-2-body");
 	});
+
+	it("does not resurrect a cleared document from a different connection", async () => {
+		const originalTab = new IndexeddbWorkspaceStorage();
+		const otherTab = new IndexeddbWorkspaceStorage();
+		await originalTab.writeDocumentBody(DOC, "body");
+		await otherTab.deleteDocument(DOC);
+		await expect(originalTab.writeDocumentBody(DOC, "stale edit")).rejects.toMatchObject({
+			kind: "not-found",
+		});
+		expect(await otherTab.readDocumentBody(DOC)).toBeNull();
+		expect(await otherTab.listRevisions(DOC)).toEqual([]);
+	});
 });
 
 describe("crash safety: write-new-revision-then-flip-pointer is atomic", () => {

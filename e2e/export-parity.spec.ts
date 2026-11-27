@@ -6,6 +6,40 @@ import { createInterface } from "node:readline";
 import { expect, test } from "./fixtures";
 import { openDocument } from "./support/interactions";
 
+test("a browser recovery download retains its import identity and opens in Rust", async ({
+	page,
+}, testInfo) => {
+	const binary = process.env.THREATFORGE_MCP_BINARY;
+	test.skip(!binary, "Set THREATFORGE_MCP_BINARY to the built MCP binary.");
+	if (!binary) throw new Error("Missing MCP binary");
+	const fixture = "tests/fixtures/thf/architecture-canonical-full.thf";
+	await page.goto("/app");
+	await openDocument(page, fixture);
+	await expect(page.getByTestId("local-persistence-status")).toHaveText("Saved locally");
+	const persistedId = () =>
+		page.evaluate(
+			() =>
+				JSON.parse(localStorage.getItem("threatforge-workspace") ?? "{}").state.activeDocumentId,
+		);
+	const id = await persistedId();
+	expect(id).toMatch(/^doc-/);
+	await page.reload();
+	await expect(
+		page.getByRole("tablist", { name: "Open documents" }).getByRole("tab", { selected: true }),
+	).toBeVisible();
+	expect(await persistedId()).toBe(id);
+	await page.getByRole("button", { name: "Workspace recovery" }).click();
+	const download = page.waitForEvent("download");
+	await page.getByRole("button", { name: "Download .thf" }).click();
+	const exportedPath = testInfo.outputPath("recovered.thf");
+	await (await download).saveAs(exportedPath);
+	expect(await readFile(exportedPath)).toEqual(await readFile(fixture));
+	await withMcp(binary, exportedPath, async (request) => {
+		const content = await request("tools/call", { name: "export_markdown", arguments: {} });
+		expect(content.some((item) => item.text?.includes("## Components"))).toBe(true);
+	});
+});
+
 const exports = [
 	{
 		name: "inline-layout",

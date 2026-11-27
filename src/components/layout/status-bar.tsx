@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { sanitizeDisplayText } from "@/lib/document-display-title";
 import { hasUnloadedLegacyLayout, RESTORE_LEGACY_LAYOUT } from "@/lib/model-layout-utils";
 import type { DocumentPersistenceState, WorkspaceUnavailableReason } from "@/lib/persistence/types";
@@ -8,6 +9,7 @@ import { useKeyResidueStore } from "@/stores/key-residue-store";
 import { useModelStore } from "@/stores/model-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useWorkspaceStore } from "@/stores/workspace-store";
+import { WorkspaceRecoveryDialog } from "./workspace-recovery-dialog";
 
 /**
  * The clear-text key indicator's detail text (#233).
@@ -126,6 +128,7 @@ export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promi
 		Object.values(s.residue).some((residue) => residue === "retained"),
 	);
 	const openSettingsDialogAtTab = useSettingsStore((s) => s.openSettingsDialogAtTab);
+	const [recoveryOpen, setRecoveryOpen] = useState(false);
 
 	// The file save status and the local persistence status are distinct: one tracks the on-disk
 	// `.thf` file, the other the browser workspace copy.
@@ -238,6 +241,19 @@ export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promi
 			<span data-testid="local-persistence-alert" role="status" className="sr-only">
 				{localPersistence?.attention ? localPersistence.detail : ""}
 			</span>
+			{!isTauri() && (
+				<>
+					<Separator />
+					<button
+						type="button"
+						onClick={() => setRecoveryOpen(true)}
+						className="rounded underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+					>
+						Workspace recovery
+					</button>
+					{recoveryOpen && <WorkspaceRecoveryDialog onClose={() => setRecoveryOpen(false)} />}
+				</>
+			)}
 
 			{/* A readable clear-text API key is worth knowing about from anywhere in the app: the
 			    user may have deleted the key, been told once that a copy survived, and never

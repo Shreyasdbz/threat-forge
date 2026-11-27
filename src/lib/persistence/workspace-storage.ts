@@ -41,6 +41,9 @@ export interface WorkspaceStorage {
 	/** Remove a document and all its revisions. A user-confirmed `#55` action, never automatic. */
 	deleteDocument(id: DocumentId): Promise<void>;
 
+	/** Delete the workspace database without requiring a successful migration. */
+	reset(onBlocked: () => void): Promise<void>;
+
 	/** Every stored revision for a document, oldest first, for `#55` recovery and inspection. */
 	listRevisions(id: DocumentId): Promise<DocumentRevisionRecord[]>;
 }
