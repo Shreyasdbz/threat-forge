@@ -33,6 +33,16 @@ for (const [id, component, relationship] of starters) {
 		expect(svg).toContain(component);
 		expect(svg).toContain(relationship);
 
+		if (id === "event-pipeline") {
+			const deliveryY = svg.match(
+				/<text x="[^"]+" y="([^"]+)"[^>]*>Consume fulfillment jobs<\/text>/,
+			)?.[1];
+			const subscriptionY = svg.match(
+				/<text x="[^"]+" y="([^"]+)"[^>]*>Queue subscription<\/text>/,
+			)?.[1];
+			expect(Number(deliveryY) - Number(subscriptionY)).toBeGreaterThan(24);
+		}
+
 		if (id === "cloud-service") {
 			await page.keyboard.press("Escape");
 			const saved = await saveDocument(page);

@@ -73,6 +73,7 @@ relationships:
     from: destination
     to: processor
     name: Queue subscription
+    label_offset: { x: 0, y: -56 }
 diagrams:
   - id: architecture
     name: Event pipeline
