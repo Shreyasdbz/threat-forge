@@ -125,7 +125,7 @@ describe("whole-turn review", () => {
 			],
 			[start, end],
 		]);
-		const runner = createTurnRunner({ stream, getDocument, reviewProposals: true });
+		const runner = createTurnRunner({ stream, getDocument });
 		await runner.submit(config(createAiToolRegistry()));
 		const review = runner.getState().proposal;
 		if (!review) throw new Error("No proposal ready to review");
@@ -142,8 +142,6 @@ describe("whole-turn review", () => {
 		expect(read).toMatchObject({ content: expect.stringContaining('"id":"comp-1"') });
 		expect(getDocument()).toBe(baseline);
 		expect(useHistoryStore.getState().past).toHaveLength(0);
-		await runner.approveCall("create");
-		expect(getDocument()).toBe(baseline);
 
 		runner.applyProposal(review.token);
 		const applied = getDocument();
@@ -178,7 +176,7 @@ describe("whole-turn review", () => {
 							[start, end],
 						],
 			);
-			const runner = createTurnRunner({ stream, getDocument, reviewProposals: true });
+			const runner = createTurnRunner({ stream, getDocument });
 			await runner.submit(config(createAiToolRegistry()));
 			const review = runner.getState().proposal;
 			if (outcome !== "discarded" && !review) throw new Error("No proposal ready to review");
@@ -205,7 +203,7 @@ describe("whole-turn review", () => {
 });
 
 describe("the corrective feedback channel", () => {
-	it("returns a committed element ID to the next iteration for an approved connection", async () => {
+	it("uses the provider-visible staged ID for a dependent connection", async () => {
 		const requests: ConversationRequest[] = [];
 		const preTurn = useModelStore.getState().model;
 		const runner = createTurnRunner({
@@ -233,7 +231,7 @@ describe("the corrective feedback channel", () => {
 						typeof created.id !== "string"
 					)
 						throw new Error("Creation returned no usable ID");
-					expect(getDocument()?.elements.some((element) => element.id === created.id)).toBe(true);
+					expect(getDocument()?.elements.some((element) => element.id === created.id)).toBe(false);
 					onEvent({
 						type: "tool_call_complete",
 						id: "connect",
@@ -249,10 +247,11 @@ describe("the corrective feedback channel", () => {
 		});
 		await runner.submit(config(createAiToolRegistry()));
 		expect(getDocument()).toBe(preTurn);
-		await runner.approveCall("create");
 		expect(runner.getState().phase).toBe("awaiting_approval");
 		expect(getDocument()?.data_flows).toHaveLength(0);
-		await runner.approveCall("connect");
+		const review = runner.getState().proposal;
+		if (!review) throw new Error("Missing review");
+		runner.applyProposal(review.token);
 		expect(runner.getState().outcome).toBe("completed");
 		const document = getDocument();
 		expect(document?.data_flows).toHaveLength(1);
@@ -351,6 +350,46 @@ describe("a read-only turn", () => {
 });
 
 describe("a tool-incapable turn", () => {
+	it("reviews fenced actions and threats together and applies them with one undo", async () => {
+		const baseline = getDocument();
+		const { stream } = scriptedStream([
+			[
+				{ type: "message_start", model: "m" },
+				{
+					type: "text_delta",
+					text: [
+						"```actions",
+						'[{"action":"add_element","element":{"type":"process","name":"Cache"}}]',
+						"```",
+						"```threats",
+						"- title: Spoofed identity",
+						"  category: Spoofing",
+						"  severity: high",
+						"  description: Unverified caller identity.",
+						"```",
+					].join("\n"),
+				},
+				{ type: "message_stop", stopReason: "end_turn" },
+			],
+		]);
+		const runner = createTurnRunner({ stream, getDocument });
+		await runner.submit(config(createToolRegistry([])));
+		expect(getDocument()).toBe(baseline);
+		const review = runner.getState().proposal;
+		if (!review) throw new Error("Missing fenced proposal");
+		expect(review.operations).toHaveLength(2);
+		expect(review.changes).toEqual([
+			expect.objectContaining({ kind: "added", label: "Cache" }),
+			expect.objectContaining({ kind: "added", label: "Spoofed identity" }),
+		]);
+		runner.applyProposal(review.token);
+		expect(getDocument()?.elements.at(-1)?.name).toBe("Cache");
+		expect(getDocument()?.threats.at(-1)?.title).toBe("Spoofed identity");
+		expect(useHistoryStore.getState().past).toHaveLength(1);
+		runner.undo();
+		expect(getDocument()).toEqual(baseline);
+	});
+
 	it("issues a request with an empty tool list when the tool set is empty", async () => {
 		const emptyRegistry = createToolRegistry([]);
 		const { stream, requests } = scriptedStream([
@@ -371,6 +410,7 @@ describe("a tool-incapable turn", () => {
 describe("cancellation mid-execution", () => {
 	it("discards an in-flight tool outcome and leaves the document unchanged", async () => {
 		let resolveRun: (outcome: ToolOutcome) => void = () => {};
+		const started = vi.fn();
 		const runGate = new Promise<ToolOutcome>((resolve) => {
 			resolveRun = resolve;
 		});
@@ -381,9 +421,12 @@ describe("cancellation mid-execution", () => {
 			effect: "mutate",
 			destructive: false,
 			summarize: (i) => `Add ${i.name}`,
-			execute: () => runGate,
+			execute: () => {
+				started();
+				return runGate;
+			},
 		});
-		const registry = createToolRegistry([slowTool]);
+		const registry = createToolRegistry([{ ...slowTool, stageable: true }]);
 		const { stream, requests } = scriptedStream([
 			[
 				{ type: "message_start", model: "m" },
@@ -394,11 +437,8 @@ describe("cancellation mid-execution", () => {
 		const runner = createTurnRunner({ stream, getDocument });
 		const documentBefore = useModelStore.getState().model;
 
-		await runner.submit(config(registry));
-		expect(runner.getState().phase).toBe("awaiting_approval");
-
-		// Approve, which begins running the slow tool; do not await yet.
-		const executing = runner.approveCall("c1");
+		const executing = runner.submit(config(registry));
+		await vi.waitFor(() => expect(started).toHaveBeenCalledOnce());
 		// Cancel while the tool is mid-run, then let the run resolve.
 		runner.cancel();
 		resolveRun({
@@ -417,7 +457,7 @@ describe("cancellation mid-execution", () => {
 });
 
 describe("a mid-turn context overflow", () => {
-	it("settles failed but keeps the committed call, which one undo reverts", async () => {
+	it("settles failed and discards all staged changes", async () => {
 		const registry = createToolRegistry(GRAPH_ACTION_TOOLS);
 		const { stream } = scriptedStream([
 			[
@@ -444,15 +484,10 @@ describe("a mid-turn context overflow", () => {
 		const preTurn = useModelStore.getState().model;
 
 		await runner.submit(config(registry));
-		// Iteration 1 pauses for approval; approve and let it commit, then iteration 2 overflows.
-		await runner.approveCall("c1");
 
 		expect(runner.getState().outcome).toBe("failed");
-		// The committed element survived the failure.
-		expect(useModelStore.getState().model?.elements.some((e) => e.name === "Cache")).toBe(true);
-
-		// One undo reverts the whole turn back to the pre-turn document.
-		runner.undo();
+		expect(runner.getState().proposalOutcome).toBe("discarded");
+		expect(useHistoryStore.getState().past).toHaveLength(0);
 		expect(useModelStore.getState().model).toEqual(preTurn);
 	});
 });

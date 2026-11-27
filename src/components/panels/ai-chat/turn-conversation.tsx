@@ -1,18 +1,23 @@
 import { AlertCircle, Info, Loader2, Undo2 } from "lucide-react";
 import { Fragment } from "react";
-import { legacyFencedEnabledForTurn } from "@/lib/ai/legacy/fenced-actions";
 import type { TurnState } from "@/lib/ai/loop/turn-machine";
 import { useAiTurnStore } from "@/stores/ai-turn-store";
 import { useHistoryStore } from "@/stores/history-store";
 import { ChatViewport } from "../chat-viewport";
-import { ToolCallBatch, ToolCallCard } from "../tool-call-card";
+import { ToolCallCard } from "../tool-call-card";
 import { hasVisibleText, MessageBubble } from "./chat-transcript";
+import { ProposalReviewPanel } from "./proposal-review";
+
+const proposalMessages = {
+	applied: "Proposal applied.",
+	rejected: "Proposal rejected. No changes were made.",
+	stale: "The document changed during review. No changes were made. Ask for a new proposal.",
+	discarded: "The proposal could not be completed. No changes were made.",
+	unchanged: "The proposal made no document changes.",
+};
 
 /** The live tool-loop turn: its conversation, approval cards, notice, and one-step undo. */
 export function TurnConversation({ turn }: { turn: TurnState }) {
-	const approveCall = useAiTurnStore((s) => s.approveCall);
-	const approveBatch = useAiTurnStore((s) => s.approveBatch);
-	const denyCall = useAiTurnStore((s) => s.denyCall);
 	const turnStartIndex = useAiTurnStore((s) => s.turnStartIndex);
 	const getToolCallPresentation = useAiTurnStore((s) => s.getToolCallPresentation);
 	const undoTurn = useAiTurnStore((s) => s.undoTurn);
@@ -24,23 +29,23 @@ export function TurnConversation({ turn }: { turn: TurnState }) {
 	// is not otherwise needed, only its change.
 	const historyStackDepth = useHistoryStore((s) => s.past.length);
 
-	// A tool-enabled turn reviews mutations through the approval ledger, so fenced
-	// parsing is disabled for it; a text-only fallback turn keeps it.
-	const fencedEnabled = legacyFencedEnabledForTurn(turn.toolSet.list().length);
 	const isStreaming = turn.phase === "requesting" || turn.phase === "streaming";
+	const isPreparing = turn.phase === "preparing_review" || turn.phase === "executing";
 	const bubbles = turn.messages.filter(hasVisibleText);
-	const hasApplied = turn.phase === "settled" && turn.calls.some((c) => c.status === "succeeded");
 	// Reading the stack depth above subscribes this panel so the button's disabled
 	// state updates on a post-turn edit; the value itself is only a change signal,
 	// and `undoAvailability()` reads the live stack when it recomputes below.
 	void historyStackDepth;
-	const availability = hasApplied ? undoAvailability() : "already_undone";
+	const availability = turn.proposalOutcome === "applied" ? undoAvailability() : "already_undone";
 
 	return (
 		<ChatViewport activity={turn} runId={turn.budget.startedAtMs}>
 			{turn.messages.map((message, i) => {
 				const toolIds = message.content.flatMap((b) => (b.type === "tool_call" ? [b.id] : []));
-				const calls = i >= turnStartIndex ? turn.calls.filter((c) => toolIds.includes(c.id)) : [];
+				const calls =
+					i >= turnStartIndex && turn.phase === "settled"
+						? turn.calls.filter((c) => toolIds.includes(c.id))
+						: [];
 				const previousCalls = i < turnStartIndex ? getToolCallPresentation(message) : [];
 				const last = message === bubbles[bubbles.length - 1];
 				return (
@@ -49,22 +54,12 @@ export function TurnConversation({ turn }: { turn: TurnState }) {
 						{hasVisibleText(message) && (
 							<MessageBubble
 								message={message}
-								isLast={last}
 								isStreaming={isStreaming && last && message.role === "assistant"}
-								fencedEnabled={i >= turnStartIndex && fencedEnabled}
 							/>
 						)}
-						{calls.length > 0 && (
-							<ToolCallBatch
-								calls={calls}
-								onApprove={approveCall}
-								onApproveBatch={approveBatch}
-								onDeny={denyCall}
-							/>
-						)}
-						{previousCalls.length > 0 && (
+						{(calls.length > 0 || previousCalls.length > 0) && (
 							<div className="space-y-2">
-								{previousCalls.map((call) => (
+								{[...calls, ...previousCalls].map((call) => (
 									<ToolCallCard key={call.id} call={call} />
 								))}
 							</div>
@@ -81,13 +76,29 @@ export function TurnConversation({ turn }: { turn: TurnState }) {
 				);
 			})}
 
-			{isStreaming && (
+			{(isStreaming || isPreparing) && (
 				<div
 					role="status"
 					className="flex items-center gap-2 px-1 text-editor-caption text-muted-foreground"
 				>
-					<Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" /> Thinking…
+					<Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
+					{isPreparing ? "Preparing review…" : "Thinking…"}
 				</div>
+			)}
+			{turn.proposal && (
+				<ProposalReviewPanel review={turn.proposal} updating={!!turn.updatingProposal} />
+			)}
+			{turn.proposalOutcome && (
+				<p
+					role={
+						turn.proposalOutcome === "stale" || turn.proposalOutcome === "discarded"
+							? "alert"
+							: "status"
+					}
+					className="text-editor-caption text-muted-foreground"
+				>
+					{proposalMessages[turn.proposalOutcome]}
+				</p>
 			)}
 
 			{turn.notice && (
@@ -110,7 +121,7 @@ export function TurnConversation({ turn }: { turn: TurnState }) {
 				</div>
 			)}
 
-			{hasApplied && (
+			{availability !== "already_undone" && (
 				<button
 					type="button"
 					onClick={undoTurn}
@@ -118,9 +129,7 @@ export function TurnConversation({ turn }: { turn: TurnState }) {
 					title={
 						availability === "undoable"
 							? "Undo every change this turn applied"
-							: availability === "already_undone"
-								? "This turn has already been undone"
-								: "A later edit has superseded this turn, so it can no longer be undone in one step"
+							: "A later edit has superseded this turn, so it can no longer be undone in one step"
 					}
 					className="flex items-center gap-1 self-start rounded border border-border/50 px-1.5 py-0.5 text-editor-caption2 text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground"
 				>

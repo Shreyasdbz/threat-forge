@@ -51,10 +51,12 @@ test.describe("AI chat experience", () => {
 		expect(requests.at(-1)?.messages.length).toBeLessThanOrEqual(201);
 		// This request is after the restored session has exceeded the retention cap.
 		await send(page, "Add a cache after our long review");
-		await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeVisible();
-		expect(requests.at(-1)?.messages.length).toBeLessThanOrEqual(201);
-		expect(JSON.stringify(requests.at(-1)?.messages)).not.toContain("Response 1:");
-		await page.getByRole("button", { name: "Approve", exact: true }).click();
+		await expect(page.getByRole("button", { name: "Apply proposal", exact: true })).toBeVisible();
+		const proposalStart = requests[102]?.messages;
+		expect(proposalStart?.length).toBeLessThanOrEqual(201);
+		expect(JSON.stringify(proposalStart)).not.toContain("Response 1:");
+		expect(requests[103]?.messages.slice(0, -2)).toEqual(proposalStart);
+		await page.getByRole("button", { name: "Apply proposal", exact: true }).click();
 		await expect(page.getByTestId("chat-messages")).toContainText("Response 104:");
 		await expect(page.getByTitle("Send (Enter)")).toBeVisible();
 		await send(page, "Summarize the completed changes");
@@ -84,13 +86,17 @@ test.describe("AI chat experience", () => {
 	test("long markdown stays bounded and the stop control stays visible", async ({
 		page,
 	}, testInfo) => {
-		await routeAnthropic(page, [textResponse(longAnswer), addElementResponse()]);
+		await routeAnthropic(page, [
+			textResponse(longAnswer),
+			addElementResponse(),
+			textResponse("Review the proposal."),
+		]);
 		await openAiPanelWithModel(page);
 		await send(page, "Review this architecture in detail");
 		await expect(page.getByTestId("chat-messages")).toContainText("Protect the cache");
 		await expect(page.getByTitle("Send (Enter)")).toBeVisible();
 		await send(page, "add a cache");
-		await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeVisible();
+		await expect(page.getByRole("button", { name: "Apply proposal", exact: true })).toBeVisible();
 		const path = testInfo.outputPath("pending-approval.png");
 		await page.screenshot({ path });
 		await testInfo.attach("pending-approval", { path, contentType: "image/png" });

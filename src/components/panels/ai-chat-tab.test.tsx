@@ -234,18 +234,20 @@ describe("AiChatTab session binding", () => {
 		useDocumentRegistry
 			.getState()
 			.createDocument({ model: makeModel("A"), filePath: null, pendingLayout: null });
-		streamConversationMock.mockImplementation(
-			async (_r: unknown, _t: unknown, handlers: StreamConversationHandlers) => {
-				handlers.onEvent({ type: "message_start", model: "m" });
-				handlers.onEvent({
-					type: "tool_call_complete",
-					id: "c1",
-					name: "add_element",
-					input: { action: "add_element", element: { type: "process", name: "Cache" } },
-				});
-				handlers.onEvent({ type: "message_stop", stopReason: "tool_use" });
-			},
-		);
+		streamConversationMock
+			.mockImplementation(textTurn("Review the proposal."))
+			.mockImplementationOnce(
+				async (_r: unknown, _t: unknown, handlers: StreamConversationHandlers) => {
+					handlers.onEvent({ type: "message_start", model: "m" });
+					handlers.onEvent({
+						type: "tool_call_complete",
+						id: "c1",
+						name: "add_element",
+						input: { action: "add_element", element: { type: "process", name: "Cache" } },
+					});
+					handlers.onEvent({ type: "message_stop", stopReason: "tool_use" });
+				},
+			);
 		await act(async () => {
 			render(<AiChatTab />);
 		});
@@ -260,7 +262,7 @@ describe("AiChatTab session binding", () => {
 		fireEvent.change(input, { target: { value: "Next question draft" } });
 		fireEvent.keyDown(input, { key: "Enter" });
 		expect(input).toHaveValue("Next question draft");
-		expect(streamConversationMock).toHaveBeenCalledTimes(1);
+		expect(streamConversationMock).toHaveBeenCalledTimes(2);
 		await act(async () => {
 			fireEvent.keyDown(input, { key: "Escape" });
 		});
@@ -371,7 +373,7 @@ describe("AiChatTab stream cancellation on document switch", () => {
 });
 
 describe("AiChatTab fenced action rendering", () => {
-	it("renders an action preview for a fenced ```actions response while the flag is on", async () => {
+	it("stages fenced actions and threat suggestions as one proposal", async () => {
 		keychain.hasKey = true;
 		const registry = useDocumentRegistry.getState();
 		const a = registry.createDocument({
@@ -390,7 +392,14 @@ describe("AiChatTab fenced action rendering", () => {
 		const fenced = [
 			"Here is a change.",
 			"```actions",
-			'[{ "action": "delete_element", "id": "old-service" }]',
+			'[{ "action": "add_element", "element": { "type": "process", "name": "Cache" } }]',
+			"```",
+			"```threats",
+			"- title: Tampering risk",
+			"  category: Tampering",
+			"  element: comp-1",
+			"  severity: high",
+			"  description: A forged cache response.",
 			"```",
 		].join("\n");
 
@@ -402,11 +411,16 @@ describe("AiChatTab fenced action rendering", () => {
 			await useAiTurnStore.getState().submitTurn("suggest a change", makeModel("A"));
 		});
 
-		// The fenced block is parsed through the legacy boundary and rendered as an
-		// applicable action, while the fence itself is stripped from the shown text.
-		expect(screen.getByText("Suggested changes (1):")).toBeInTheDocument();
-		expect(screen.getByText('Delete element: "old-service"')).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "Review proposed changes" })).toBeInTheDocument();
+		expect(screen.getAllByRole("checkbox")).toHaveLength(2);
 		expect(screen.queryByText(/```actions/)).not.toBeInTheDocument();
+		expect(useModelStore.getState().model?.elements).toHaveLength(0);
+		fireEvent.click(screen.getByRole("button", { name: "Apply proposal" }));
+		expect(useModelStore.getState().model?.elements[0]?.name).toBe("Cache");
+		expect(useModelStore.getState().model?.threats[0]?.element).toBe("comp-1");
+		fireEvent.click(screen.getByRole("button", { name: /Undo this turn/ }));
+		expect(useModelStore.getState().model?.elements).toHaveLength(0);
+		expect(useModelStore.getState().model?.threats).toHaveLength(0);
 	});
 });
 
@@ -467,18 +481,20 @@ describe("AiChatTab tool-loop turn", () => {
 			desktop.enabled = true;
 			const action = { action: "delete_data_flow", id: flow.id };
 			if (mode === "native") {
-				streamConversationMock.mockImplementation(
-					async (_r: unknown, _t: unknown, handlers: StreamConversationHandlers) => {
-						handlers.onEvent({ type: "message_start", model: "m" });
-						handlers.onEvent({
-							type: "tool_call_complete",
-							id: "delete",
-							name: action.action,
-							input: action,
-						});
-						handlers.onEvent({ type: "message_stop", stopReason: "tool_use" });
-					},
-				);
+				streamConversationMock
+					.mockImplementation(textTurn("Review the proposal."))
+					.mockImplementationOnce(
+						async (_r: unknown, _t: unknown, handlers: StreamConversationHandlers) => {
+							handlers.onEvent({ type: "message_start", model: "m" });
+							handlers.onEvent({
+								type: "tool_call_complete",
+								id: "delete",
+								name: action.action,
+								input: action,
+							});
+							handlers.onEvent({ type: "message_stop", stopReason: "tool_use" });
+						},
+					);
 			} else {
 				useSettingsStore.setState((state) => ({
 					settings: { ...state.settings, aiModelAnthropic: "unknown-text-model" },
@@ -493,16 +509,16 @@ describe("AiChatTab tool-loop turn", () => {
 			await act(async () => {
 				await useAiTurnStore.getState().submitTurn("review the flow", original);
 			});
-			const button = mode === "native" ? "Approve" : "Apply this change";
+			const button = "Apply with deletions";
 			expect(screen.getByRole("button", { name: button })).toBeInTheDocument();
-			expect(
-				screen.getByText('Threats removed: "Threat" ("Tampering"; "threat-1")', { exact: false }),
-			).toBeInTheDocument();
+			expect(screen.getByText("Applying deletes 2 items.")).toBeInTheDocument();
 			const replacement = { ...original, data_flows: [{ ...flow, name: "Replacement flow" }] };
+			const token = useAiTurnStore.getState().turn?.proposal?.token;
+			if (!token) throw new Error("Missing review token");
 			await reloadOnDisk(replacement);
 			expect(screen.queryByRole("button", { name: button })).not.toBeInTheDocument();
 			await act(async () => {
-				useAiTurnStore.getState().approveCall("delete");
+				useAiTurnStore.getState().applyProposal(token);
 			});
 			expect(useModelStore.getState().model?.data_flows[0]?.name).toBe("Replacement flow");
 		} finally {
@@ -541,18 +557,20 @@ describe("AiChatTab tool-loop turn", () => {
 	it("shows the Stop button and an approval card while a turn awaits review", async () => {
 		keychain.hasKey = true;
 		openDocument("A");
-		streamConversationMock.mockImplementation(
-			async (_r: unknown, _t: unknown, handlers: StreamConversationHandlers) => {
-				handlers.onEvent({ type: "message_start", model: "m" });
-				handlers.onEvent({
-					type: "tool_call_complete",
-					id: "c1",
-					name: "add_element",
-					input: { action: "add_element", element: { type: "process", name: "Cache" } },
-				});
-				handlers.onEvent({ type: "message_stop", stopReason: "tool_use" });
-			},
-		);
+		streamConversationMock
+			.mockImplementation(textTurn("Review the proposal."))
+			.mockImplementationOnce(
+				async (_r: unknown, _t: unknown, handlers: StreamConversationHandlers) => {
+					handlers.onEvent({ type: "message_start", model: "m" });
+					handlers.onEvent({
+						type: "tool_call_complete",
+						id: "c1",
+						name: "add_element",
+						input: { action: "add_element", element: { type: "process", name: "Cache" } },
+					});
+					handlers.onEvent({ type: "message_stop", stopReason: "tool_use" });
+				},
+			);
 
 		await act(async () => {
 			render(<AiChatTab />);
@@ -564,7 +582,7 @@ describe("AiChatTab tool-loop turn", () => {
 
 		expect(useAiTurnStore.getState().turn?.phase).toBe("awaiting_approval");
 		expect(screen.getByTitle("Stop generating (Esc)")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Apply proposal" })).toBeInTheDocument();
 
 		// The conversation scrolls its own container and nothing above it (#293). jsdom has no
 		// layout engine, so it cannot show that ancestors stay put — that is
@@ -588,18 +606,20 @@ describe("AiChatTab tool-loop turn", () => {
 		const otherId = registry.openDocumentIds[registry.openDocumentIds.length - 1];
 		registry.activateDocument(registry.openDocumentIds[0]);
 
-		streamConversationMock.mockImplementation(
-			async (_r: unknown, _t: unknown, handlers: StreamConversationHandlers) => {
-				handlers.onEvent({ type: "message_start", model: "m" });
-				handlers.onEvent({
-					type: "tool_call_complete",
-					id: "c1",
-					name: "add_element",
-					input: { action: "add_element", element: { type: "process", name: "Cache" } },
-				});
-				handlers.onEvent({ type: "message_stop", stopReason: "tool_use" });
-			},
-		);
+		streamConversationMock
+			.mockImplementation(textTurn("Review the proposal."))
+			.mockImplementationOnce(
+				async (_r: unknown, _t: unknown, handlers: StreamConversationHandlers) => {
+					handlers.onEvent({ type: "message_start", model: "m" });
+					handlers.onEvent({
+						type: "tool_call_complete",
+						id: "c1",
+						name: "add_element",
+						input: { action: "add_element", element: { type: "process", name: "Cache" } },
+					});
+					handlers.onEvent({ type: "message_stop", stopReason: "tool_use" });
+				},
+			);
 
 		await act(async () => {
 			await useAiTurnStore.getState().submitTurn("add a cache", makeModel("A"));
@@ -741,7 +761,7 @@ describe("AiChatTab undo affordance", () => {
 			await flush();
 		});
 		await act(async () => {
-			fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+			fireEvent.click(screen.getByRole("button", { name: "Apply proposal" }));
 			await flush();
 		});
 
@@ -912,9 +932,10 @@ describe("historical tool outcomes", () => {
 				await useAiTurnStore.getState().submitTurn("Add Cache", makeModel("A"));
 			});
 			await act(async () => {
-				if (outcome === "Applied" || outcome === "Undone")
-					useAiTurnStore.getState().approveCall("historic");
-				if (outcome === "Declined") useAiTurnStore.getState().denyCall("historic");
+				const store = useAiTurnStore.getState();
+				const token = store.turn?.proposal?.token;
+				if (token && (outcome === "Applied" || outcome === "Undone")) store.applyProposal(token);
+				if (token && outcome === "Declined") store.rejectProposal(token);
 				if (outcome === "Not run") useAiTurnStore.getState().cancelActiveTurn();
 				await flush();
 				if (outcome === "Undone") useAiTurnStore.getState().undoTurn();

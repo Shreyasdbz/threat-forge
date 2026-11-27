@@ -63,11 +63,16 @@ export interface ProtocolMessage {
 export interface LegacyChatMessage {
 	role: ProtocolRole;
 	content: string;
+	origin?: ProtocolMessage["origin"];
 }
 
 /** Read a persisted pre-protocol message as a content-block message. */
 export function upgradeLegacyMessage(message: LegacyChatMessage): ProtocolMessage {
-	return { role: message.role, content: [{ type: "text", text: message.content }] };
+	return {
+		role: message.role,
+		content: [{ type: "text", text: message.content }],
+		...(message.origin === "proposal" ? { origin: message.origin } : {}),
+	};
 }
 
 /**

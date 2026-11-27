@@ -13,6 +13,7 @@ function isTurnLive(phase: TurnState["phase"] | undefined): boolean {
 	return (
 		phase === "requesting" ||
 		phase === "streaming" ||
+		phase === "preparing_review" ||
 		phase === "awaiting_approval" ||
 		phase === "executing"
 	);

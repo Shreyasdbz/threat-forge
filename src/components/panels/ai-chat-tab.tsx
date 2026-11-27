@@ -180,12 +180,7 @@ function ChatView() {
 			{turn ? (
 				<TurnConversation key={activeSessionId} turn={turn} />
 			) : (
-				<MessageList
-					key={activeSessionId}
-					messages={messages}
-					isStreaming={isStreaming}
-					fencedEnabled={false}
-				/>
+				<MessageList key={activeSessionId} messages={messages} isStreaming={isStreaming} />
 			)}
 
 			{/* Error display */}

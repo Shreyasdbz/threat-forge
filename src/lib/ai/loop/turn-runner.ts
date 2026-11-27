@@ -18,14 +18,16 @@
  * settlement); a user command resumes it.
  */
 
+import { legacyFencedEnabledForTurn, readFencedOperations } from "@/lib/ai/legacy/fenced-actions";
 import type { ConversationRequest } from "@/lib/ai/protocol/client";
 import type { ProtocolError } from "@/lib/ai/protocol/errors";
 import type { StreamEvent } from "@/lib/ai/protocol/events";
-import type { AiProvider, ProtocolMessage } from "@/lib/ai/protocol/messages";
+import { type AiProvider, flattenText, type ProtocolMessage } from "@/lib/ai/protocol/messages";
+import { GRAPH_ACTION_TOOLS } from "@/lib/ai/tools/graph-action-tools";
 import { type DocumentStores, getActiveStores } from "@/stores/document-stores";
 import type { ThreatModel } from "@/types/threat-model";
 import { budgetExhaustion, type TurnLimits } from "./limits";
-import type { ToolOutcome, ToolRegistry } from "./tool-runtime";
+import type { ToolRegistry } from "./tool-runtime";
 import {
 	commitToolOutcome,
 	createTurnUndoLedger,
@@ -71,7 +73,6 @@ export interface TurnRunnerDeps {
 	) => Promise<void>;
 	/** Read the live document immediately before a call runs. */
 	getDocument: () => ThreatModel | null;
-	reviewProposals?: boolean;
 	ownsDocument?: () => boolean;
 	/** Notified after every state change so a store can mirror it. */
 	onState?: (state: TurnState) => void;
@@ -100,9 +101,6 @@ export interface TurnRunner {
 	undoAvailability(): UndoAvailability;
 	/** Each command returns the drive promise, which resolves at the next approval pause or settlement. */
 	submit(config: TurnConfig): Promise<void>;
-	approveCall(id: string): Promise<void>;
-	approveBatch(ids: readonly string[]): Promise<void>;
-	denyCall(id: string): Promise<void>;
 	selectProposal(token: symbol, selected: readonly string[]): Promise<void>;
 	applyProposal(token: symbol): void;
 	rejectProposal(token: symbol): void;
@@ -135,11 +133,7 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 	}
 
 	function dispatch(input: TurnInput): void {
-		const next = reduceTurn(
-			state,
-			input,
-			input.type === "tool_call_complete" && !deps.reviewProposals ? deps.getDocument() : undefined,
-		);
+		const next = reduceTurn(state, input);
 		if (proposal && next.phase === "settled" && state.phase !== "settled") {
 			if (
 				input.type === "message_stop" &&
@@ -177,11 +171,16 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 	): void {
 		proposal = null;
 		baseline = null;
-		const applied: { call_id: string; tool: string }[] = [];
+		const applied: { call_id: string; tool?: string }[] = [];
 		const excluded: typeof applied = [];
 		for (const call of next.calls) {
 			if (call.effect !== "mutate" || call.status !== "succeeded") continue;
 			(selected.has(call.id) ? applied : excluded).push({ call_id: call.id, tool: call.toolName });
+		}
+		for (const { id } of next.proposal?.operations ?? []) {
+			if (!next.calls.some((call) => call.id === id)) {
+				(selected.has(id) ? applied : excluded).push({ call_id: id });
+			}
 		}
 		const text = JSON.stringify({
 			proposal_status: outcome,
@@ -203,18 +202,56 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 			messages: [...next.messages, result],
 			calls: next.calls.map((call) =>
 				call.effect === "mutate" && call.status === "succeeded" && !selected.has(call.id)
-					? { ...call, status: "denied", result: "Not applied." }
+					? {
+							...call,
+							status: "denied",
+							result: "Not applied.",
+							denialReason: outcome === "rejected" ? "user_declined" : call.denialReason,
+						}
 					: call,
 			),
 		});
 	}
 
-	function finishReview(): void {
+	async function finishReview(): Promise<void> {
+		const draft = proposal;
+		const turnSignal = signal();
+		if (!draft) return;
 		if (state.calls.some((call) => call.status === "failed" || call.status === "denied")) {
 			settleProposal("discarded");
 			return;
 		}
-		const review = proposal?.finish();
+		if (legacyFencedEnabledForTurn(state.toolSet.list().length)) {
+			const message = state.messages[state.messages.length - 1];
+			const actions = readFencedOperations(
+				message?.role === "assistant" ? flattenText(message) : "",
+			);
+			if (!actions || actions.length > state.limits.maxToolCallsPerTurn) {
+				settleProposal("discarded", {
+					...state,
+					notice: "The response contained invalid or too many suggested changes.",
+				});
+				return;
+			}
+			for (const [index, action] of actions.entries()) {
+				const tool = GRAPH_ACTION_TOOLS.find(({ name }) => name === action.action);
+				const prepared = tool?.prepare(action);
+				if (!tool || !prepared?.ok) {
+					settleProposal("discarded", {
+						...state,
+						notice: "A suggested change could not be validated.",
+					});
+					return;
+				}
+				const result = await draft.run(tool, `fenced-${index + 1}`, prepared.call, turnSignal);
+				if (turnSignal.aborted || proposal !== draft) return;
+				if (result.status === "error") {
+					settleProposal("discarded", { ...state, notice: result.result });
+					return;
+				}
+			}
+		}
+		const review = draft.finish();
 		if (!review) {
 			proposal = null;
 			baseline = null;
@@ -239,7 +276,7 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 			provider: cfg.provider,
 			modelId: cfg.modelId,
 			system: proposal
-				? `${cfg.system}\n\nMutation tools stage changes in a private draft. Read tools report the draft, including staged edits. Until the user applies the proposal, no live document edits have been made. Summarize proposed changes without claiming they were applied.`
+				? `${cfg.system}\n\nTools work on a private draft. Describe edits as proposals, not applied changes.`
 				: cfg.system,
 			// The full turn history; `streamConversation` budgets it every iteration.
 			messages: state.messages,
@@ -263,7 +300,7 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 					continue;
 				}
 				if (state.phase === "preparing_review") {
-					finishReview();
+					await finishReview();
 					return;
 				}
 				if (state.phase === "executing") {
@@ -304,7 +341,15 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 				signal(),
 			);
 
-			if (heldError === undefined) return;
+			if (heldError === undefined) {
+				if (state.phase === "requesting" || state.phase === "streaming") {
+					dispatch({
+						type: "error",
+						error: { code: "transport", message: "The response ended before it was complete." },
+					});
+				}
+				return;
+			}
 			if (signal().aborted) {
 				dispatch({ type: "cancel" });
 				return;
@@ -328,48 +373,16 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 			if (state.calls.find((c) => c.id === call.id)?.status !== "running") continue;
 
 			const prepared = call.prepared;
-			const document = proposal?.getDocument() ?? deps.getDocument();
-			if (prepared === null || document === null) {
-				dispatch({
-					type: "callSettled",
-					callId: call.id,
-					outcome: { status: "error", result: "No document is open to apply this change to." },
-				});
-				continue;
+			const tool = state.toolSet.get(call.toolName);
+			const draft = proposal;
+			const turnSignal = signal();
+			if (!draft || !prepared || !tool) return;
+			let outcome = await draft.run(tool, call.id, prepared, turnSignal);
+			if (turnSignal.aborted || proposal !== draft) return;
+			if (outcome.status === "ok" && call.effect === "mutate") {
+				outcome = { status: "ok", result: stagedResult(outcome.result) };
 			}
-
-			let outcome: ToolOutcome;
-			if (proposal) {
-				const tool = config?.toolSet.get(call.toolName);
-				outcome = tool
-					? await proposal.run(tool, call.id, prepared, signal())
-					: { status: "error", result: "This tool is not available in the turn." };
-				if (signal().aborted) return;
-				if (outcome.status === "ok" && call.effect === "mutate") {
-					outcome = {
-						status: "ok",
-						result: stagedResult(outcome.result),
-					};
-				}
-				dispatch({ type: "callSettled", callId: call.id, outcome });
-				continue;
-			}
-			try {
-				outcome = await prepared.run({ document, signal: signal() });
-			} catch {
-				outcome = { status: "error", result: "The tool failed while running." };
-			}
-
-			// A stop that fired while the call ran discards the outcome — nothing was
-			// committed, so there is nothing to roll back.
-			if (signal().aborted) return;
-
-			const committed = commit(outcome, { expected: document, effect: call.effect, ledger });
-			const settled: ToolOutcome =
-				committed.status === "refused"
-					? { status: "error", result: committed.result }
-					: { status: "ok", result: committed.result };
-			dispatch({ type: "callSettled", callId: call.id, outcome: settled });
+			dispatch({ type: "callSettled", callId: call.id, outcome });
 		}
 	}
 
@@ -385,7 +398,7 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 			const model = deps.getDocument();
 			const stores = getActiveStores();
 			const { filePath, fileRevision } = stores.model.getState();
-			baseline = deps.reviewProposals && model ? { stores, model, filePath, fileRevision } : null;
+			baseline = model ? { stores, model, filePath, fileRevision } : null;
 			proposal = baseline ? createTurnProposal(baseline.model) : null;
 			dispatch({
 				type: "submit",
@@ -395,28 +408,10 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 				limits: cfg.limits,
 				nowMs: now(),
 			});
-			if (deps.reviewProposals && !proposal) {
+			if (!proposal) {
 				settleProposal("stale");
 				return Promise.resolve();
 			}
-			return drive();
-		},
-
-		approveCall(id) {
-			if (deps.reviewProposals) return Promise.resolve();
-			dispatch({ type: "approveCall", callId: id });
-			return drive();
-		},
-
-		approveBatch(ids) {
-			if (deps.reviewProposals) return Promise.resolve();
-			dispatch({ type: "approveBatch", callIds: ids });
-			return drive();
-		},
-
-		denyCall(id) {
-			if (deps.reviewProposals) return Promise.resolve();
-			dispatch({ type: "denyCall", callId: id });
 			return drive();
 		},
 

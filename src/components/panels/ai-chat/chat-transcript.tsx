@@ -9,11 +9,9 @@ import { AssistantContent } from "./assistant-content";
 export function MessageList({
 	messages,
 	isStreaming,
-	fencedEnabled,
 }: {
 	messages: ChatMessage[];
 	isStreaming: boolean;
-	fencedEnabled: boolean;
 }) {
 	const visibleMessages = messages.filter(hasVisibleText);
 	if (messages.length === 0) {
@@ -36,8 +34,6 @@ export function MessageList({
 					// biome-ignore lint/suspicious/noArrayIndexKey: messages are append-only
 					key={i}
 					message={msg}
-					fencedEnabled={fencedEnabled}
-					isLast={i === visibleMessages.length - 1}
 					isStreaming={isStreaming && i === visibleMessages.length - 1 && msg.role === "assistant"}
 				/>
 			))}
@@ -55,25 +51,21 @@ export function MessageList({
 
 /** A message that renders as a chat bubble; tool_result carriers and empty turns are internal. */
 export function hasVisibleText(message: ProtocolMessage): boolean {
-	return message.content.some((block) => block.type === "text" && block.text.trim().length > 0);
+	return (
+		message.origin !== "proposal" &&
+		message.content.some((block) => block.type === "text" && block.text.trim().length > 0)
+	);
 }
 
 export const MessageBubble = memo(function MessageBubble({
 	message,
-	isLast,
 	isStreaming,
-	fencedEnabled = true,
 }: {
 	message: ProtocolMessage;
-	isLast: boolean;
 	isStreaming: boolean;
-	/** Whether fenced ` ```actions ` parsing runs; a tool-enabled turn disables it. */
-	fencedEnabled?: boolean;
 }) {
 	const isUser = message.role === "user";
 	// Messages carry block content now; the bubble renders the accumulated text.
-	// The assistant's fenced ` ```actions `/` ```threats ` blocks live inside this
-	// text and are parsed only through the legacy boundary in `AssistantContent`.
 	const displayText = flattenText(message);
 
 	return (
@@ -89,12 +81,7 @@ export const MessageBubble = memo(function MessageBubble({
 				{isUser ? (
 					<p className="whitespace-pre-wrap">{displayText}</p>
 				) : (
-					<AssistantContent
-						content={displayText}
-						isStreaming={isStreaming}
-						isLast={isLast}
-						fencedEnabled={fencedEnabled}
-					/>
+					<AssistantContent content={displayText} isStreaming={isStreaming} />
 				)}
 			</div>
 		</div>

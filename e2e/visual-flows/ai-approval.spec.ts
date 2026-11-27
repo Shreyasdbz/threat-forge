@@ -13,18 +13,19 @@ test("review, approve, and undo an AI-authored change", async ({ page }) => {
 	await openAiPanelWithModel(page);
 	const nodes = page.locator(".react-flow__node");
 	const inspector = page.getByTestId("right-panel");
-	const approve = inspector.getByRole("button", { name: "Approve", exact: true });
+	const approve = inspector.getByRole("button", { name: "Apply proposal", exact: true });
 	const undo = inspector.getByRole("button", { name: /Undo this turn/ });
 
 	await test.step("Review a proposal before it edits the diagram", async () => {
 		await send(page, "add a cache");
 		await expect(approve).toBeVisible();
 		await expect(nodes).toHaveCount(0);
+		await expect(inspector.getByRole("heading", { name: "Before and after" })).toBeVisible();
 		await checkpoint(page, "awaiting-approval", inspector);
 	});
 
 	await test.step("Approve the proposal and review the edit", async () => {
-		await approve.click();
+		await approve.press("Enter");
 		await waitForCanvasSettled(page, 1);
 		await expect(nodes.first()).toContainText("Cache");
 		await expect(inspector.getByText("Done.", { exact: true })).toBeVisible();

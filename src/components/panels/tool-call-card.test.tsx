@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import type { CallRecord, CallStatus } from "@/lib/ai/loop/turn-machine";
-import { ToolCallBatch, ToolCallCard } from "./tool-call-card";
+import { ToolCallCard } from "./tool-call-card";
 
 function mk(overrides: Partial<CallRecord> & Pick<CallRecord, "id" | "status">): CallRecord {
 	return {
@@ -19,17 +19,11 @@ function mk(overrides: Partial<CallRecord> & Pick<CallRecord, "id" | "status">):
 	};
 }
 
-const noop = () => {};
-
 describe("ToolCallCard untrusted text rendering", () => {
 	it("renders a hostile summary as literal text with no markup", () => {
 		const summary = '<img src=x onerror="alert(1)"> [click](javascript:alert(1)) **bold**';
 		const { container } = render(
-			<ToolCallCard
-				call={mk({ id: "c1", status: "pending", summary })}
-				onApprove={noop}
-				onDeny={noop}
-			/>,
+			<ToolCallCard call={mk({ id: "c1", status: "pending", summary })} />,
 		);
 		// No element was created from the model's text.
 		expect(container.querySelector("img")).toBeNull();
@@ -46,9 +40,7 @@ describe("ToolCallCard statuses", () => {
 		"keeps creation feedback readable when %s",
 		(status) => {
 			const result = '{"action":"add_element","id":"comp-1"}';
-			render(
-				<ToolCallCard call={mk({ id: "c1", status, result })} onApprove={noop} onDeny={noop} />,
-			);
+			render(<ToolCallCard call={mk({ id: "c1", status, result })} />);
 			expect(screen.getByText("Add element: Cache (data_store)")).toBeVisible();
 			expect(screen.getByText(status === "succeeded" ? "Applied" : "Undone")).toBeVisible();
 			expect(screen.queryByText(result)).toBeNull();
@@ -59,41 +51,27 @@ describe("ToolCallCard statuses", () => {
 		render(
 			<ToolCallCard
 				call={mk({ id: "c1", status: "failed", isError: true, result: "The document changed." })}
-				onApprove={noop}
-				onDeny={noop}
 			/>,
 		);
 		expect(screen.getByText("The document changed.")).toBeVisible();
 	});
 
-	it("shows Approve and Deny for a pending call and fires the callbacks", () => {
-		const onApprove = vi.fn();
-		const onDeny = vi.fn();
-		render(
-			<ToolCallCard
-				call={mk({ id: "c1", status: "pending" })}
-				onApprove={onApprove}
-				onDeny={onDeny}
-			/>,
-		);
-		fireEvent.click(screen.getByRole("button", { name: "Approve" }));
-		fireEvent.click(screen.getByRole("button", { name: "Deny" }));
-		expect(onApprove).toHaveBeenCalledWith("c1");
-		expect(onDeny).toHaveBeenCalledWith("c1");
+	it("is informational and has no per-call approval buttons", () => {
+		render(<ToolCallCard call={mk({ id: "c1", status: "pending" })} />);
+		expect(screen.getByText("Awaiting review")).toBeInTheDocument();
+		expect(screen.queryByRole("button")).not.toBeInTheDocument();
 	});
 
 	it("renders a distinct chip for each terminal and in-flight status", () => {
 		const cases: Array<[CallStatus, string]> = [
 			["approved", "Queued"],
-			["running", "Applying…"],
+			["running", "Preparing…"],
 			["succeeded", "Applied"],
 			["failed", "Failed"],
 			["undone", "Undone"],
 		];
 		for (const [status, label] of cases) {
-			const { unmount } = render(
-				<ToolCallCard call={mk({ id: "c1", status })} onApprove={noop} onDeny={noop} />,
-			);
+			const { unmount } = render(<ToolCallCard call={mk({ id: "c1", status })} />);
 			expect(screen.getByText(label)).toBeInTheDocument();
 			unmount();
 		}
@@ -101,72 +79,14 @@ describe("ToolCallCard statuses", () => {
 
 	it("labels a user-declined call Declined and a not-run call Not run", () => {
 		const { unmount } = render(
-			<ToolCallCard
-				call={mk({ id: "c1", status: "denied", denialReason: "user_declined" })}
-				onApprove={noop}
-				onDeny={noop}
-			/>,
+			<ToolCallCard call={mk({ id: "c1", status: "denied", denialReason: "user_declined" })} />,
 		);
 		expect(screen.getByText("Declined")).toBeInTheDocument();
 		unmount();
 
 		render(
-			<ToolCallCard
-				call={mk({ id: "c2", status: "denied", denialReason: "turn_cancelled" })}
-				onApprove={noop}
-				onDeny={noop}
-			/>,
+			<ToolCallCard call={mk({ id: "c2", status: "denied", denialReason: "turn_cancelled" })} />,
 		);
 		expect(screen.getByText("Not run")).toBeInTheDocument();
-	});
-});
-
-describe("ToolCallBatch", () => {
-	const calls: CallRecord[] = [
-		mk({ id: "c1", status: "pending", summary: "Add A" }),
-		mk({ id: "c2", status: "pending", summary: "Update B" }),
-		mk({
-			id: "c3",
-			status: "pending",
-			summary: "Delete C",
-			destructive: true,
-			toolName: "delete_element",
-		}),
-	];
-
-	it("offers 'Approve all' for the non-destructive calls only and names the exclusion", () => {
-		const onApproveBatch = vi.fn();
-		render(
-			<ToolCallBatch
-				calls={calls}
-				onApprove={noop}
-				onDeny={noop}
-				onApproveBatch={onApproveBatch}
-			/>,
-		);
-		const approveAll = screen.getByRole("button", { name: /Approve all 2/ });
-		expect(approveAll).toHaveTextContent("excludes 1 destructive");
-		fireEvent.click(approveAll);
-		// Only the two non-destructive ids are granted; the destructive one is left out.
-		expect(onApproveBatch).toHaveBeenCalledWith(["c1", "c2"]);
-	});
-
-	it("still gives the destructive call its own Approve button", () => {
-		render(<ToolCallBatch calls={calls} onApprove={noop} onDeny={noop} onApproveBatch={noop} />);
-		// One Approve button per pending call (3) plus the "Approve all" button.
-		expect(screen.getAllByRole("button", { name: "Approve" })).toHaveLength(3);
-	});
-
-	it("announces status through a polite live region", () => {
-		render(
-			<ToolCallBatch
-				calls={[mk({ id: "c1", status: "succeeded", result: "added" })]}
-				onApprove={noop}
-				onDeny={noop}
-				onApproveBatch={noop}
-			/>,
-		);
-		const live = document.querySelector('[aria-live="polite"]');
-		expect(live?.textContent).toContain("1 applied");
 	});
 });

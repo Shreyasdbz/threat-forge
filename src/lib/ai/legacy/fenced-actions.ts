@@ -75,3 +75,22 @@ export function extractLegacyThreats(
 	if (!enabled) return [];
 	return extractThreats(assistantText);
 }
+
+export function readFencedOperations(assistantText: string): AiAction[] | null {
+	const actions: AiAction[] = [];
+	let invalid = false;
+	const onInvalid = () => {
+		invalid = true;
+	};
+	const fence = /```(actions|threats)\n(?:[\s\S]*?```|[\s\S]*$)/g;
+	for (const [block, language] of assistantText.matchAll(fence)) {
+		if (!block.endsWith("```")) return null;
+		if (language === "actions") actions.push(...extractActions(block, onInvalid));
+		else {
+			for (const threat of extractThreats(block, onInvalid)) {
+				actions.push({ action: "add_threat", threat });
+			}
+		}
+	}
+	return invalid ? null : actions;
+}

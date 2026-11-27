@@ -33,13 +33,14 @@ export type UpdateThreatPayload = Extract<AiAction, { action: "update_threat" }>
 export type DeleteThreatPayload = Extract<AiAction, { action: "delete_threat" }>;
 
 /** Read one fenced block's JSON. A block whose body is not valid JSON contributes nothing. */
-function parseBlockItems(blockBody: string): unknown[] {
+function parseBlockItems(blockBody: string, onInvalid?: () => void): unknown[] {
 	try {
 		const parsed: unknown = JSON.parse(blockBody);
 		return Array.isArray(parsed) ? parsed : [parsed];
 	} catch {
 		// A block the model truncated or malformed is skipped; the surrounding
 		// response still renders and any other block still applies.
+		onInvalid?.();
 		return [];
 	}
 }
@@ -52,15 +53,16 @@ function parseBlockItems(blockBody: string): unknown[] {
  * The drop is currently silent — the user simply sees one fewer suggestion —
  * because there is no channel back to the model until the tool loop in #62.
  */
-export function extractActions(text: string): AiAction[] {
+export function extractActions(text: string, onInvalid?: () => void): AiAction[] {
 	const blockRegex = /```actions\n([\s\S]*?)```/g;
 	const actions: AiAction[] = [];
 
 	let match = blockRegex.exec(text);
 	while (match) {
-		for (const item of parseBlockItems(match[1])) {
+		for (const item of parseBlockItems(match[1], onInvalid)) {
 			const result = parseLegacyAction(item);
 			if (result.ok) actions.push(result.value);
+			else onInvalid?.();
 		}
 		match = blockRegex.exec(text);
 	}
