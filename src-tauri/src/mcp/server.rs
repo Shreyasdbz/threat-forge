@@ -2,6 +2,7 @@
 //! to external AI assistants (Claude Code, VS Code Copilot, Cursor, etc.)
 //! via the Model Context Protocol over stdio.
 
+use super::architecture::{AddRelationship, ArchitectureId, UpdateRelationship};
 use super::journal::Journal;
 use super::layout;
 use super::workspace::{Workspace, MAX_RESULTS};
@@ -258,6 +259,9 @@ enum Mutation {
     CreateSequenceView(SequenceEditRequest),
     UpdateSequenceView(SequenceEditRequest),
     DeleteSequenceView(SequenceReadId),
+    AddRelationship(AddRelationship),
+    UpdateRelationship(UpdateRelationship),
+    DeleteRelationship(ArchitectureId),
 }
 
 impl Mutation {
@@ -283,7 +287,7 @@ impl Mutation {
         let message = self.apply(model, layouts)?;
         prepare_document(Some(&before), model).map_err(|error| mcp_err(error.user_message()))?;
         if !reports_cascade {
-            return Ok(message.into());
+            return Ok(message);
         }
         fn removed<'a>(
             before: impl Iterator<Item = &'a str>,
@@ -302,8 +306,12 @@ impl Mutation {
         }))
     }
 
-    fn apply(self, model: &mut ThreatModel, layouts: &LegacyLayouts) -> Result<String, ErrorData> {
-        match self {
+    fn apply(
+        self,
+        model: &mut ThreatModel,
+        layouts: &LegacyLayouts,
+    ) -> Result<serde_json::Value, ErrorData> {
+        let message = match self {
             Self::AddElement(req) => ThreatForgeServer::apply_add_element(model, req),
             Self::UpdateElement(req) => ThreatForgeServer::apply_update_element(model, req),
             Self::DeleteElement(req) => ThreatForgeServer::apply_delete_element(model, req),
@@ -338,7 +346,13 @@ impl Mutation {
                 model.diagrams.remove(index);
                 Ok(format!("Deleted sequence view: {}", req.diagram_id))
             }
-        }
+            Self::AddRelationship(req) => return req.apply(model).map_err(mcp_err),
+            Self::UpdateRelationship(req) => return req.apply(model).map_err(mcp_err),
+            Self::DeleteRelationship(req) => {
+                return req.delete_relationship(model).map_err(mcp_err);
+            }
+        }?;
+        Ok(message.into())
     }
 }
 

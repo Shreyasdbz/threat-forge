@@ -496,6 +496,95 @@ fn workspace_batches_are_atomic_and_undo_redo_refuses_external_edits() {
 }
 
 #[test]
+fn architecture_relationships_use_the_batch_revision_and_undo() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("architecture.thf");
+    let original = MODEL_THF
+        .replace("elements: []", "elements:\n- id: a\n  name: A\n  type: process\n- id: b\n  name: B\n  type: process\n- id: c\n  name: C\n  type: process")
+        .replace("data_flows: []", "data_flows:\n- id: existing-flow\n  from: a\n  to: b")
+        + "relationships:\n- id: existing-edge\n  type: dependency\n  from: a\n  to: b\n  source_handle: right\n  target_handle: left\n  label_offset: { x: 5, y: 6 }\n  extension: { keep: true }\n";
+    std::fs::write(&path, &original).unwrap();
+    let mut server = McpServer::spawn(&path);
+    server.start_workspace();
+    let add = json!({"tool": "add_relationship", "arguments": {
+        "id": "dependency", "type": "depends_on", "from": "a", "to": "b",
+        "stroke_color": "#121212"
+    }});
+    let update = json!({"tool": "update_relationship", "arguments": {
+        "id": "dependency", "to": "c", "name": "Uses"
+    }});
+    let operations = json!([add, update, {"tool": "update_relationship", "arguments": {
+        "id": "existing-edge", "to": "c"
+    }}]);
+    let preview = server.tool_json(
+        2,
+        "batch_transaction",
+        json!({
+            "operations": operations, "dry_run": true
+        }),
+    );
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    let applied = server.tool_json(
+        3,
+        "batch_transaction",
+        json!({
+            "operations": operations, "expected_revision": preview["revision"]
+        }),
+    );
+    assert_eq!(
+        applied["results"][1],
+        json!({"action": "update_relationship", "id": "dependency"})
+    );
+    let model = server.tool_json(4, "get_model", json!({}));
+    assert_eq!(model["relationships"][1]["to"], "c");
+    assert_eq!(model["relationships"][1]["stroke_color"], "#121212");
+    assert_eq!(model["data_flows"].as_array().unwrap().len(), 1);
+    let reconnected = &model["relationships"][0];
+    assert_eq!(reconnected["source_handle"], "right");
+    assert!(reconnected.get("target_handle").is_none());
+    assert_eq!(reconnected["label_offset"]["x"], 5.0);
+    assert_eq!(reconnected["extension"], json!({"keep": true}));
+    let saved = std::fs::read_to_string(&path).unwrap();
+    let delete = json!({"tool": "delete_relationship", "arguments": {"id": "dependency"}});
+    let invalid = json!({"tool": "add_relationship", "arguments": {
+        "id": "collision", "type": "depends_on", "from": "a", "to": "missing"
+    }});
+    let failed = server.request_raw(
+        5,
+        "tools/call",
+        json!({
+            "name": "batch_transaction", "arguments": {"operations": [delete, invalid]}
+        }),
+    );
+    assert!(failed.to_string().contains("Operation 2"), "{failed}");
+    let collision = server.request_raw(10, "tools/call", json!({
+        "name": "batch_transaction", "arguments": {"operations": [{"tool": "add_relationship", "arguments": {
+            "id": "existing-flow", "type": "depends_on", "from": "a", "to": "b"
+        }}]}
+    }));
+    assert!(
+        collision.to_string().contains("existing-flow"),
+        "{collision}"
+    );
+    let stale = server.request_raw(
+        6,
+        "tools/call",
+        json!({
+            "name": "batch_transaction", "arguments": {
+                "operations": [delete], "expected_revision": preview["revision"]
+            }
+        }),
+    );
+    assert!(stale.to_string().contains("changed on disk"), "{stale}");
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), saved);
+    server.tool(7, "batch_transaction", json!({"operations": [delete]}));
+    server.tool(8, "undo", json!({}));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), saved);
+    server.tool(9, "undo", json!({}));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+}
+
+#[test]
 fn workspace_relative_moves_use_sidecar_and_scene_fallback_positions() {
     let dir = tempfile::tempdir().unwrap();
     let original = MODEL_THF

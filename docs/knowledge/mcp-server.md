@@ -111,6 +111,14 @@ Add to your Cursor MCP configuration:
 | `analyze_stride` | Preview STRIDE suggestions. Save the latest preview as one edit with `apply: true`, its `preview_id`, and its `revision` as `expected_revision`. |
 | `export_svg`, `export_png`, `screenshot` | Render the same scene. Pass `diagram_id` for an explicit view, or omit it for the graph. SVG is returned as text, PNG and screenshot as MCP images. Optional `path` writes an artifact inside the workspace, replacing an existing artifact of the same type. Screenshot is a headless diagram capture, not a desktop window capture. |
 
+Use `add_relationship`, `update_relationship`, or `delete_relationship` as operations
+inside `batch_transaction`. Add takes `id`, `type`, `from`, and `to`; the endpoints
+must be existing elements, and the ID must not match another relationship or data
+flow. Add and update accept `name`, `description`, `stroke_color` (six-digit hex),
+and `stroke_opacity` (0–1). Update takes the existing `id` and changes only the
+supplied values. Changing an endpoint clears its old handle. Each result contains
+the operation's `action` and `id`. Relationships do not feed STRIDE analysis.
+
 Use `create_sequence_view` or `update_sequence_view` inside `batch_transaction` with
 `diagram_id`, `name`, `participants`, and `messages`. Update replaces the ordered lists.
 `delete_sequence_view` takes only `diagram_id` and does not remove graph items. Preview

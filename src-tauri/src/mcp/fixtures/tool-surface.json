@@ -300,6 +300,55 @@
           ],
           "type": "object"
         },
+        "AddRelationship": {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "from": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "stroke_color": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "stroke_opacity": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "to": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "from",
+            "to"
+          ],
+          "type": "object"
+        },
         "AddThreatRequest": {
           "properties": {
             "category": {
@@ -360,6 +409,18 @@
           },
           "required": [
             "name"
+          ],
+          "type": "object"
+        },
+        "ArchitectureId": {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
           ],
           "type": "object"
         },
@@ -656,6 +717,54 @@
                 "arguments"
               ],
               "type": "object"
+            },
+            {
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/AddRelationship"
+                },
+                "tool": {
+                  "const": "add_relationship",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tool",
+                "arguments"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/UpdateRelationship"
+                },
+                "tool": {
+                  "const": "update_relationship",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tool",
+                "arguments"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/ArchitectureId"
+                },
+                "tool": {
+                  "const": "delete_relationship",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tool",
+                "arguments"
+              ],
+              "type": "object"
             }
           ]
         },
@@ -814,6 +923,61 @@
             },
             "trust_zone": {
               "description": "New trust zone",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "type": "object"
+        },
+        "UpdateRelationship": {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "from": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "stroke_color": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "stroke_opacity": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "to": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
               "type": [
                 "string",
                 "null"
