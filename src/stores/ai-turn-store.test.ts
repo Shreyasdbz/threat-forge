@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConversationRequest, StreamConversationHandlers } from "@/lib/ai/protocol/client";
 import type { StreamEvent } from "@/lib/ai/protocol/events";
 import { DEFAULT_ANTHROPIC_MODEL } from "@/lib/ai-models";
+import { buildSystemPrompt } from "@/lib/ai-prompt";
 import { useDocumentRegistry } from "@/stores/document-registry";
 import { createDocumentStores, setActiveStores } from "@/stores/document-stores";
 import { useHistoryStore } from "@/stores/history-store";
@@ -154,6 +155,95 @@ describe("submitTurn against a tool-capable model", () => {
 			expect(advertised).toContain(readTool);
 		}
 		expect(advertised).toContain("reparent_group");
+	});
+
+	it("keeps the system prompt bounded and reads an element before and after an approved edit", async () => {
+		const large: ThreatModel = {
+			...model,
+			metadata: { ...model.metadata, description: "private document details ".repeat(5_000) },
+			elements: Array.from({ length: 2_000 }, (_, i) => ({
+				...model.elements[0],
+				id: `large-node-${i}`,
+				name: `Existing service ${i}`,
+				position: { x: i, y: 20 },
+			})),
+		};
+		const id = "large-node-517";
+		useModelStore.getState().setModel(large, null);
+		const read = (callId: string): StreamEvent[] => [
+			{ type: "message_start", model: "m" },
+			{
+				type: "tool_call_complete",
+				id: callId,
+				name: "get_entity",
+				input: { kind: "elements", id },
+			},
+			{ type: "message_stop", stopReason: "tool_use" },
+		];
+		script(
+			read("before"),
+			[
+				{ type: "message_start", model: "m" },
+				{
+					type: "tool_call_complete",
+					id: "edit",
+					name: "update_element",
+					input: { action: "update_element", id, updates: { name: "Renamed service" } },
+				},
+				{ type: "message_stop", stopReason: "tool_use" },
+			],
+			read("after"),
+			[
+				{ type: "message_start", model: "m" },
+				{ type: "message_stop", stopReason: "end_turn" },
+			],
+		);
+
+		await useAiTurnStore
+			.getState()
+			.submitTurn(`Read and rename ${id}, then verify the edit`, large);
+		await flush();
+		expect(useAiTurnStore.getState().turn?.phase).toBe("awaiting_approval");
+		expect(useModelStore.getState().model?.elements[517].name).toBe("Existing service 517");
+		useAiTurnStore.getState().approveCall("edit");
+		await flush();
+
+		expect(useAiTurnStore.getState().turn?.outcome).toBe("completed");
+		const requests = streamConversationMock.mock.calls.map(
+			([request]) => request as ConversationRequest,
+		);
+		expect(requests).toHaveLength(4);
+		const system = requests[0].system;
+		expect(system).toBe(buildSystemPrompt(model, { tools: requests[0].tools }));
+		expect(new TextEncoder().encode(system).length).toBeLessThanOrEqual(5 * 1024);
+		expect(system).toContain("Document read tools are the authoritative source");
+		for (const name of ["get_document_summary", "search_entities", "get_entity"]) {
+			expect(system).toContain(name);
+		}
+		for (const request of requests) {
+			expect(request.system).toBe(system);
+			for (const documentText of [
+				id,
+				"Existing service",
+				"Renamed service",
+				"private document details",
+			]) {
+				expect(request.system).not.toContain(documentText);
+			}
+		}
+		const resultFor = (request: ConversationRequest, callId: string) =>
+			request.messages
+				.flatMap((message) => message.content)
+				.find((block) => block.type === "tool_result" && block.toolCallId === callId);
+		expect(resultFor(requests[1], "before")).toMatchObject({
+			content: expect.stringContaining('"name":"Existing service 517"'),
+		});
+		expect(resultFor(requests[1], "before")).toMatchObject({
+			content: expect.stringContaining('"position":{"x":517,"y":20}'),
+		});
+		expect(resultFor(requests[3], "after")).toMatchObject({
+			content: expect.stringContaining('"name":"Renamed service"'),
+		});
 	});
 
 	it("reviews architecture edits, reports invalid references for correction, and undoes the turn", async () => {

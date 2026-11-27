@@ -77,3 +77,4 @@ Scripted tests are not evidence of provider answer quality.
 | Date | Change | Evidence |
 |------|--------|----------|
 | 2026-11-27 | Joint plan | #229/#242 acceptance criteria and #203 registry |
+| 2026-11-27 | Keep existing placement data available through full entity reads | #203 withheld layout data because positions and boundary dimensions were still inline. Removing the inline snapshot would otherwise remove the model's placement context. Only the numeric geometry previously in the prompt moves into full reads; compact results and styling are unchanged. |

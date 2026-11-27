@@ -43,7 +43,7 @@ describe("buildSystemPrompt", () => {
 				...model.elements[0],
 				id: `element-${i}`,
 				name: "Node",
-				description: undefined,
+				description: "",
 				technologies: [],
 			}));
 			const prompt = buildSystemPrompt(model, NO_TOOLS);
@@ -162,6 +162,19 @@ describe("buildSystemPrompt", () => {
 			tools: [{ name: "add_element", description: "Add an element." }],
 		});
 		expect(withTools).not.toContain("```actions");
+	});
+
+	it("only recommends advertised document reads when the bounded snapshot is truncated", () => {
+		const model = emptyModel();
+		model.metadata.description = "x".repeat(500);
+		const prompt = buildSystemPrompt(model, {
+			tools: [{ name: "get_entity", description: "Read an entity." }],
+		});
+		expect(prompt).toContain("TURN-START DOCUMENT SNAPSHOT: Document context was truncated.");
+		expect(prompt).toContain("get_entity to read a specific entity");
+		expect(prompt).not.toContain("search_entities");
+		expect(prompt).not.toContain("get_document_summary");
+		expect(documentBlock(prompt)).toContain("Test Model");
 	});
 
 	it("generates the supported-action catalogue from the tool registry", () => {

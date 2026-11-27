@@ -218,6 +218,10 @@ const elementsSpec: SectionSpec<EntityOf<"elements">> = {
 		projection.list("technologies", element.technologies);
 		projection.list("tags", element.tags ?? []);
 		projection.list("stores", element.stores ?? []);
+		if (element.position) {
+			const { x, y } = element.position;
+			projection.raw("position", { x, y });
+		}
 		projection.list(
 			"incoming_flow_ids",
 			model.data_flows.filter((flow) => flow.to === element.id).map((flow) => flow.id),
@@ -300,6 +304,14 @@ const trustBoundariesSpec: SectionSpec<EntityOf<"trust_boundaries">> = {
 		projection.scalar("name", boundary.name);
 		projection.raw("contains_count", boundary.contains.length);
 		projection.list("contains", boundary.contains);
+		if (boundary.position) {
+			const { x, y } = boundary.position;
+			projection.raw("position", { x, y });
+		}
+		if (boundary.size) {
+			const { width, height } = boundary.size;
+			projection.raw("size", { width, height });
+		}
 		return projection.finish();
 	},
 	filters: {

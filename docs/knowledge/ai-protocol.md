@@ -116,6 +116,14 @@ limited to 128 Unicode code points and a nested list to its first four values;
 only whole rendered lines that fit are included. Whenever a limit omits content,
 the prompt explicitly warns that omission is not evidence of absence.
 
+When all three document read tools are offered, the system prompt contains no
+inline document data. `get_document_summary`, `search_entities`, and `get_entity`
+read the current document, including approved changes from earlier iterations
+of the turn. They are authoritative; refresh a read after an edit instead of
+relying on its earlier result. `get_entity` includes saved element and boundary
+positions and boundary size where present. Only turns without the complete
+read suite use a bounded, explicitly labeled turn-start snapshot.
+
 Tokens are **estimated** (characters ÷ 4 plus a fixed per-message overhead), not
 counted. The estimate is deliberately dependency-free and conservative; a request
 that fits locally can still overflow at the provider, which surfaces as a
