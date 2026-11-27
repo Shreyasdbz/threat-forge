@@ -972,6 +972,27 @@
             }
           ]
         },
+        "OptionalPatch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "OptionalPatch2": {
+          "anyOf": [
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "PositionRequest": {
           "properties": {
             "id": {
@@ -1190,25 +1211,16 @@
           "additionalProperties": false,
           "properties": {
             "description": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "$ref": "#/$defs/OptionalPatch"
             },
             "id": {
               "type": "string"
             },
             "name": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             },
             "type": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "$ref": "#/$defs/OptionalPatch"
             }
           },
           "required": [
@@ -1220,19 +1232,13 @@
           "additionalProperties": false,
           "properties": {
             "description": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "$ref": "#/$defs/OptionalPatch"
             },
             "id": {
               "type": "string"
             },
             "name": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           "required": [
@@ -1244,50 +1250,28 @@
           "additionalProperties": false,
           "properties": {
             "description": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "$ref": "#/$defs/OptionalPatch"
             },
             "from": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             },
             "id": {
               "type": "string"
             },
             "name": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "$ref": "#/$defs/OptionalPatch"
             },
             "stroke_color": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "$ref": "#/$defs/OptionalPatch"
             },
             "stroke_opacity": {
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
+              "$ref": "#/$defs/OptionalPatch2"
             },
             "to": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             },
             "type": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           "required": [

@@ -1,6 +1,6 @@
 use crate::models::{Group, Layer, Relationship, ThreatModel};
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use serde_json::{json, Value};
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -28,13 +28,69 @@ pub(super) struct AddRelationship {
 pub(super) struct UpdateRelationship {
     id: String,
     #[serde(rename = "type")]
+    #[serde(
+        default,
+        deserialize_with = "value_if_present",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[schemars(with = "String")]
     kind: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "value_if_present",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[schemars(with = "String")]
     from: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "value_if_present",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[schemars(with = "String")]
     to: Option<String>,
-    name: Option<String>,
-    description: Option<String>,
-    stroke_color: Option<String>,
-    stroke_opacity: Option<f64>,
+    #[serde(default)]
+    name: OptionalPatch<String>,
+    #[serde(default)]
+    description: OptionalPatch<String>,
+    #[serde(default)]
+    stroke_color: OptionalPatch<String>,
+    #[serde(default)]
+    stroke_opacity: OptionalPatch<f64>,
+}
+
+fn value_if_present<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<String>, D::Error> {
+    String::deserialize(deserializer).map(Some)
+}
+
+#[derive(Debug, Default, Deserialize, JsonSchema)]
+#[serde(untagged)]
+enum OptionalPatch<T> {
+    Value(T),
+    Clear,
+    #[default]
+    #[serde(skip)]
+    Keep,
+}
+
+impl<T> OptionalPatch<T> {
+    fn value(&self) -> Option<&T> {
+        if let Self::Value(value) = self {
+            Some(value)
+        } else {
+            None
+        }
+    }
+
+    fn apply(self, field: &mut Option<T>) {
+        match self {
+            Self::Value(value) => *field = Some(value),
+            Self::Clear => *field = None,
+            Self::Keep => {}
+        }
+    }
 }
 
 fn nonblank(value: &str, field: &str) -> Result<(), String> {
@@ -106,7 +162,10 @@ impl UpdateRelationship {
         let index = index(&model.relationships, &self.id, "Relationship", |item| {
             &item.id
         })?;
-        check_stroke(self.stroke_color.as_deref(), self.stroke_opacity)?;
+        check_stroke(
+            self.stroke_color.value().map(String::as_str),
+            self.stroke_opacity.value().copied(),
+        )?;
         let item = &mut model.relationships[index];
         if let Some(kind) = self.kind {
             nonblank(&kind, "type")?;
@@ -124,19 +183,13 @@ impl UpdateRelationship {
                 item.to = to;
             }
         }
-        if let Some(name) = self.name {
-            nonblank(&name, "name")?;
-            item.name = Some(name);
+        if let Some(name) = self.name.value() {
+            nonblank(name, "name")?;
         }
-        if let Some(description) = self.description {
-            item.description = Some(description);
-        }
-        if let Some(color) = self.stroke_color {
-            item.stroke_color = Some(color);
-        }
-        if let Some(opacity) = self.stroke_opacity {
-            item.stroke_opacity = Some(opacity);
-        }
+        self.name.apply(&mut item.name);
+        self.description.apply(&mut item.description);
+        self.stroke_color.apply(&mut item.stroke_color);
+        self.stroke_opacity.apply(&mut item.stroke_opacity);
         Ok(outcome("update_relationship", &self.id))
     }
 }
@@ -224,10 +277,17 @@ impl AddGroup {
 #[serde(deny_unknown_fields)]
 pub(super) struct UpdateGroup {
     id: String,
+    #[serde(
+        default,
+        deserialize_with = "value_if_present",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[schemars(with = "String")]
     name: Option<String>,
-    #[serde(rename = "type")]
-    kind: Option<String>,
-    description: Option<String>,
+    #[serde(default, rename = "type")]
+    kind: OptionalPatch<String>,
+    #[serde(default)]
+    description: OptionalPatch<String>,
 }
 
 impl UpdateGroup {
@@ -238,13 +298,11 @@ impl UpdateGroup {
             nonblank(&name, "name")?;
             group.name = name;
         }
-        if let Some(kind) = self.kind {
-            nonblank(&kind, "type")?;
-            group.r#type = Some(kind);
+        if let Some(kind) = self.kind.value() {
+            nonblank(kind, "type")?;
         }
-        if let Some(description) = self.description {
-            group.description = Some(description);
-        }
+        self.kind.apply(&mut group.r#type);
+        self.description.apply(&mut group.description);
         Ok(outcome("update_group", &self.id))
     }
 }
@@ -275,8 +333,15 @@ impl AddLayer {
 #[serde(deny_unknown_fields)]
 pub(super) struct UpdateLayer {
     id: String,
+    #[serde(
+        default,
+        deserialize_with = "value_if_present",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[schemars(with = "String")]
     name: Option<String>,
-    description: Option<String>,
+    #[serde(default)]
+    description: OptionalPatch<String>,
 }
 
 impl UpdateLayer {
@@ -287,9 +352,7 @@ impl UpdateLayer {
             nonblank(&name, "name")?;
             layer.name = name;
         }
-        if let Some(description) = self.description {
-            layer.description = Some(description);
-        }
+        self.description.apply(&mut layer.description);
         Ok(outcome("update_layer", &self.id))
     }
 }

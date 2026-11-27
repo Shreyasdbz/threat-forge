@@ -38,7 +38,18 @@ describe("architecture mutation parity", () => {
 			expect(provider.additionalProperties).toBe(false);
 			expect(Object.keys(provider.properties).sort()).toEqual(Object.keys(args.properties).sort());
 			expect(provider.required?.slice().sort()).toEqual(args.required.slice().sort());
-			const containsNull = (field: unknown) => /"null"|Destination/.test(JSON.stringify(field));
+			const containsNull = (field: unknown): boolean => {
+				if (
+					typeof field === "object" &&
+					field !== null &&
+					"$ref" in field &&
+					typeof field.$ref === "string"
+				) {
+					const name = field.$ref.split("/").pop();
+					return containsNull(Object.entries(definitions).find(([key]) => key === name)?.[1]);
+				}
+				return /"null"/.test(JSON.stringify(field));
+			};
 			expect(
 				Object.entries(provider.properties)
 					.filter(([, field]) => containsNull(field))
@@ -117,5 +128,34 @@ describe("architecture mutation parity", () => {
 			status: "error",
 			result: expect.stringContaining("changed after"),
 		});
+	});
+
+	it("clears explicit null metadata, preserves omitted values, and refuses null on required fields", async () => {
+		const document = readThreatModelText(rawModel);
+		const relationship = document.relationships?.find((item) => item.stroke_color != null);
+		if (!relationship) throw new Error("No styled relationship");
+		const signal = new AbortController().signal;
+		const call = prepare("update_relationship", { id: relationship.id, stroke_color: null });
+		expect(call.summary).toContain("stroke color: none");
+		const outcome = await call.run({ document, signal });
+		expect(outcome.status).toBe("ok");
+		if (outcome.status !== "ok" || !outcome.document) throw new Error("No updated document");
+		const reopened = readThreatModelText(serializeThreatModelYaml(outcome.document));
+		expect(reopened.relationships?.find((item) => item.id === relationship.id)).toEqual({
+			...relationship,
+			stroke_color: undefined,
+		});
+
+		for (const [tool, id] of [
+			["update_group", "backend-cluster"],
+			["update_layer", "application"],
+		]) {
+			const reset = prepare(tool, { id, description: null });
+			const result = await reset.run({ document, signal });
+			if (result.status !== "ok" || !result.document) throw new Error("No updated document");
+			const section = tool === "update_group" ? result.document.groups : result.document.layers;
+			expect(section?.find((item) => item.id === id)?.description).toBeUndefined();
+			expect(registry.get(tool)?.prepare({ id, name: null })).toMatchObject({ ok: false });
+		}
 	});
 });

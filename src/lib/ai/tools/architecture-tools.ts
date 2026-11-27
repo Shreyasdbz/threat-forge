@@ -24,6 +24,10 @@ const stroke = {
 	stroke_opacity: z.number().min(0).max(1).nullish(),
 };
 
+function patchOptional<T>(prior: T | undefined, patch: T | null | undefined): T | undefined {
+	return patch === undefined ? prior : (patch ?? undefined);
+}
+
 function summarize(description: string, fields: Record<string, unknown>): string {
 	const details = Object.entries(fields)
 		.filter(([, value]) => value !== undefined)
@@ -146,8 +150,15 @@ export const ARCHITECTURE_TOOLS: readonly RegisteredTool[] = [
 	),
 	tool(
 		"update_relationship",
-		"Update or reconnect an existing architecture relationship.",
-		{ id, type: nonblank.nullish(), from: id.nullish(), to: id.nullish(), ...metadata, ...stroke },
+		"Update or reconnect a relationship. Use null to clear its name, description or stroke styling.",
+		{
+			id,
+			type: nonblank.optional(),
+			from: id.optional(),
+			to: id.optional(),
+			...metadata,
+			...stroke,
+		},
 		({ id, type, from, to, name, description, stroke_color, stroke_opacity }, doc) => ({
 			...doc,
 			relationships: replace(doc.relationships ?? [], id, "Relationship", (item) => ({
@@ -155,12 +166,12 @@ export const ARCHITECTURE_TOOLS: readonly RegisteredTool[] = [
 				type: type ?? item.type,
 				from: from ?? item.from,
 				to: to ?? item.to,
-				name: name ?? item.name,
-				description: description ?? item.description,
+				name: patchOptional(item.name, name),
+				description: patchOptional(item.description, description),
 				source_handle: from != null && from !== item.from ? undefined : item.source_handle,
 				target_handle: to != null && to !== item.to ? undefined : item.target_handle,
-				stroke_color: stroke_color ?? item.stroke_color,
-				stroke_opacity: stroke_opacity ?? item.stroke_opacity,
+				stroke_color: patchOptional(item.stroke_color, stroke_color),
+				stroke_opacity: patchOptional(item.stroke_opacity, stroke_opacity),
 			})),
 		}),
 	),
@@ -187,15 +198,15 @@ export const ARCHITECTURE_TOOLS: readonly RegisteredTool[] = [
 	),
 	tool(
 		"update_group",
-		"Update metadata for an existing architecture group without changing geometry or nesting.",
-		{ id, ...metadata, type: nonblank.nullish() },
+		"Update group metadata without changing geometry or nesting. Use null to clear the type or description.",
+		{ id, name: nonblank.optional(), description: text, type: nonblank.nullish() },
 		({ id, name, type, description }, doc) => ({
 			...doc,
 			groups: replace(doc.groups ?? [], id, "Group", (item) => ({
 				...item,
 				name: name ?? item.name,
-				type: type ?? item.type,
-				description: description ?? item.description,
+				type: patchOptional(item.type, type),
+				description: patchOptional(item.description, description),
 			})),
 		}),
 	),
@@ -226,14 +237,14 @@ export const ARCHITECTURE_TOOLS: readonly RegisteredTool[] = [
 	),
 	tool(
 		"update_layer",
-		"Update metadata for an architecture layer.",
-		{ id, ...metadata },
+		"Update layer metadata. Use null to clear the description.",
+		{ id, name: nonblank.optional(), description: text },
 		({ id, name, description }, doc) => ({
 			...doc,
 			layers: replace(doc.layers ?? [], id, "Layer", (item) => ({
 				...item,
 				name: name ?? item.name,
-				description: description ?? item.description,
+				description: patchOptional(item.description, description),
 			})),
 		}),
 	),

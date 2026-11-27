@@ -116,13 +116,16 @@ inside `batch_transaction`. Add takes `id`, `type`, `from`, and `to`; the endpoi
 must be existing elements, and the ID must not match another relationship or data
 flow. Add and update accept `name`, `description`, `stroke_color` (six-digit hex),
 and `stroke_opacity` (0–1). Update takes the existing `id` and changes only the
-supplied values. Changing an endpoint clears its old handle. Each result contains
+supplied values. Use `null` to clear the name, description, or either stroke
+override; omit a key to keep its value. Changing an endpoint clears its old handle.
+Each result contains
 the operation's `action` and `id`. Relationships do not feed STRIDE analysis.
 
 Groups and layers also use batch operations. `add_group` and `add_layer` take
 `id` and `name`, plus optional `description` (and `type` for groups).
 `update_group` and `update_layer` take the existing `id` and any metadata to
-change. Use `reparent_group` with `id` and `parent`, and `set_element_group`
+change. Use `null` to clear the description or group type; names cannot be cleared.
+Use `reparent_group` with `id` and `parent`, and `set_element_group`
 or `set_element_layer` with the element `id` and `group` or `layer`. Supply
 the destination ID or explicit `null` to clear it. These operations do not
 change geometry or security boundaries. Before `delete_group` or `delete_layer`

@@ -615,6 +615,53 @@ fn recreating_an_architecture_id_in_one_batch_does_not_inherit_deleted_extension
 }
 
 #[test]
+fn architecture_updates_treat_null_as_clear_and_omission_as_keep() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("reset.thf");
+    let original = include_str!("../../tests/fixtures/thf/architecture-canonical-full.thf");
+    std::fs::write(&path, original).unwrap();
+    let mut server = McpServer::spawn(&path);
+    server.start_workspace();
+    for (tool, arguments) in [
+        ("update_relationship", json!({"id": "rel-1", "from": null})),
+        (
+            "update_group",
+            json!({"id": "backend-cluster", "name": null}),
+        ),
+        ("update_layer", json!({"id": "application", "name": null})),
+    ] {
+        let rejected = server.request_raw(2, "tools/call", json!({
+            "name": "batch_transaction", "arguments": {"operations": [{"tool": tool, "arguments": arguments}]}
+        }));
+        assert!(
+            rejected.get("error").is_some() || rejected["result"]["isError"] == true,
+            "{rejected}"
+        );
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    }
+    let before = server.tool_json(3, "get_model", json!({}));
+    server.tool(4, "batch_transaction", json!({"operations": [
+        {"tool": "update_relationship", "arguments": {"id": "rel-1", "stroke_color": null}},
+        {"tool": "update_group", "arguments": {"id": "backend-cluster", "type": null, "description": null}},
+        {"tool": "update_layer", "arguments": {"id": "application", "description": null}}
+    ]}));
+    let saved = server.tool_json(5, "get_model", json!({}));
+    for (section, index, cleared) in [
+        ("relationships", 0, &["stroke_color"][..]),
+        ("groups", 1, &["type", "description"][..]),
+        ("layers", 1, &["description"][..]),
+    ] {
+        let mut expected = before[section][index].as_object().unwrap().clone();
+        for key in cleared {
+            assert!(expected.remove(*key).is_some());
+        }
+        assert_eq!(saved[section][index], json!(expected));
+    }
+    server.tool(6, "undo", json!({}));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+}
+
+#[test]
 fn architecture_membership_batches_preserve_geometry_and_reject_occupied_deletes() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("architecture.thf");
