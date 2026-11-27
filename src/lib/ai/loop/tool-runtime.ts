@@ -25,6 +25,7 @@ import type { z } from "zod";
 import type { AdvertisedTool } from "@/lib/ai/protocol/tools";
 import { defineTool } from "@/lib/ai/protocol/tools";
 import type { ThreatModel } from "@/types/threat-model";
+import type { AllocateActionId } from "./proposal-ids";
 
 /**
  * Whether a tool reads the document or mutates it. Static and local: the auto
@@ -37,6 +38,7 @@ export interface ToolExecutionContext {
 	/** Read immediately before `run`, so a tool computes against current state. */
 	readonly document: ThreatModel;
 	readonly signal: AbortSignal;
+	readonly allocateId?: AllocateActionId;
 }
 
 /**
@@ -80,6 +82,8 @@ export interface RegisteredTool extends AdvertisedTool {
 	readonly effect: ToolEffect;
 	/** Destroys information. Never covered by a batch approval. */
 	readonly destructive: boolean;
+	/** Only explicitly opted-in, document-local tools may run while staging. */
+	readonly stageable?: true;
 	/** The only way to obtain something runnable from raw model output. */
 	prepare(raw: unknown, reviewDocument?: ThreatModel | null): PreparedCallResult;
 }

@@ -2,6 +2,7 @@
  * AI Action Executor — applies validated AI actions to the threat model via stores.
  */
 
+import type { AllocateActionId } from "@/lib/ai/loop/proposal-ids";
 import { type AiAction, describeAction } from "@/lib/ai-actions";
 import { removeGraphItems } from "@/lib/remove-graph-items";
 import { generateBoundaryId, generateElementId, generateFlowId } from "@/stores/canvas-store";
@@ -13,6 +14,13 @@ function generateThreatId(): string {
 	const hex = Math.random().toString(16).slice(2, 10);
 	return `threat-${hex}`;
 }
+
+const liveIdGenerators = {
+	element: generateElementId,
+	flow: generateFlowId,
+	boundary: generateBoundaryId,
+	threat: generateThreatId,
+};
 
 export function isDestructiveAction(action: string): boolean {
 	return action.startsWith("delete_");
@@ -123,13 +131,17 @@ export function sortActionsByDependency(actions: AiAction[]): AiAction[] {
  *
  * Exported so the bounded tool loop (issue #62) can execute the same twelve
  * actions as native tools without reimplementing the graph mutations. It is a
- * pure `(ThreatModel, AiAction) => ThreatModel | null`: it never touches a store,
- * pushes history, or syncs the canvas, so the loop owns the commit and undo.
+ * document transformation. ID allocation is injected during staging, and the
+ * caller owns committing the result and pushing history.
  */
-export function applyAction(model: ThreatModel, action: AiAction): ThreatModel | null {
+export function applyAction(
+	model: ThreatModel,
+	action: AiAction,
+	allocateId: AllocateActionId = (kind) => liveIdGenerators[kind](),
+): ThreatModel | null {
 	switch (action.action) {
 		case "add_element": {
-			const id = generateElementId();
+			const id = allocateId("element");
 			const newEl: Element = {
 				id,
 				type: action.element.type,
@@ -168,7 +180,7 @@ export function applyAction(model: ThreatModel, action: AiAction): ThreatModel |
 			// Validate that referenced elements exist
 			if (!model.elements.some((e) => e.id === action.data_flow.from)) return null;
 			if (!model.elements.some((e) => e.id === action.data_flow.to)) return null;
-			const id = generateFlowId();
+			const id = allocateId("flow");
 			// Compute next flow number
 			const maxNum = model.data_flows.reduce((max, f) => Math.max(max, f.flow_number ?? 0), 0);
 			const newFlow: DataFlow = {
@@ -207,7 +219,7 @@ export function applyAction(model: ThreatModel, action: AiAction): ThreatModel |
 		}
 
 		case "add_trust_boundary": {
-			const id = generateBoundaryId();
+			const id = allocateId("boundary");
 			// Filter out any contains refs that don't match existing elements
 			const validContains = (action.trust_boundary.contains ?? []).filter((c) =>
 				model.elements.some((e) => e.id === c),
@@ -249,7 +261,7 @@ export function applyAction(model: ThreatModel, action: AiAction): ThreatModel |
 		}
 
 		case "add_threat": {
-			const id = generateThreatId();
+			const id = allocateId("threat");
 			const newThreat: Threat = {
 				id,
 				title: action.threat.title,

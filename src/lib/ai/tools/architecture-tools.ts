@@ -67,7 +67,7 @@ function tool<Shape extends { id: z.ZodString | typeof nonblank }>(
 		document: ThreatModel,
 	) => ThreatModel,
 ): RegisteredTool {
-	return defineExecutableTool({
+	const executable = defineExecutableTool({
 		name,
 		description,
 		input,
@@ -90,6 +90,7 @@ function tool<Shape extends { id: z.ZodString | typeof nonblank }>(
 			}
 		},
 	});
+	return { ...executable, stageable: true };
 }
 
 function deletion(

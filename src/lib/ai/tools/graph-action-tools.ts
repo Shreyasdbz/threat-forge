@@ -78,6 +78,7 @@ export const GRAPH_ACTION_TOOLS: readonly RegisteredTool[] = LEGACY_ACTION_TOOLS
 		description: definition.description,
 		effect: "mutate",
 		destructive: isDestructiveAction(definition.name),
+		stageable: true,
 		jsonSchema: definition.jsonSchema,
 		prepare(raw: unknown, reviewDocument?: ThreatModel | null): PreparedCallResult {
 			const parsed = definition.parseInput(raw);
@@ -103,7 +104,7 @@ export const GRAPH_ACTION_TOOLS: readonly RegisteredTool[] = LEGACY_ACTION_TOOLS
 									"The document changed after this deletion was proposed. Request a new proposal.",
 							};
 						}
-						const next = applyAction(ctx.document, action);
+						const next = applyAction(ctx.document, action, ctx.allocateId);
 						if (next === null) return { status: "error", result: unresolvedMessage(action) };
 						return { status: "ok", result: actionResult(action, next), document: next };
 					},

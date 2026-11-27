@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createProposalIdReservations } from "@/lib/ai/loop/proposal-ids";
 import { createToolRegistry } from "@/lib/ai/loop/tool-runtime";
 import { LEGACY_ACTION_TOOLS } from "@/lib/ai/schemas/actions";
 import { useCanvasStore } from "@/stores/canvas-store";
+import { useHistoryStore } from "@/stores/history-store";
 import { useModelStore } from "@/stores/model-store";
 import type { ThreatModel } from "@/types/threat-model";
 import { GRAPH_ACTION_TOOLS } from "./graph-action-tools";
@@ -244,6 +246,37 @@ describe("running a tool computes without committing", () => {
 			to: ids[1],
 			protocol: "HTTPS",
 		});
+	});
+
+	it("replays draft allocations without consuming live IDs or changing live state", async () => {
+		const live = useModelStore.getState();
+		const history = useHistoryStore.getState().past;
+		const canvas = useCanvasStore.getState().nodes;
+		const baseline = {
+			...model,
+			elements: [...model.elements, { ...model.elements[0], id: "comp-1" }],
+		};
+		const reserve = createProposalIdReservations(baseline);
+		const first = reserve();
+		const second = reserve();
+		const prepared = createGraphToolRegistry().get("add_element")?.prepare(VALID_INPUT.add_element);
+		if (!prepared?.ok) throw new Error("Valid tool input was rejected");
+
+		const draft = await prepared.call.run({ ...ctx(), document: baseline, allocateId: first });
+		if (draft.status !== "ok" || !draft.document) throw new Error("Creation failed");
+		const initial = await prepared.call.run({
+			...ctx(),
+			document: draft.document,
+			allocateId: second,
+		});
+		const replay = await prepared.call.run({ ...ctx(), document: baseline, allocateId: second });
+		expect(JSON.parse(draft.result).id).toBe("comp-2");
+		expect(JSON.parse(initial.result).id).toBe("comp-3");
+		expect(replay.result).toEqual(initial.result);
+		expect(useModelStore.getState()).toBe(live);
+		expect(useHistoryStore.getState().past).toBe(history);
+		expect(useCanvasStore.getState().nodes).toBe(canvas);
+		expect(useCanvasStore.getState().nextElementId()).toBe("comp-1");
 	});
 
 	it("leaves the model store untouched for every one of the twelve tools", async () => {
