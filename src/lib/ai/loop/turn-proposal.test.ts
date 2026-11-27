@@ -34,6 +34,39 @@ function stage(
 }
 
 describe("whole-turn draft", () => {
+	it("discloses every finding and boundary deleted by a shared ID", async () => {
+		const finding = {
+			id: "shared",
+			title: "First finding",
+			category: "Spoofing",
+			severity: "high",
+			description: "",
+		} as const;
+		const proposal = createTurnProposal({
+			...baseline,
+			threats: [finding, { ...finding, title: "Second finding" }],
+			trust_boundaries: [
+				{ id: "shared", name: "First boundary", contains: [] },
+				{ id: "shared", name: "Second boundary", contains: [] },
+			],
+		});
+		expect(
+			await stage(proposal, "boundary", "delete_trust_boundary", { id: "shared" }),
+		).toMatchObject({ status: "ok" });
+		expect(await stage(proposal, "finding", "delete_threat", { id: "shared" })).toMatchObject({
+			status: "ok",
+		});
+		const review = proposal.finish();
+		if (!review) throw new Error("Missing review");
+		expect(review.changes.map(({ label, kind }) => [label, kind])).toEqual([
+			["First boundary", "removed"],
+			["Second boundary", "removed"],
+			["First finding", "removed"],
+			["Second finding", "removed"],
+		]);
+		expect(proposal.take(review.token)).toMatchObject({ threats: [], trust_boundaries: [] });
+	});
+
 	it("preserves generated IDs and blocks an included operation with a missing dependency", async () => {
 		const proposal = createTurnProposal(baseline);
 		for (const name of ["client", "service", "independent"]) {

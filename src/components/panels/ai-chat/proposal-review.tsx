@@ -76,7 +76,7 @@ export function ProposalReviewPanel({
 					</p>
 					{review.changes.map((change) => (
 						<details
-							key={JSON.stringify([change.section, change.id])}
+							key={JSON.stringify([change.section, change.id, change.occurrence])}
 							className="rounded border border-border p-2"
 						>
 							<summary className="cursor-pointer">
