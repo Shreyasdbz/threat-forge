@@ -149,6 +149,13 @@ npm run tauri dev
 
 The dev server starts with hot reload on port 1420.
 
+### Connect Claude Code or Codex
+
+Use the [ThreatForge MCP first-run guide](docs/knowledge/mcp-server.md#first-run)
+to build the local server, connect an agent to a dedicated workspace, and preview
+an edit before saving it and capturing a diagram screenshot. The desktop app
+doesn't need to be running.
+
 ### Build
 
 ```bash

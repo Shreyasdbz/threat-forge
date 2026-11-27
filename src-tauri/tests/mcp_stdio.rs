@@ -414,6 +414,12 @@ fn workspace_builds_an_architecture_and_exports_svg_and_png_over_stdio() {
         server.tool(15, "screenshot", json!({}))["content"][0],
         exported_png["content"][1]
     );
+    let screenshot = server.tool(20, "screenshot", json!({ "path": "screenshot.png" }));
+    assert_eq!(screenshot["content"][1], exported_png["content"][1]);
+    assert_eq!(
+        std::fs::read(dir.path().join("screenshot.png")).unwrap(),
+        png
+    );
 
     let resources = server.request(16, "resources/list", json!({}));
     assert_eq!(resources["resources"].as_array().unwrap().len(), 2);
@@ -430,6 +436,16 @@ fn workspace_builds_an_architecture_and_exports_svg_and_png_over_stdio() {
         .as_str()
         .unwrap()
         .contains("analyze_stride"));
+
+    drop(server);
+    let mut reopened = McpServer::spawn_workspace(dir.path());
+    reopened.start_workspace();
+    let opened = reopened.tool_json(2, "open_document", json!({ "path": "architecture.thf" }));
+    assert_eq!(opened["revision"], applied["revision"]);
+    let saved = reopened.tool_json(3, "get_model", json!({}));
+    assert_eq!(saved["elements"], model["elements"]);
+    assert_eq!(saved["data_flows"], model["data_flows"]);
+    assert_eq!(saved["threats"], applied["threats"]);
 }
 
 #[test]

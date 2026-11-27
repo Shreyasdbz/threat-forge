@@ -6,63 +6,115 @@ ThreatForge includes a Model Context Protocol (MCP) server that allows external 
 
 The MCP server lets external assistants create, edit, analyze, and export local ThreatForge documents over stdio. It does not require the desktop app, an account, or a hosted service.
 
-## Building
+## First run
 
-The MCP server binary is built alongside the main application:
+### Build and locate the server
 
-```bash
-cd src-tauri
-cargo build --bin threatforge-mcp            # Debug build
-cargo build --release --bin threatforge-mcp  # Release build (optimized)
-```
-
-The binary will be at `src-tauri/target/debug/threatforge-mcp` (debug) or `src-tauri/target/release/threatforge-mcp` (release). Use the release build for production.
-
-## Usage
+Install stable Rust and the [Tauri build prerequisites](https://v2.tauri.app/start/prerequisites/)
+for your platform. From the root of a ThreatForge checkout:
 
 ```bash
-threatforge-mcp --workspace /absolute/path/to/architecture
-threatforge-mcp /absolute/path/to/model.thf
+cargo build --manifest-path src-tauri/Cargo.toml --locked --bin threatforge-mcp --target-dir src-tauri/target
 ```
 
-Workspace mode starts without an active file. The root must already exist. Tools take paths relative to the root, including existing subdirectories; absolute paths, traversal, and symlink paths are not accepted. Use a dedicated architecture folder, not an entire home directory. Single-file mode remains supported for existing configurations; workspace discovery and file exports are unavailable there, but inline SVG and PNG still work.
+Use the absolute path to `src-tauri/target/debug/threatforge-mcp` inside the
+checkout (`threatforge-mcp.exe` on Windows). If you add `--release` to the build
+command, use `target/release` instead of `target/debug`. You do not need to
+install or start the ThreatForge desktop app.
 
-## Configuration
+### Choose a workspace
+
+Create an empty, dedicated folder for models and exports. In the examples below,
+replace `/absolute/path/to/architecture` with that folder and
+`/absolute/path/to/threatforge-mcp` with your executable. The workspace must
+exist before the client starts the server. Tool arguments such as
+`first-run.thf` are relative to the workspace. Do not use your home or source
+directory as the workspace.
 
 ### Claude Code
 
-Register the server with Claude Code:
+From the project where you use Claude Code, register the server privately for
+that project:
 
 ```bash
-claude mcp add --transport stdio --scope local threatforge -- /absolute/path/to/threatforge-mcp --workspace /absolute/path/to/architecture
+claude mcp add --transport stdio --scope local threatforge -- "/absolute/path/to/threatforge-mcp" --workspace "/absolute/path/to/architecture"
+claude mcp get threatforge
 ```
 
-For shared project settings use `.mcp.json` at the project root, with paths appropriate to the project:
+Alternatively, add the following to `.mcp.json` at the project root. Merge the
+`threatforge` entry into any existing `mcpServers` object; don't register the
+same server in both scopes. Each machine needs usable local paths.
 
 ```json
 {
   "mcpServers": {
     "threatforge": {
-      "command": "/path/to/threatforge-mcp",
-      "args": ["--workspace", "/path/to/architecture"]
+      "type": "stdio",
+      "command": "/absolute/path/to/threatforge-mcp",
+      "args": ["--workspace", "/absolute/path/to/architecture"]
     }
   }
 }
 ```
 
+Review and approve project-scoped servers when Claude Code prompts you.
+Use `claude mcp list` to check for `Connected`, or `/mcp` within Claude Code
+to inspect the connected tools. See the [Claude Code MCP documentation](https://code.claude.com/docs/en/mcp).
+
 ### Codex
 
 ```bash
-codex mcp add threatforge -- /absolute/path/to/threatforge-mcp --workspace /absolute/path/to/architecture
+codex mcp add threatforge -- "/absolute/path/to/threatforge-mcp" --workspace "/absolute/path/to/architecture"
+codex mcp get threatforge
 ```
 
-The equivalent entry in `~/.codex/config.toml` is:
+Alternatively, add this block to `~/.codex/config.toml` (or `config.toml` in
+your `CODEX_HOME` when set):
 
 ```toml
 [mcp_servers.threatforge]
 command = "/absolute/path/to/threatforge-mcp"
 args = ["--workspace", "/absolute/path/to/architecture"]
 ```
+
+Run `codex mcp list` to check that the entry is enabled. This lists configuration,
+not server health. Use `/mcp` in a Codex session to inspect the connected tools.
+See the [Codex MCP documentation](https://developers.openai.com/codex/mcp/).
+
+### Preview, save, and capture a screenshot
+
+Start a new client session and use a scratch document. For example, ask:
+
+> Use ThreatForge to create `first-run.thf` in the workspace. Preview a
+> `batch_transaction` with `dry_run: true` to add a process named Web API and
+> give it a position. Show me the proposed edits and wait for approval; do not
+> apply the batch yet.
+
+After reviewing the proposed edit, ask the client to apply the same batch with
+the preview's `revision` as `expected_revision`. Then ask it to run
+`screenshot` with `path: "first-run.png"`, reopen `first-run.thf` with
+`open_document`, and use `get_model` to verify the saved Web API element.
+Both files should be in the workspace. The PNG is a headless diagram render,
+not a capture of the desktop window.
+
+### Troubleshooting
+
+| Symptom | What to check |
+|---|---|
+| The server is missing or can't connect | Check the binary path and executable permission (or the `.exe` suffix on Windows), and that the workspace directory already exists. Start a fresh client session after editing configuration. |
+| Claude Code reports pending approval | Start Claude Code in the project with `.mcp.json`, review the project and server approval prompts, and check `claude mcp get threatforge` again. |
+| An argument or path is rejected | Keep executable and workspace paths absolute in client configuration. In JSON or TOML, escape Windows backslashes as `\\` and keep each argument as a separate array entry. Use a workspace-relative file name for document and screenshot tools; traversal and symlink paths are refused. |
+| There is no active document | Workspace mode starts without an active document. Use `list_documents` and `open_document`, or `create_document` for a new file. |
+| The file changed after preview | Reopen it, run a new dry run, and review the new edits before applying. Don't remove the revision check to bypass a conflict. |
+
+The server itself needs no account, API key, or network service. Your client
+may require its own sign-in to run an interactive assistant turn.
+
+## Other configurations
+
+Single-file mode remains supported: invoke the executable with an absolute
+`.thf` path instead of `--workspace` and its directory. Workspace discovery and
+file exports are unavailable in single-file mode, but inline SVG and PNG work.
 
 ### VS Code (Copilot / Continue)
 
