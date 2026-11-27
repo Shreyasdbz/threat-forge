@@ -21,7 +21,7 @@ data_flows:
     to: orders
     name: Write order
     protocol: PostgreSQL/TLS
-    data: [Order record]
+    data: ['Name, email', 'Order `record`']
     authenticated: true
   - id: read-order
     from: orders

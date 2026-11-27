@@ -14,7 +14,7 @@ Description: `Checkout on the web`
   - Authenticated: No
 - `Write order` (`write-order`) — `Storefront` (`web-app`) → `Orders` (`orders`)
   - Protocol: `PostgreSQL/TLS`
-  - Data: `Order record`
+  - Data: `Name, email`, `` Order `record` ``
   - Authenticated: Yes
 
 ## Findings

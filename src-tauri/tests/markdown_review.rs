@@ -24,6 +24,25 @@ fn empty_review_has_explicit_sections() {
 }
 
 #[test]
+fn flow_data_labels_keep_their_boundaries() {
+    let mut model: ThreatModel = serde_yaml::from_str(CHECKOUT).unwrap();
+    let flow = model
+        .data_flows
+        .iter_mut()
+        .find(|f| !f.data.is_empty())
+        .unwrap();
+    flow.data = vec![
+        "Name".into(),
+        "email".into(),
+        "Order `record`".into(),
+        "".into(),
+    ];
+    let review = markdown::review(&model);
+    assert_ne!(review, GOLDEN);
+    assert!(review.contains("  - Data: `Name`, `email`, `` Order `record` ``, *(empty)*\n"));
+}
+
+#[test]
 fn hostile_text_golden_is_literal() {
     let model =
         serde_yaml::from_str(include_str!("../../tests/fixtures/markdown/hostile.thf")).unwrap();

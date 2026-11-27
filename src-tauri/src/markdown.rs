@@ -57,7 +57,15 @@ pub fn review(model: &ThreatModel) -> String {
         ));
         detail(&mut output, "  - Protocol: ", &flow.protocol);
         if !flow.data.is_empty() {
-            detail(&mut output, "  - Data: ", &flow.data.join(", "));
+            output.push_str("  - Data: ");
+            for (index, item) in flow.data.iter().enumerate() {
+                if index != 0 {
+                    output.push_str(", ");
+                }
+                let text = literal(item);
+                output.push_str(if text.is_empty() { "*(empty)*" } else { &text });
+            }
+            output.push('\n');
         }
         output.push_str(if flow.authenticated {
             "  - Authenticated: Yes\n"
