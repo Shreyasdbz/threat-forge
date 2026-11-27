@@ -127,7 +127,10 @@ mod tests {
         let moved = location.path().join("moved");
         fs::create_dir_all(&folder).unwrap();
         let workspace = Workspace::new(&root).unwrap();
-        let target = workspace.write_target(&folder.join("diagram.svg")).unwrap();
+        let path = workspace
+            .resolve(Path::new("diagrams/diagram.svg"), "svg")
+            .unwrap();
+        let target = workspace.write_target(&path).unwrap();
         fs::rename(&folder, &moved).unwrap();
         fs::create_dir(&folder).unwrap();
         assert!(workspace.write_export(&target, b"<svg/>").is_err());
@@ -156,7 +159,10 @@ mod tests {
         )
         .unwrap();
         let workspace = Workspace::new(root.path()).unwrap();
-        let target = workspace.write_target(&folder.join("model.thf")).unwrap();
+        let path = workspace
+            .resolve(Path::new("diagrams/model.thf"), "thf")
+            .unwrap();
+        let target = workspace.write_target(&path).unwrap();
         let mut snapshot = target.read_document().unwrap();
         fs::rename(&folder, &original).unwrap();
         fs::create_dir_all(folder.join(".threatforge/layouts")).unwrap();
