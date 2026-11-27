@@ -4,6 +4,8 @@ import "fake-indexeddb/auto";
 import { getWorkspaceStorage } from "@/lib/persistence/get-workspace-storage";
 import { IndexeddbWorkspaceStorage } from "@/lib/persistence/indexeddb-workspace-storage";
 import { WORKSPACE_MANIFEST_VERSION, WorkspaceStorageError } from "@/lib/persistence/types";
+import { readThreatModelText } from "@/lib/thf-validation";
+import { serializeThreatModelYaml } from "@/lib/thf-yaml";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useDocumentRegistry } from "@/stores/document-registry";
 import { createDocumentStores, setActiveStores } from "@/stores/document-stores";
@@ -76,6 +78,23 @@ async function readStoredBody(id: DocumentId): Promise<string | null> {
 	const storage = await getWorkspaceStorage();
 	return storage.readDocumentBody(id);
 }
+
+it("stores an unedited import under its registry identity without rewriting the YAML", async () => {
+	const yaml = `# Imported document\n${serializeThreatModelYaml(createTestModel("Imported"))}x-extension: keep\n`;
+	const id = useDocumentRegistry.getState().createDocument({
+		model: readThreatModelText(yaml),
+		filePath: "imported.thf",
+		sourceYaml: yaml,
+		pendingLayout: null,
+	});
+	useWorkspaceStore.getState().setPersistenceAvailability(true);
+	renderHook(useWorkspacePersistence);
+	await runDebounce();
+	expect(await readStoredBody(id)).toBe(yaml);
+	expect(useWorkspaceStore.getState().documents).toEqual([
+		expect.objectContaining({ id, title: "Imported" }),
+	]);
+});
 
 // One IndexedDB factory serves the whole file: the storage factory caches its instance and that
 // instance caches its connection, so swapping the factory per test would strand it. Each test

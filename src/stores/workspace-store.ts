@@ -55,6 +55,7 @@ export function reconcileManifest(
 interface PersistedWorkspaceState {
 	schemaVersion: number;
 	documents: WorkspaceManifestEntry[];
+	missingDocuments?: WorkspaceManifestEntry[];
 	activeDocumentId: DocumentId | null;
 	preferences: WorkspacePreferences;
 }
@@ -144,6 +145,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 			removeManifestEntry: (id) =>
 				set((state) => ({
 					documents: withCoherentOrder(state.documents.filter((entry) => entry.id !== id)),
+					missingDocuments: state.missingDocuments?.filter((entry) => entry.id !== id),
 					activeDocumentId: state.activeDocumentId === id ? null : state.activeDocumentId,
 				})),
 
@@ -174,10 +176,24 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
 			reconcile: (storedIds) =>
 				set((state) => {
-					const { kept, orphanIds } = reconcileManifest(state.documents, storedIds);
+					const stored = new Set(storedIds);
+					const previousMissing = state.missingDocuments ?? [];
+					const { kept, orphanIds } = reconcileManifest(
+						[...state.documents, ...previousMissing.filter((entry) => stored.has(entry.id))],
+						storedIds,
+					);
 					const keptIds = new Set(kept.map((entry) => entry.id));
+					const missing = new Map(
+						previousMissing
+							.filter((entry) => !keptIds.has(entry.id))
+							.map((entry) => [entry.id, entry]),
+					);
+					for (const entry of state.documents) {
+						if (!keptIds.has(entry.id)) missing.set(entry.id, entry);
+					}
 					return {
 						documents: withCoherentOrder(kept),
+						missingDocuments: missing.size ? Array.from(missing.values()) : undefined,
 						activeDocumentId:
 							state.activeDocumentId && keptIds.has(state.activeDocumentId)
 								? state.activeDocumentId
@@ -194,6 +210,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 			partialize: (state): PersistedWorkspaceState => ({
 				schemaVersion: state.schemaVersion,
 				documents: state.documents,
+				missingDocuments: state.missingDocuments,
 				activeDocumentId: state.activeDocumentId,
 				preferences: state.preferences,
 			}),

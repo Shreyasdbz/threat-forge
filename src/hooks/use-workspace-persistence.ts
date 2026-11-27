@@ -90,13 +90,19 @@ function reportWriteFailure(id: DocumentId, error: unknown): void {
  * file, which a browser document does not have.
  */
 async function persistDocument(id: DocumentId, stores: DocumentStores): Promise<void> {
-	const { model, filePath } = stores.model.getState();
+	const { model, filePath, savedModel, sourceYaml, isDirty } = stores.model.getState();
 	if (!model) return;
 
 	markInFlight(id, "writing");
 
 	try {
-		const thf = serializeThreatModelYaml(captureCanvasIntoModel(model, stores.canvas.getState()));
+		const isNewImport =
+			!isDirty &&
+			model === savedModel &&
+			!useWorkspaceStore.getState().documents.some((entry) => entry.id === id);
+		const thf =
+			(isNewImport ? sourceYaml : undefined) ??
+			serializeThreatModelYaml(captureCanvasIntoModel(model, stores.canvas.getState()));
 		const storage = await getWorkspaceStorage();
 		await storage.writeDocumentBody(id, thf);
 	} catch (error) {
