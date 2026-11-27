@@ -132,7 +132,7 @@ describe("submitTurn against a tool-capable model", () => {
 		expect(useModelStore.getState().model?.elements.some((e) => e.name === "Cache")).toBe(false);
 	});
 
-	it("advertises all sixteen tools, read tools included, to the provider", async () => {
+	it("advertises all 28 tools, read tools included, to the provider", async () => {
 		script([
 			{ type: "message_start", model: "m" },
 			{ type: "text_delta", text: "hi" },
@@ -144,7 +144,7 @@ describe("submitTurn against a tool-capable model", () => {
 
 		const request: ConversationRequest = streamConversationMock.mock.calls[0][0];
 		const advertised = request.tools.map((tool) => tool.name);
-		expect(advertised).toHaveLength(16);
+		expect(advertised).toHaveLength(28);
 		for (const readTool of [
 			"get_document_summary",
 			"get_entity",
@@ -153,6 +153,75 @@ describe("submitTurn against a tool-capable model", () => {
 		]) {
 			expect(advertised).toContain(readTool);
 		}
+		expect(advertised).toContain("reparent_group");
+	});
+
+	it("reviews architecture edits, reports invalid references for correction, and undoes the turn", async () => {
+		script(
+			[
+				{ type: "message_start", model: "m" },
+				{
+					type: "tool_call_complete",
+					id: "add",
+					name: "add_group",
+					input: { id: "frontend", name: "Frontend" },
+				},
+				{
+					type: "tool_call_complete",
+					id: "invalid",
+					name: "set_element_group",
+					input: { id: "web-app", group: "missing" },
+				},
+				{
+					type: "tool_call_complete",
+					id: "delete",
+					name: "delete_group",
+					input: { id: "frontend" },
+				},
+				{ type: "message_stop", stopReason: "tool_use" },
+			],
+			[
+				{ type: "message_start", model: "m" },
+				{
+					type: "tool_call_complete",
+					id: "fixed",
+					name: "set_element_group",
+					input: { id: "web-app", group: "frontend" },
+				},
+				{ type: "message_stop", stopReason: "tool_use" },
+			],
+			[
+				{ type: "message_start", model: "m" },
+				{ type: "text_delta", text: "Done." },
+				{ type: "message_stop", stopReason: "end_turn" },
+			],
+		);
+		const before = useModelStore.getState().model;
+		await useAiTurnStore.getState().submitTurn("Group the web app", model);
+		await flush();
+		expect(useModelStore.getState().model).toBe(before);
+		const turn = useAiTurnStore.getState();
+		turn.approveBatch(["add", "invalid", "delete"]);
+		await flush();
+		expect(useAiTurnStore.getState().turn?.calls.find((call) => call.id === "delete")?.status).toBe(
+			"pending",
+		);
+		turn.denyCall("delete");
+		await flush();
+		const correction: ConversationRequest = streamConversationMock.mock.calls[1][0];
+		expect(JSON.stringify(correction.messages)).toContain("missing");
+		expect(useModelStore.getState().model?.elements[0].group).toBeUndefined();
+
+		turn.approveCall("fixed");
+		await flush();
+		expect(useAiTurnStore.getState().turn?.outcome).toBe("completed");
+		expect(useModelStore.getState().model?.elements[0].group).toBe("frontend");
+		expect(useModelStore.getState().model?.groups).toContainEqual(
+			expect.objectContaining({ id: "frontend" }),
+		);
+		expect(useHistoryStore.getState().past).toHaveLength(1);
+		turn.undoTurn();
+		expect(useModelStore.getState().model).toEqual(before);
 	});
 });
 
