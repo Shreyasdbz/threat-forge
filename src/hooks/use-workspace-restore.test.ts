@@ -16,6 +16,7 @@ import { useModelStore } from "@/stores/model-store";
 import { useWorkspaceStore } from "@/stores/workspace-store";
 import type { DocumentId } from "@/types/document";
 import type { ThreatModel } from "@/types/threat-model";
+import nullDescriptionRaw from "../../tests/fixtures/thf/scalar-null-description.thf?raw";
 import { hydrateDocumentById, useWorkspaceRestore } from "./use-workspace-restore";
 
 // The platform seam is mocked, not the storage: every case below runs the real browser path
@@ -454,6 +455,16 @@ describe("degraded boot paths", () => {
 });
 
 describe("hydrateDocumentById (on-demand activation seam for #54)", () => {
+	it("restores a legacy draft with a null description as empty text", async () => {
+		const id = await seedPersistedDocument("Legacy Draft", 0, nullDescriptionRaw);
+
+		await act(async () => {
+			expect(await hydrateDocumentById(id)).toBe(true);
+		});
+
+		expect(useModelStore.getState().model?.metadata.description).toBe("");
+	});
+
 	it("hydrates and activates one stored document on request", async () => {
 		const id = await seedPersistedDocument("Activated later", 0);
 

@@ -455,6 +455,46 @@ fn invalid_fixtures_are_rejected_with_the_expected_error() {
 }
 
 #[test]
+fn reads_scalar_parity_fixtures() {
+    for (name, description, positions) in [
+        ("v1.0-minimal.thf", "", vec![None]),
+        ("scalar-null-description.thf", "", vec![]),
+        (
+            "scalar-plain-numbers.thf",
+            "00123",
+            vec![
+                Some(Position { x: -16.0, y: 8.0 }),
+                Some(Position { x: -2.0, y: 100.0 }),
+            ],
+        ),
+    ] {
+        let model =
+            read_threat_model(&fixture_path(name)).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(model.metadata.description, description, "{name}");
+        assert_eq!(
+            model
+                .elements
+                .iter()
+                .map(|entry| entry.position.clone())
+                .collect::<Vec<_>>(),
+            positions,
+            "{name}"
+        );
+        if name == "scalar-plain-numbers.thf" {
+            assert_eq!(
+                model.elements[0].size,
+                Some(Size {
+                    width: 256.0,
+                    height: 125.0
+                })
+            );
+            assert_eq!(model.elements[1].name, "+0o10");
+            assert_eq!(model.elements[1].description, "1e5");
+        }
+    }
+}
+
+#[test]
 fn valid_fixtures_pass_reader_validation() {
     // The counterpart to the invalid corpus: every valid fixture must survive `read_threat_model`,
     // including its version and reference checks. New validation rules must not invalidate these.

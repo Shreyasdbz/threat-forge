@@ -49,6 +49,8 @@ import unknownGroupParentRaw from "../../tests/fixtures/thf/invalid/unknown-grou
 import unknownRelationshipEndpointRaw from "../../tests/fixtures/thf/invalid/unknown-relationship-endpoint.thf?raw";
 import unsupportedVersionRaw from "../../tests/fixtures/thf/invalid/unsupported-version.thf?raw";
 import legacySidecarRaw from "../../tests/fixtures/thf/legacy-sidecar/model.thf?raw";
+import nullDescriptionRaw from "../../tests/fixtures/thf/scalar-null-description.thf?raw";
+import plainNumbersRaw from "../../tests/fixtures/thf/scalar-plain-numbers.thf?raw";
 import canonicalFullRaw from "../../tests/fixtures/thf/v1.0-canonical-full.thf?raw";
 import minimalRaw from "../../tests/fixtures/thf/v1.0-minimal.thf?raw";
 import opaqueSequenceRaw from "../../tests/fixtures/thf/v1.0-opaque-sequence.thf?raw";
@@ -240,6 +242,37 @@ function asMapping(value: unknown, label: string): Record<string, unknown> {
 }
 
 describe("browser `.thf` read validation — parity with read_threat_model", () => {
+	it.each([
+		{ name: "v1.0-minimal.thf", raw: minimalRaw, description: "", positions: [undefined] },
+		{
+			name: "scalar-null-description.thf",
+			raw: nullDescriptionRaw,
+			description: "",
+			positions: [],
+		},
+		{
+			name: "scalar-plain-numbers.thf",
+			raw: plainNumbersRaw,
+			description: "00123",
+			positions: [
+				{ x: -16, y: 8 },
+				{ x: -2, y: 100 },
+			],
+		},
+	])("reads scalar values in $name", ({ raw, description, positions }) => {
+		const model = readThreatModelText(raw);
+		expect(model.metadata.description).toBe(description);
+		expect(model.elements.map((entity) => entity.position)).toEqual(positions);
+	});
+
+	it("round-trips quoted text that would otherwise resolve to a desktop number", () => {
+		const model = readThreatModelText(plainNumbersRaw);
+		expect(model.elements[1]).toMatchObject({ name: "+0o10", description: "1e5" });
+		const reopened = readThreatModelText(serializeThreatModelYaml(model));
+		expect(reopened.elements[1]).toMatchObject({ name: "+0o10", description: "1e5" });
+		expect(reopened.elements[0].size).toEqual({ width: 256, height: 125 });
+	});
+
 	it("defaults omitted metadata description to empty text and preserves quoted numbers", () => {
 		expect(readThreatModelText(minimalRaw).metadata.description).toBe("");
 		const quoted = numericMetadataDescriptionRaw.replace("description: 123", 'description: "123"');

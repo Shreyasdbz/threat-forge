@@ -365,7 +365,7 @@ Two differences between the platforms are deliberate:
   not exist in the browser, so parity there is class-level with an actionable, path-free,
   secret-free message — the browser message may be more specific.
 - **Shape narrowing is skeleton-depth by design.** The browser verifies the version, the metadata
-  block (including that `description` is text if present, defaulting to empty), and the entry
+  block (including that `description` is text or null, defaulting to empty for null or missing), and the entry
   fields the semantic checks read (an `id` per collection entry, flow and
   relationship endpoints, layer/group membership, group parents, boundary members, threat
   references). For elements and trust boundaries, a non-null `position` must contain numeric

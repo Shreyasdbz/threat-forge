@@ -3,8 +3,13 @@ import {
 	CORE_SCHEMA,
 	type DumpOptions,
 	dump,
+	floatCoreTag,
+	floatYaml11Tag,
+	intCoreTag,
+	intYaml11Tag,
 	load,
 	mergeTag,
+	NOT_RESOLVED,
 	omapTag,
 	pairsTag,
 	Schema,
@@ -31,8 +36,25 @@ const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** A calendar date followed by a time of day, e.g. `2026-03-15T00:00:00.000Z`. */
 const DATE_WITH_TIME = /^(\d{4}-\d{2}-\d{2})[T ]/;
 
+const LEADING_ZERO_INTEGER = /^[+-]?0[0-9]+$/;
+const thfIntegerTag = {
+	...intCoreTag,
+	resolve(source: string, _isExplicit: boolean, tagName: string) {
+		if (LEADING_ZERO_INTEGER.test(source)) return NOT_RESOLVED;
+		return intCoreTag.resolve(source, true, tagName);
+	},
+};
+const thfFloatTag = {
+	...floatCoreTag,
+	resolve(source: string, isExplicit: boolean, tagName: string) {
+		if (!isExplicit && LEADING_ZERO_INTEGER.test(source)) return NOT_RESOLVED;
+		return floatCoreTag.resolve(source, isExplicit, tagName);
+	},
+};
+
 /**
- * Read schema: js-yaml's core (YAML 1.2) scalar resolution plus the non-scalar YAML 1.1
+ * Read schema: js-yaml's core scalar resolution, with serde_yaml's handling of
+ * base-prefixed integers and leading-zero decimal strings, plus the non-scalar YAML 1.1
  * extensions the pre-upgrade schema carried — merge keys and `!!binary`/`!!omap`/`!!pairs`/`!!set`.
  *
  * js-yaml 5 split its single `DEFAULT_SCHEMA` into a conservative load default (`CORE_SCHEMA`)
@@ -48,6 +70,8 @@ const DATE_WITH_TIME = /^(\d{4}-\d{2}-\d{2})[T ]/;
  */
 export const THF_YAML_SCHEMA = new Schema([
 	...CORE_SCHEMA.tags,
+	thfIntegerTag,
+	thfFloatTag,
 	mergeTag,
 	binaryTag,
 	omapTag,
@@ -56,7 +80,8 @@ export const THF_YAML_SCHEMA = new Schema([
 ]);
 
 /**
- * Write schema: js-yaml 5's YAML 1.1 schema with only the timestamp type removed.
+ * Write schema: js-yaml 5's YAML 1.1 schema without timestamps, also quoting scalars that
+ * would otherwise be read as numbers by the desktop reader (e.g. `+0o10` or `1e5`).
  *
  * The dumper quotes a plain scalar exactly when it would implicitly resolve to a non-string
  * under the schema it is given. Two consequences hold this format together:
@@ -72,7 +97,21 @@ export const THF_YAML_SCHEMA = new Schema([
  * schema carries are inert here; they exist only to mirror the read schema's tag set.
  */
 export const THF_YAML_DUMP_SCHEMA = new Schema(
-	YAML11_SCHEMA.tags.filter((tag) => tag.tagName !== TIMESTAMP_TAG),
+	YAML11_SCHEMA.tags
+		.filter((tag) => tag.tagName !== TIMESTAMP_TAG)
+		.map((tag) => {
+			if (tag === intYaml11Tag || tag === floatYaml11Tag) {
+				const thfTag = tag === intYaml11Tag ? thfIntegerTag : thfFloatTag;
+				return {
+					...tag,
+					resolve(source: string, isExplicit: boolean, tagName: string) {
+						const value = tag.resolve(source, isExplicit, tagName);
+						return value === NOT_RESOLVED ? thfTag.resolve(source, isExplicit, tagName) : value;
+					},
+				};
+			}
+			return tag;
+		}),
 );
 
 /** Options the browser writer passes to `dump` for every `.thf` document. */
@@ -137,7 +176,7 @@ function assertThreatModelShape(value: unknown): asserts value is ThreatModel {
 
 	requireCalendarDate(metadata, "created");
 	requireCalendarDate(metadata, "modified");
-	if (metadata.description !== undefined && typeof metadata.description !== "string") {
+	if (metadata.description != null && typeof metadata.description !== "string") {
 		throw new Error("This file cannot be opened: metadata.description must be text.");
 	}
 

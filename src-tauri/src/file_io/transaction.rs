@@ -103,6 +103,12 @@ fn parse_document_with_revision(
     };
     let raw: Value = serde_yaml::from_slice(bytes).map_err(yaml_error)?;
     let mut typed = raw.clone();
+    if let Some(description @ Value::Null) = typed
+        .get_mut("metadata")
+        .and_then(|metadata| metadata.get_mut("description"))
+    {
+        *description = Value::String(String::new());
+    }
     if typed.get("version").and_then(Value::as_str) != Some("1.1") {
         if let Some(diagrams) = typed.get_mut("diagrams").and_then(Value::as_sequence_mut) {
             for diagram in diagrams.iter_mut().filter_map(Value::as_mapping_mut) {
