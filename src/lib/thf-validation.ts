@@ -100,22 +100,29 @@ export function readThreatModelText(text: string): ThreatModel {
  * Exported so the semantic layer can be exercised directly, independently of YAML parsing.
  */
 export function validateThreatModel(model: ThreatModel): ThreatModel {
-	for (const [index, entry] of model.elements.entries()) {
-		const field = `elements[${index}]`;
-		const { size } = asRecord(entry, field);
-		if (size == null) continue;
-		const dimensions = asRecord(size, `${field}.size`);
-		if (typeof dimensions.width !== "number" || typeof dimensions.height !== "number") {
-			throw new ThfValidationError(
-				"missing-section",
-				`${field}.size must contain numeric width and height.`,
-			);
+	for (const section of ["elements", "trust_boundaries"] as const) {
+		for (const [index, entry] of model[section].entries()) {
+			const field = `${section}[${index}]`;
+			const { position, size } = asRecord(entry, field);
+			requireOptionalNumericPair(position, `${field}.position`, "x", "y");
+			requireOptionalNumericPair(size, `${field}.size`, "width", "height");
 		}
 	}
 	validateThreatModelVersion(requireString(model.version, "version"));
 	validateReferences(model);
 	validateSequences(model);
 	return model;
+}
+
+function requireOptionalNumericPair(value: unknown, field: string, first: string, second: string) {
+	if (value == null) return;
+	const pair = asRecord(value, field);
+	if (typeof pair[first] !== "number" || typeof pair[second] !== "number") {
+		throw new ThfValidationError(
+			"missing-section",
+			`${field} must contain numeric ${first} and ${second}.`,
+		);
+	}
 }
 
 /** Exact-match version gate. Mirrors `validate_version` (`reader.rs`) and ADR-009's fail-closed rule. */

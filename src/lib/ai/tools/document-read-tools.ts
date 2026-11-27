@@ -24,6 +24,7 @@ import {
 	filterCompactEntities,
 	firstInapplicableFilter,
 	getFullEntity,
+	isFinitePosition,
 	type ProjectedEntity,
 	SECTION_KINDS,
 } from "@/lib/ai/tools/document-projection";
@@ -187,21 +188,25 @@ function layoutPage(model: ThreatModel, offset: number): ToolOutcome {
 		canvas_position: Position | null;
 	}[] = [];
 	for (const element of model.elements) {
-		if (!element.position) continue;
+		if (!isFinitePosition(element.position)) continue;
 		const { x, y } = element.position;
 		const parent = parentByElement.get(element.id);
 		const absolute = parent
-			? parent.position && { x: x + parent.position.x, y: y + parent.position.y }
+			? isFinitePosition(parent.position)
+				? { x: x + parent.position.x, y: y + parent.position.y }
+				: null
 			: { x, y };
-		if (absolute) {
+		const canvasPosition = isFinitePosition(absolute) ? absolute : null;
+		if (canvasPosition) {
+			const { x, y } = canvasPosition;
 			bounds = bounds
 				? {
-						min_x: Math.min(bounds.min_x, absolute.x),
-						min_y: Math.min(bounds.min_y, absolute.y),
-						max_x: Math.max(bounds.max_x, absolute.x),
-						max_y: Math.max(bounds.max_y, absolute.y),
+						min_x: Math.min(bounds.min_x, x),
+						min_y: Math.min(bounds.min_y, y),
+						max_x: Math.max(bounds.max_x, x),
+						max_y: Math.max(bounds.max_y, y),
 					}
-				: { min_x: absolute.x, min_y: absolute.y, max_x: absolute.x, max_y: absolute.y };
+				: { min_x: x, min_y: y, max_x: x, max_y: y };
 		} else {
 			unresolved++;
 		}
@@ -209,7 +214,7 @@ function layoutPage(model: ThreatModel, offset: number): ToolOutcome {
 			id: element.id,
 			boundary_id: parent?.id ?? null,
 			position: { x, y },
-			canvas_position: absolute ?? null,
+			canvas_position: canvasPosition,
 		});
 	}
 

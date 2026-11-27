@@ -153,6 +153,43 @@ describe("read tool schemas", () => {
 // ---------------------------------------------------------------------------
 
 describe("get_document_summary", () => {
+	it("does not emit invalid saved geometry in layout pages or entity details", async () => {
+		const model = baseModel();
+		model.elements[0].position = { x: Number.NaN, y: 0 };
+		model.elements[1].position = { x: Number.MAX_VALUE, y: 1 };
+		model.trust_boundaries = [
+			{
+				id: "overflow",
+				name: "Overflow",
+				contains: [model.elements[1].id],
+				position: { x: Number.MAX_VALUE, y: 0 },
+				size: { width: Number.POSITIVE_INFINITY, height: 20 },
+			},
+			{
+				id: "invalid",
+				name: "Invalid",
+				contains: [],
+				position: { x: 0, y: Number.NEGATIVE_INFINITY },
+			},
+		];
+		const layout = parseOkBody(await run("get_document_summary", { layout_offset: 0 }, model));
+		expect(layout).toMatchObject({
+			anchor_bounds: null,
+			unpositioned_count: 1,
+			unresolved_count: 1,
+			results: [{ id: model.elements[1].id, canvas_position: null }],
+		});
+		expect(
+			parseOkBody(await run("get_entity", { kind: "elements", id: model.elements[0].id }, model)),
+		).not.toHaveProperty("position");
+		expect(
+			parseOkBody(await run("get_entity", { kind: "trust_boundaries", id: "invalid" }, model)),
+		).not.toHaveProperty("position");
+		expect(
+			parseOkBody(await run("get_entity", { kind: "trust_boundaries", id: "overflow" }, model)),
+		).not.toHaveProperty("size");
+	});
+
 	it("summarizes saved canvas anchors across a large model and pages them in document order", async () => {
 		const model = baseModel();
 		model.elements = Array.from({ length: 80 }, (_, i) => ({

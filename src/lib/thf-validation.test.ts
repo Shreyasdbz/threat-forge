@@ -36,6 +36,9 @@ import groupIdCollidesWithElementRaw from "../../tests/fixtures/thf/invalid/grou
 import missingElementSizeHeightRaw from "../../tests/fixtures/thf/invalid/missing-element-size-height.thf?raw";
 import missingMetadataRaw from "../../tests/fixtures/thf/invalid/missing-metadata.thf?raw";
 import relationshipIdCollidesWithFlowRaw from "../../tests/fixtures/thf/invalid/relationship-id-collides-with-flow.thf?raw";
+import stringBoundaryPositionYRaw from "../../tests/fixtures/thf/invalid/string-boundary-position-y.thf?raw";
+import stringBoundarySizeWidthRaw from "../../tests/fixtures/thf/invalid/string-boundary-size-width.thf?raw";
+import stringElementPositionXRaw from "../../tests/fixtures/thf/invalid/string-element-position-x.thf?raw";
 import stringElementSizeWidthRaw from "../../tests/fixtures/thf/invalid/string-element-size-width.thf?raw";
 import truncatedRaw from "../../tests/fixtures/thf/invalid/truncated.thf?raw";
 import unknownElementGroupRaw from "../../tests/fixtures/thf/invalid/unknown-element-group.thf?raw";
@@ -105,6 +108,21 @@ const INVALID_CASES: InvalidCase[] = [
 	{
 		name: "invalid/missing-element-size-height.thf",
 		raw: missingElementSizeHeightRaw,
+		kind: "missing-section",
+	},
+	{
+		name: "invalid/string-element-position-x.thf",
+		raw: stringElementPositionXRaw,
+		kind: "missing-section",
+	},
+	{
+		name: "invalid/string-boundary-position-y.thf",
+		raw: stringBoundaryPositionYRaw,
+		kind: "missing-section",
+	},
+	{
+		name: "invalid/string-boundary-size-width.thf",
+		raw: stringBoundarySizeWidthRaw,
 		kind: "missing-section",
 	},
 	{

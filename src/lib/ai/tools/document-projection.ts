@@ -8,10 +8,8 @@
  *
  * Two properties are structural:
  *
- *  - **Layout and style are never projected.** Positions, sizes, colors,
- *    opacities, fonts, handles, and viewports are canvas concerns (`#205`); no
- *    read tool this issue ships can act on them, so they are excluded rather than
- *    inflating every result.
+ *  - **Styles are not projected.** Saved element and boundary geometry is
+ *    available only in the full projection and only when finite.
  *  - **Every document-derived scalar is sanitized and escaped** through
  *    `escapeScalar`/`escapeList`, so no field can forge a marker, and long or
  *    hostile text is bounded before it reaches a provider or the DOM.
@@ -24,7 +22,11 @@ import {
 	SCALAR_MAX_CODE_POINTS,
 	TEXT_MAX_CODE_POINTS,
 } from "@/lib/ai/tools/read-result";
-import type { ThreatModel } from "@/types/threat-model";
+import type { Position, ThreatModel } from "@/types/threat-model";
+
+export function isFinitePosition(position: Position | null | undefined): position is Position {
+	return position != null && Number.isFinite(position.x) && Number.isFinite(position.y);
+}
 
 /**
  * The document sections a read tool can query: exactly the array-valued keys of
@@ -218,7 +220,7 @@ const elementsSpec: SectionSpec<EntityOf<"elements">> = {
 		projection.list("technologies", element.technologies);
 		projection.list("tags", element.tags ?? []);
 		projection.list("stores", element.stores ?? []);
-		if (element.position) {
+		if (isFinitePosition(element.position)) {
 			const { x, y } = element.position;
 			projection.raw("position", { x, y });
 		}
@@ -304,13 +306,13 @@ const trustBoundariesSpec: SectionSpec<EntityOf<"trust_boundaries">> = {
 		projection.scalar("name", boundary.name);
 		projection.raw("contains_count", boundary.contains.length);
 		projection.list("contains", boundary.contains);
-		if (boundary.position) {
+		if (isFinitePosition(boundary.position)) {
 			const { x, y } = boundary.position;
 			projection.raw("position", { x, y });
 		}
-		if (boundary.size) {
-			const { width, height } = boundary.size;
-			projection.raw("size", { width, height });
+		const { size } = boundary;
+		if (size && Number.isFinite(size.width) && Number.isFinite(size.height)) {
+			projection.raw("size", { width: size.width, height: size.height });
 		}
 		return projection.finish();
 	},

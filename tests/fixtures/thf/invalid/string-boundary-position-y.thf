@@ -1,0 +1,10 @@
+version: "1.0"
+metadata:
+  title: "String Boundary Y"
+  author: "Tester"
+  created: 2026-01-04
+  modified: 2026-01-04
+trust_boundaries:
+  - id: perimeter
+    name: "Perimeter"
+    position: { x: 200, y: "100" }
