@@ -218,7 +218,12 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 		const draft = proposal;
 		const turnSignal = signal();
 		if (!draft) return;
-		if (state.calls.some((call) => call.status === "failed" || call.status === "denied")) {
+		if (
+			state.calls.some(
+				(call) =>
+					call.effect === "mutate" && (call.status === "failed" || call.status === "denied"),
+			)
+		) {
 			settleProposal("discarded");
 			return;
 		}

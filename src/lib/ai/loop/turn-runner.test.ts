@@ -104,6 +104,39 @@ describe("whole-turn review", () => {
 	const toolUse: StreamEvent = { type: "message_stop", stopReason: "tool_use" };
 	const end: StreamEvent = { type: "message_stop", stopReason: "end_turn" };
 
+	it("reviews valid mutations after the provider recovers from a failed lookup", async () => {
+		const { stream, requests } = scriptedStream([
+			[
+				start,
+				{
+					type: "tool_call_complete",
+					id: "lookup",
+					name: "get_entity",
+					input: { kind: "elements", id: "not-found" },
+				},
+				toolUse,
+			],
+			[start, add, toolUse],
+			[start, end],
+		]);
+		const runner = createTurnRunner({ stream, getDocument });
+		const baseline = getDocument();
+		await runner.submit(config(createAiToolRegistry()));
+		expect(requests[1].messages.flatMap(({ content }) => content)).toContainEqual(
+			expect.objectContaining({
+				toolCallId: "lookup",
+				isError: true,
+				content: expect.stringContaining("call search_entities"),
+			}),
+		);
+		expect(getDocument()).toBe(baseline);
+		const review = runner.getState().proposal;
+		if (!review) throw new Error("Missing review after lookup failure");
+		expect(review.operations.map(({ id }) => id)).toEqual(["create"]);
+		runner.applyProposal(review.token);
+		expect(getDocument()?.elements.some(({ name }) => name === "Cache")).toBe(true);
+	});
+
 	it("never assigns a saved ID to a replacement after an unsaved deletion", async () => {
 		const original = { ...baseModel.elements[0], id: "comp-1", future: "only for the original" };
 		const saved = { ...baseModel, elements: [original] };
