@@ -223,31 +223,28 @@ test.describe("Accessibility audit", () => {
 		await page.goto("/app");
 		await expect(page.getByTestId("empty-canvas")).toBeVisible();
 		await setReduceMotion(page, true);
-		await page.addInitScript((tipCount) => {
-			const nativeRandom = Math.random;
-			Math.random = () => {
-				const rawIndex = new URL(window.location.href).searchParams.get("e2eTipIndex");
-				const requestedIndex = rawIndex === null ? -1 : Number(rawIndex);
-				if (!Number.isInteger(requestedIndex) || requestedIndex < 0 || requestedIndex >= tipCount) {
-					return nativeRandom();
-				}
-				return (requestedIndex + 0.5) / tipCount;
-			};
-		}, TIPS.length);
 
 		const tipSelector = '[data-testid="rotating-tip-contrast-target"]';
 		const footerTargetSelector =
 			'[data-testid="empty-canvas"] > footer [data-testid="empty-canvas-contrast-target"]';
+		const emptyCanvas = page.getByTestId("empty-canvas");
+		const tip = page.locator(tipSelector);
+		const footer = emptyCanvas.locator("footer");
+		await expect.poll(() => tip.evaluate((element) => element.style.transition)).toBe("none");
+
+		// The interval test above covers real rotation. Vary only the text here so every copy
+		// gets measured against the same rendered layout without booting a new app for each tip.
+		async function measureTipCopy(copy: string) {
+			await tip.evaluate((element, text) => {
+				element.textContent = text;
+			}, copy);
+		}
 
 		for (const [index, expectedTip] of TIPS.entries()) {
 			await test.step(`tip ${index + 1} of ${TIPS.length}`, async () => {
-				await page.goto(`/app?e2eTipIndex=${index}`);
-				const emptyCanvas = page.getByTestId("empty-canvas");
-				const tip = page.locator(tipSelector);
-				const footer = emptyCanvas.locator("footer");
+				await measureTipCopy(expectedTip);
 				await expect(emptyCanvas).toBeVisible();
 				await expect(tip).toHaveText(expectedTip);
-				await expect.poll(() => tip.evaluate((element) => element.style.transition)).toBe("none");
 
 				const emptyCanvasBox = await emptyCanvas.boundingBox();
 				const tipBox = await tip.boundingBox();
@@ -289,15 +286,10 @@ test.describe("Accessibility audit", () => {
 		}
 
 		const longestTip = TIPS.reduce((longest, tip) => (tip.length > longest.length ? tip : longest));
-		const longestTipIndex = TIPS.indexOf(longestTip);
+		await measureTipCopy(longestTip);
 		for (const height of [800, 851]) {
 			await test.step(`longest tip stays contained at 1280x${height}`, async () => {
 				await page.setViewportSize({ width: 1280, height });
-				await page.goto(`/app?e2eTipIndex=${longestTipIndex}`);
-
-				const emptyCanvas = page.getByTestId("empty-canvas");
-				const tip = page.locator(tipSelector);
-				const footer = emptyCanvas.locator("footer");
 				await expect(tip).toHaveText(longestTip);
 
 				const emptyCanvasBox = await emptyCanvas.boundingBox();
@@ -314,8 +306,6 @@ test.describe("Accessibility audit", () => {
 			});
 		}
 
-		const emptyCanvas = page.getByTestId("empty-canvas");
-		const footer = emptyCanvas.locator("footer");
 		const githubButton = footer.getByRole("button", { name: /GitHub/ });
 		await expect(githubButton).toBeEnabled();
 		// Exercise the real window.open path without making the regression depend on GitHub uptime.
