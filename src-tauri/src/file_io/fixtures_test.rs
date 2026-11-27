@@ -444,6 +444,7 @@ fn invalid_fixtures_are_rejected_with_the_expected_error() {
         "invalid/string-element-position-x.thf",
         "invalid/string-boundary-position-y.thf",
         "invalid/string-boundary-size-width.thf",
+        "invalid/numeric-metadata-description.thf",
     ] {
         let error = read_threat_model(&fixture_path(path)).expect_err("invalid shape");
         assert!(

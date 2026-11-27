@@ -153,6 +153,7 @@ function summarize(model: ThreatModel): string {
 		count: threats.filter((threat) => (threat.mitigation?.status ?? "none") === status).length,
 	}));
 
+	const { description } = model.metadata;
 	const payload = {
 		version: escapeScalar(model.version, SCALAR_MAX_CODE_POINTS).text,
 		metadata: {
@@ -160,7 +161,11 @@ function summarize(model: ThreatModel): string {
 			author: escapeScalar(model.metadata.author, SCALAR_MAX_CODE_POINTS).text,
 			created: escapeScalar(model.metadata.created, SCALAR_MAX_CODE_POINTS).text,
 			modified: escapeScalar(model.metadata.modified, SCALAR_MAX_CODE_POINTS).text,
-			...descriptionPage(model.metadata.description, 0, SCALAR_MAX_CODE_POINTS),
+			...descriptionPage(
+				typeof description === "string" ? description : "",
+				0,
+				SCALAR_MAX_CODE_POINTS,
+			),
 			// Preserve the tri-state: `undefined` becomes `null`, never `false`.
 			threat_analysis_enabled: model.metadata.threat_analysis_enabled ?? null,
 		},
@@ -272,6 +277,9 @@ const getDocumentSummaryTool = defineExecutableTool({
 		}
 		if (offset === undefined) return { status: "ok", result: summarize(ctx.document) };
 		const text = ctx.document.metadata.description;
+		if (typeof text !== "string") {
+			return { status: "error", result: "The document has no readable description." };
+		}
 		if (offset > text.length || (text.codePointAt(offset - 1) ?? 0) > 0xffff) {
 			return {
 				status: "error",

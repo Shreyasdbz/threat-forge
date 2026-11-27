@@ -153,6 +153,18 @@ describe("read tool schemas", () => {
 // ---------------------------------------------------------------------------
 
 describe("get_document_summary", () => {
+	it("keeps the summary readable and rejects continuation when metadata description is malformed", async () => {
+		const model = baseModel();
+		Object.assign(model.metadata, { description: 123 });
+		expect(parseOkBody(await run("get_document_summary", {}, model))).toMatchObject({
+			metadata: { title: "Payments", description: "", description_next_offset: null },
+		});
+		expect(await run("get_document_summary", { description_offset: 0 }, model)).toMatchObject({
+			status: "error",
+			result: expect.stringContaining("description"),
+		});
+	});
+
 	it("does not emit invalid saved geometry in layout pages or entity details", async () => {
 		const model = baseModel();
 		model.elements[0].position = { x: Number.NaN, y: 0 };

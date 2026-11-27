@@ -35,6 +35,7 @@ import duplicateRelationshipIdRaw from "../../tests/fixtures/thf/invalid/duplica
 import groupIdCollidesWithElementRaw from "../../tests/fixtures/thf/invalid/group-id-collides-with-element.thf?raw";
 import missingElementSizeHeightRaw from "../../tests/fixtures/thf/invalid/missing-element-size-height.thf?raw";
 import missingMetadataRaw from "../../tests/fixtures/thf/invalid/missing-metadata.thf?raw";
+import numericMetadataDescriptionRaw from "../../tests/fixtures/thf/invalid/numeric-metadata-description.thf?raw";
 import relationshipIdCollidesWithFlowRaw from "../../tests/fixtures/thf/invalid/relationship-id-collides-with-flow.thf?raw";
 import stringBoundaryPositionYRaw from "../../tests/fixtures/thf/invalid/string-boundary-position-y.thf?raw";
 import stringBoundarySizeWidthRaw from "../../tests/fixtures/thf/invalid/string-boundary-size-width.thf?raw";
@@ -102,6 +103,11 @@ const INVALID_CASES: InvalidCase[] = [
 		// missing-section (a shape-narrowing failure, distinct from a raw parse failure).
 		name: "invalid/missing-metadata.thf",
 		raw: missingMetadataRaw,
+		kind: "missing-section",
+	},
+	{
+		name: "invalid/numeric-metadata-description.thf",
+		raw: numericMetadataDescriptionRaw,
 		kind: "missing-section",
 	},
 
@@ -234,6 +240,12 @@ function asMapping(value: unknown, label: string): Record<string, unknown> {
 }
 
 describe("browser `.thf` read validation — parity with read_threat_model", () => {
+	it("defaults omitted metadata description to empty text and preserves quoted numbers", () => {
+		expect(readThreatModelText(minimalRaw).metadata.description).toBe("");
+		const quoted = numericMetadataDescriptionRaw.replace("description: 123", 'description: "123"');
+		expect(readThreatModelText(quoted).metadata.description).toBe("123");
+	});
+
 	it("preserves an opaque 1.0 sequence value on an edited round trip", () => {
 		const model = readThreatModelText(opaqueSequenceRaw);
 		model.metadata.title = "Edited legacy document";

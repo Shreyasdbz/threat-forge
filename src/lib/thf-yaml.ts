@@ -97,6 +97,7 @@ export const THF_YAML_DUMP_OPTIONS: DumpOptions = {
 export function parseThreatModelYaml(text: string): ThreatModel {
 	const parsed = load(text, { schema: THF_YAML_SCHEMA });
 	assertThreatModelShape(parsed);
+	parsed.metadata.description ??= "";
 
 	// A `.thf` omits empty collections; materialize them so callers never see an absent array.
 	parsed.elements ??= [];
@@ -136,6 +137,9 @@ function assertThreatModelShape(value: unknown): asserts value is ThreatModel {
 
 	requireCalendarDate(metadata, "created");
 	requireCalendarDate(metadata, "modified");
+	if (metadata.description !== undefined && typeof metadata.description !== "string") {
+		throw new Error("This file cannot be opened: metadata.description must be text.");
+	}
 
 	for (const section of COLLECTION_SECTIONS) {
 		const entries = document[section];
