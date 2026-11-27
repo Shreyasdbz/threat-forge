@@ -1,10 +1,6 @@
 /**
  * What the app tells users changed between releases, and who has seen it.
  *
- * This lives in `lib` rather than beside the overlay component because
- * `useOnboardingTriggers` has to ask the same question — whether the What's New modal is
- * about to open — before it starts a guide. Keeping the logic here means the hook does not
- * import a component module to answer it, and neither side re-derives the answer.
  */
 
 /**
@@ -147,14 +143,20 @@ export function selectUnseenEntries(
  * when there is nothing to announce.
  */
 export function unseenChangelogEntries(): ChangelogEntry[] {
-	return selectUnseenEntries(
-		localStorage.getItem(WHATS_NEW_STORAGE_KEY),
-		CURRENT_VERSION,
-		CHANGELOG,
-	);
+	let lastSeen: string | null = null;
+	try {
+		lastSeen = localStorage.getItem(WHATS_NEW_STORAGE_KEY);
+	} catch {
+		return CHANGELOG.slice(0, 1);
+	}
+	return selectUnseenEntries(lastSeen, CURRENT_VERSION, CHANGELOG);
 }
 
 /** Records the running version as acknowledged, so the overlay stays closed until the next one. */
 export function markChangelogSeen(): void {
-	localStorage.setItem(WHATS_NEW_STORAGE_KEY, CURRENT_VERSION);
+	try {
+		localStorage.setItem(WHATS_NEW_STORAGE_KEY, CURRENT_VERSION);
+	} catch {
+		// Dismissal still takes effect for the current session.
+	}
 }

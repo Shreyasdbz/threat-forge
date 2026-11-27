@@ -5,14 +5,6 @@ import { failureAwareTest as base, expect } from "./support/base";
 /** Platform-aware modifier key: Meta on macOS, Control elsewhere */
 export const modKey = process.platform === "darwin" ? "Meta" : "Control";
 
-/** Wait for and dismiss the first-launch "What's New" overlay through its rendered UI. */
-export async function dismissWhatsNew(page: Page) {
-	const overlay = page.getByTestId("whats-new-overlay");
-	await expect(overlay).toBeVisible();
-	await overlay.getByRole("button", { name: "Got it" }).click();
-	await expect(overlay).toBeHidden();
-}
-
 /**
  * Wait until the ReactFlow surface is mounted and interactive.
  *

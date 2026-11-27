@@ -30,6 +30,8 @@ import { DfdElementNode } from "./nodes/dfd-element-node";
 import { TextAnnotationNode } from "./nodes/text-annotation-node";
 import { TrustBoundaryNode } from "./nodes/trust-boundary-node";
 
+const fitOptions = { minZoom: 0 };
+
 const nodeTypes = {
 	architectureGroup: ArchitectureGroupNode,
 	dfdElement: DfdElementNode,
@@ -106,7 +108,7 @@ export function DfdCanvas() {
 	// activation (viewport restore/flush on switch) can drive the mounted instance.
 	useEffect(() => {
 		useCanvasInstanceStore.getState().setReactFlowActions({
-			fitView: () => fitViewFn(),
+			fitView: () => fitViewFn(fitOptions),
 			zoomIn: () => zoomInFn(),
 			zoomOut: () => zoomOutFn(),
 			panBy: (delta) => panByFn(delta),
@@ -169,7 +171,7 @@ export function DfdCanvas() {
 				} else {
 					// A fresh new or imported document, or one sitting at the default viewport: frame
 					// its content instead of restoring a meaningless default pan/zoom.
-					fitViewFn();
+					void fitViewFn(fitOptions);
 				}
 			});
 		}
@@ -532,6 +534,8 @@ export function DfdCanvas() {
 				edgeTypes={edgeTypes}
 				defaultEdgeOptions={defaultEdgeOptions}
 				fitView
+				fitViewOptions={fitOptions}
+				minZoom={0.01}
 				snapToGrid
 				snapGrid={[16, 16]}
 				multiSelectionKeyCode="Shift"
@@ -550,6 +554,7 @@ export function DfdCanvas() {
 					color="var(--editor-canvas-dot)"
 				/>
 				<Controls
+					fitViewOptions={fitOptions}
 					orientation="horizontal"
 					className="m-4! overflow-hidden rounded-editor-control! border! border-editor-outline! bg-editor-surface! shadow-none! [&>button]:size-7! [&>button]:border-editor-line! [&>button]:bg-editor-surface! [&>button]:text-editor-secondary-label! [&>button:focus-visible]:-outline-offset-2! [&>button:hover]:bg-editor-hover!"
 				>

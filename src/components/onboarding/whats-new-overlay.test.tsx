@@ -11,6 +11,10 @@ function seenVersions(): string[] {
 		.map((text) => text.slice(1));
 }
 
+function openReleaseNotes() {
+	fireEvent.click(screen.getByRole("button", { name: "What's New" }));
+}
+
 describe("WhatsNewOverlay", () => {
 	beforeEach(() => {
 		localStorage.clear();
@@ -23,6 +27,8 @@ describe("WhatsNewOverlay", () => {
 	it("shows only the newest entry on first launch", () => {
 		render(<WhatsNewOverlay />);
 
+		expect(screen.queryByTestId("whats-new-overlay")).not.toBeInTheDocument();
+		openReleaseNotes();
 		expect(screen.getByTestId("whats-new-overlay")).toBeInTheDocument();
 		expect(seenVersions()).toEqual([__APP_VERSION__]);
 	});
@@ -30,6 +36,7 @@ describe("WhatsNewOverlay", () => {
 	it("announces the version the rest of the app reports", () => {
 		render(<WhatsNewOverlay />);
 
+		openReleaseNotes();
 		// The regression in #246: the overlay claimed 1.0.0 while every other version
 		// surface read __APP_VERSION__.
 		expect(seenVersions()).not.toContain("1.0.0");
@@ -42,11 +49,14 @@ describe("WhatsNewOverlay", () => {
 		render(<WhatsNewOverlay />);
 
 		expect(screen.queryByTestId("whats-new-overlay")).not.toBeInTheDocument();
+		openReleaseNotes();
+		expect(seenVersions()).toEqual([__APP_VERSION__]);
 	});
 
 	it("records the current version when dismissed", () => {
 		render(<WhatsNewOverlay />);
 
+		openReleaseNotes();
 		fireEvent.click(screen.getByRole("button", { name: "Got it" }));
 
 		expect(localStorage.getItem(STORAGE_KEY)).toBe(__APP_VERSION__);
@@ -59,6 +69,7 @@ describe("WhatsNewOverlay", () => {
 
 		render(<WhatsNewOverlay />);
 
+		openReleaseNotes();
 		expect(seenVersions()).toEqual(CHANGELOG.slice(0, -1).map((entry) => entry.version));
 	});
 
@@ -70,6 +81,7 @@ describe("WhatsNewOverlay", () => {
 
 		render(<WhatsNewOverlay />);
 
+		openReleaseNotes();
 		expect(seenVersions()).toEqual([__APP_VERSION__]);
 	});
 
@@ -80,6 +92,7 @@ describe("WhatsNewOverlay", () => {
 
 		render(<WhatsNewOverlay />);
 
+		openReleaseNotes();
 		expect(screen.getByTestId("whats-new-overlay")).toBeInTheDocument();
 		expect(seenVersions()).toEqual([__APP_VERSION__]);
 	});
@@ -89,6 +102,7 @@ describe("WhatsNewOverlay", () => {
 
 		render(<WhatsNewOverlay />);
 
+		openReleaseNotes();
 		expect(screen.getByTestId("whats-new-overlay")).toBeInTheDocument();
 		expect(seenVersions()).toEqual([__APP_VERSION__]);
 	});

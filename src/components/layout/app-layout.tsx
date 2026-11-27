@@ -1,6 +1,6 @@
 import { ReactFlowProvider } from "@xyflow/react";
 import { LucideProvider } from "lucide-react";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAutosave } from "@/hooks/use-autosave";
 import { useCloseGuard } from "@/hooks/use-close-guard";
 import { useDocumentSync } from "@/hooks/use-document-sync";
@@ -22,7 +22,6 @@ import { Canvas } from "../canvas/canvas";
 import { CommandPalette } from "../command-palette";
 import { GuideProvider } from "../onboarding/guide-provider";
 
-import { WhatsNewOverlay } from "../onboarding/whats-new-overlay";
 import { ComponentPalette } from "../palette/component-palette";
 import { KeyboardShortcutsDialog } from "../panels/keyboard-shortcuts-dialog";
 import { RightPanel } from "../panels/right-panel";
@@ -34,6 +33,7 @@ import { InterviewControl, InterviewWorkspace } from "./interview-workspace";
 import { StatusBar } from "./status-bar";
 import { TopMenuBar } from "./top-menu-bar";
 import { UpdateBar } from "./update-bar";
+import { WorkspaceRecoveryDialog } from "./workspace-recovery-dialog";
 
 export function AppLayout() {
 	const leftPanelOpen = useUiStore((s) => s.leftPanelOpen);
@@ -42,6 +42,8 @@ export function AppLayout() {
 	const rightPanelWidth = useUiStore((s) => s.rightPanelWidth);
 	const commandPaletteOpen = useUiStore((s) => s.commandPaletteOpen);
 	const closeCommandPalette = useUiStore((s) => s.closeCommandPalette);
+	const [recoveryOpen, setRecoveryOpen] = useState(false);
+	const openRecovery = useCallback(() => setRecoveryOpen(true), []);
 	const activeDocumentId = useDocumentRegistry((s) => s.activeDocumentId);
 	const keyboardShortcutsDialogOpen = useUiStore((s) => s.keyboardShortcutsDialogOpen);
 	const settingsDialogOpen = useSettingsStore((s) => s.settingsDialogOpen);
@@ -185,14 +187,18 @@ export function AppLayout() {
 						)}
 					</div>
 
-					<StatusBar onReloadExternal={reloadExternalChanges} />
+					<StatusBar onReloadExternal={reloadExternalChanges} onRecoverWorkspace={openRecovery} />
 
 					{/* Dialogs */}
 					{settingsDialogOpen && <SettingsDialog />}
 					{keyboardShortcutsDialogOpen && <KeyboardShortcutsDialog />}
-					<CommandPalette open={commandPaletteOpen} onClose={closeCommandPalette} />
+					<CommandPalette
+						open={commandPaletteOpen}
+						onClose={closeCommandPalette}
+						onRecoverWorkspace={isTauri() ? undefined : openRecovery}
+					/>
+					{recoveryOpen && <WorkspaceRecoveryDialog onClose={() => setRecoveryOpen(false)} />}
 					<GuideProvider />
-					<WhatsNewOverlay />
 					{closeGuardModal}
 				</div>
 			</LucideProvider>

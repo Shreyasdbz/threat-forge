@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { sanitizeDisplayText } from "@/lib/document-display-title";
 import { hasUnloadedLegacyLayout, RESTORE_LEGACY_LAYOUT } from "@/lib/model-layout-utils";
 import type { DocumentPersistenceState, WorkspaceUnavailableReason } from "@/lib/persistence/types";
@@ -9,7 +9,6 @@ import { useKeyResidueStore } from "@/stores/key-residue-store";
 import { useModelStore } from "@/stores/model-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useWorkspaceStore } from "@/stores/workspace-store";
-import { WorkspaceRecoveryDialog } from "./workspace-recovery-dialog";
 
 /**
  * The clear-text key indicator's detail text (#233).
@@ -107,7 +106,13 @@ function describeLocalPersistence(
 	}
 }
 
-export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promise<void> }) {
+export function StatusBar({
+	onReloadExternal,
+	onRecoverWorkspace,
+}: {
+	onReloadExternal?: () => Promise<void>;
+	onRecoverWorkspace?: () => void;
+}) {
 	const model = useModelStore((s) => s.model);
 	const isDirty = useModelStore((s) => s.isDirty);
 	const filePath = useModelStore((s) => s.filePath);
@@ -128,7 +133,6 @@ export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promi
 		Object.values(s.residue).some((residue) => residue === "retained"),
 	);
 	const openSettingsDialogAtTab = useSettingsStore((s) => s.openSettingsDialogAtTab);
-	const [recoveryOpen, setRecoveryOpen] = useState(false);
 
 	// The file save status and the local persistence status are distinct: one tracks the on-disk
 	// `.thf` file, the other the browser workspace copy.
@@ -168,6 +172,14 @@ export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promi
 			data-testid="status-bar"
 			className="flex min-h-8 shrink-0 flex-wrap items-center border-t border-editor-line bg-editor-surface px-4 py-1 text-editor-caption text-muted-foreground"
 		>
+			{localPersistence?.attention && onRecoverWorkspace && (
+				<div className="mb-1 flex basis-full flex-wrap items-center gap-x-3 border-b border-editor-line pb-1 text-editor-body">
+					<p className="flex-1 text-destructive-foreground">{localPersistence.detail}</p>
+					<Button type="button" variant="outline" onClick={onRecoverWorkspace}>
+						Workspace recovery
+					</Button>
+				</div>
+			)}
 			{model ? (
 				<>
 					{!localPersistence && <span data-testid="file-save-status">{renderSaveStatus()}</span>}
@@ -241,17 +253,18 @@ export function StatusBar({ onReloadExternal }: { onReloadExternal?: () => Promi
 			<span data-testid="local-persistence-alert" role="status" className="sr-only">
 				{localPersistence?.attention ? localPersistence.detail : ""}
 			</span>
-			{!isTauri() && (
+			{!isTauri() && !localPersistence?.attention && onRecoverWorkspace && (
 				<>
 					<Separator />
-					<button
+					<Button
 						type="button"
-						onClick={() => setRecoveryOpen(true)}
-						className="rounded underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+						variant="ghost"
+						size="sm"
+						className="text-editor-caption"
+						onClick={onRecoverWorkspace}
 					>
 						Workspace recovery
-					</button>
-					{recoveryOpen && <WorkspaceRecoveryDialog onClose={() => setRecoveryOpen(false)} />}
+					</Button>
 				</>
 			)}
 

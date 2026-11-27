@@ -4,11 +4,51 @@ import { TIPS } from "@/lib/tips";
 import { expect, test } from "./fixtures";
 import { assertNoSeriousAccessibilityViolations, scanAccessibility } from "./support/accessibility";
 import { installDeterministicClock } from "./support/base";
+import { openDocument } from "./support/interactions";
 import {
 	seedEmptyWorkspace,
 	seedEphemeralWorkspace,
 	seedRealisticWorkspace,
 } from "./support/workspace-fixtures";
+
+test("guided tours contains focus and restores it on Escape", async ({ page }) => {
+	await page.goto("/app");
+	const trigger = page.getByTestId("btn-guide-picker");
+	await trigger.press("Enter");
+	const dialog = page.getByRole("dialog", { name: "Guided Tours" });
+	const first = dialog.getByRole("button", { name: "Close guided tours" });
+	const last = dialog.getByRole("button").last();
+	await expect(first).toBeFocused();
+	await page.keyboard.press("Shift+Tab");
+	await expect(last).toBeFocused();
+	await page.keyboard.press("Tab");
+	await expect(first).toBeFocused();
+	await page.keyboard.press("ControlOrMeta+,");
+	await expect(page.getByTestId("settings-dialog")).toBeHidden();
+	await page.keyboard.press("Escape");
+	await expect(dialog).toBeHidden();
+	await expect(trigger).toBeFocused();
+});
+
+for (const colorScheme of ["light", "dark"] as const) {
+	test.describe(`Delete contrast in ${colorScheme}`, () => {
+		test.use({ colorScheme });
+		test("axe measures the destructive canvas action", async ({ page }) => {
+			await page.goto("/app");
+			await openDocument(page, "tests/fixtures/thf/architecture-canonical-full.thf");
+			await page.locator(".react-flow__node-dfdElement").first().press("Shift+F10");
+			const remove = page.getByRole("menuitem", { name: "Delete", exact: true });
+			await expect(remove).toBeVisible();
+			const scan = await scanAccessibility(page, {
+				include: ['[role="menu"] [data-variant="danger"]'],
+			});
+			expect(
+				[...scan.violations, ...scan.incomplete].filter(({ id }) => id === "color-contrast"),
+			).toEqual([]);
+			expect(scan.passes.find(({ id }) => id === "color-contrast")?.nodes).toHaveLength(1);
+		});
+	});
+}
 
 async function setReduceMotion(page: Page, enabled: boolean): Promise<void> {
 	await page.getByTestId("btn-settings-dialog").click();

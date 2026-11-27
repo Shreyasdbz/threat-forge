@@ -11,6 +11,21 @@ test("warns when the browser cannot read a legacy layout sidecar", async ({ page
 	await expect(page.getByText("Layout sidecar not loaded")).toHaveCount(0);
 });
 
+test("the Export menu offers diagram images and both report formats", async ({ page }) => {
+	await page.goto("/app");
+	await openDocument(page, "tests/fixtures/thf/architecture-canonical-full.thf");
+
+	for (const format of ["SVG", "PNG", "HTML", "Markdown"] as const) {
+		await page.getByRole("button", { name: "Export", exact: true }).click();
+		const download = page.waitForEvent("download");
+		await page.getByRole("menuitem", { name: `Export as ${format}`, exact: true }).click();
+		const ext = format === "Markdown" ? "md" : format.toLowerCase();
+		expect((await download).suggestedFilename()).toMatch(new RegExp(`\\.${ext}$`));
+	}
+	await page.getByRole("button", { name: "Present diagram", exact: true }).click();
+	await expect(page.getByRole("dialog").getByRole("img", { name: /^Diagram of/ })).toBeVisible();
+});
+
 test("browses architecture memberships, then presents and exports the shared diagram", async ({
 	page,
 }) => {

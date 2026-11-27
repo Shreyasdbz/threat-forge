@@ -106,11 +106,10 @@ for (const { name, fixture, diagramId } of exports) {
 			await openDocument(page, fixture);
 			if (diagramId)
 				await page.getByRole("combobox", { name: "Diagram view" }).selectOption(diagramId);
-			await page.getByTestId("btn-present").click();
-			const presentation = page.getByRole("dialog");
 			for (const format of ["SVG", "PNG"] as const) {
+				await page.getByTestId("btn-export").click();
 				const download = page.waitForEvent("download");
-				await presentation.getByRole("button", { name: `Export ${format}` }).click();
+				await page.getByRole("menuitem", { name: `Export as ${format}` }).click();
 				const browserBytes = await readFile(await (await download).path());
 				const content = await request("tools/call", {
 					name: `export_${format.toLowerCase()}`,
@@ -143,7 +142,7 @@ for (const name of ["checkout", "hostile"]) {
 		await withMcp(binary, `${fixture}.thf`, async (request) => {
 			await page.goto("/app");
 			await openDocument(page, `${fixture}.thf`);
-			const trigger = page.getByRole("button", { name: "Export report" });
+			const trigger = page.getByRole("button", { name: "Export", exact: true });
 			await expect(trigger).toBeEnabled();
 			await trigger.focus();
 			await page.keyboard.press("Enter");

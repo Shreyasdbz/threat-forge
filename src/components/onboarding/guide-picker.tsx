@@ -1,3 +1,4 @@
+import { Dialog } from "@base-ui/react/dialog";
 import { BookOpen, Check, X } from "lucide-react";
 import { ALL_GUIDES } from "@/lib/onboarding/guides";
 import { useOnboardingStore } from "@/stores/onboarding-store";
@@ -20,32 +21,21 @@ export function GuidePicker({ onClose }: { onClose: () => void }) {
 	};
 
 	return (
-		<div
-			className="fixed inset-0 z-[9997] flex items-center justify-center"
-			onClick={onClose}
-			onKeyDown={(e) => {
-				if (e.key === "Escape") onClose();
-			}}
-		>
-			{/* Backdrop */}
-			<div className="absolute inset-0 bg-black/50" />
-
-			{/* Dialog */}
-			<div
+		<Dialog.Portal>
+			<Dialog.Backdrop className="fixed inset-0 z-[9997] bg-black/50" />
+			<Dialog.Popup
 				data-testid="guide-picker"
-				className="relative z-10 w-80 rounded-editor-dialog border border-editor-separator bg-editor-raised p-4 shadow-editor-dialog"
-				onClick={(e) => e.stopPropagation()}
-				onKeyDown={(e) => e.stopPropagation()}
+				aria-modal="true"
+				className="fixed top-1/2 left-1/2 z-[9998] max-h-[calc(100dvh-2rem)] w-[min(20rem,calc(100%-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-editor-dialog border border-editor-separator bg-editor-raised p-4 shadow-editor-dialog"
 			>
 				<div className="mb-3 flex items-center justify-between">
-					<h2 className="text-editor-headline text-foreground">Guided Tours</h2>
-					<button
-						type="button"
-						onClick={onClose}
-						className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+					<Dialog.Title className="text-editor-headline text-foreground">Guided Tours</Dialog.Title>
+					<Dialog.Close
+						aria-label="Close guided tours"
+						className="grid size-7 place-items-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
 					>
-						<X className="h-4 w-4" />
-					</button>
+						<X className="h-4 w-4" aria-hidden="true" />
+					</Dialog.Close>
 				</div>
 
 				<div className="space-y-2">
@@ -72,7 +62,7 @@ export function GuidePicker({ onClose }: { onClose: () => void }) {
 						);
 					})}
 				</div>
-			</div>
-		</div>
+			</Dialog.Popup>
+		</Dialog.Portal>
 	);
 }

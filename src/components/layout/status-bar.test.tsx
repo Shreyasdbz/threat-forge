@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DocumentPersistenceState } from "@/lib/persistence/types";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useDocumentRegistry } from "@/stores/document-registry";
@@ -232,7 +232,7 @@ describe("StatusBar local persistence indicator", () => {
 			errorKind: "corrupt",
 		});
 
-		render(<StatusBar />);
+		render(<StatusBar onRecoverWorkspace={vi.fn()} />);
 
 		const indicator = screen.getByTestId("local-persistence-status");
 		expect(indicator).toHaveTextContent("Recovery needed");

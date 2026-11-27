@@ -18,6 +18,11 @@ export function useKeyboardShortcuts() {
 
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
+			if (
+				e.defaultPrevented ||
+				(e.target instanceof Element && e.target.closest('[role="dialog"][aria-modal="true"]'))
+			)
+				return;
 			const mod = e.metaKey || e.ctrlKey;
 			const { visible, draft } = getActiveStores().interview.getState();
 			const graphHidden = visible || showingSequence(useModelStore.getState());

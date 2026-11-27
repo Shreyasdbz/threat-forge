@@ -1,3 +1,4 @@
+import { Dialog } from "@base-ui/react/dialog";
 import { Menu } from "@base-ui/react/menu";
 import {
 	type Icon,
@@ -16,6 +17,7 @@ import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useFileOperations } from "@/hooks/use-file-operations";
 import { documentDisplayTitle } from "@/lib/document-display-title";
+import { type DiagramFormat, saveDiagram } from "@/lib/export/diagram-export";
 import { captureCanvasIntoModel } from "@/lib/model-capture";
 import { sequenceDiagrams } from "@/lib/sequence-views";
 import { useCanvasStore } from "@/stores/canvas-store";
@@ -24,6 +26,7 @@ import { useSettingsStore } from "@/stores/settings-store";
 import { useUiStore } from "@/stores/ui-store";
 import type { ThreatModel } from "@/types/threat-model";
 import { GuidePicker } from "../onboarding/guide-picker";
+import { WhatsNewOverlay } from "../onboarding/whats-new-overlay";
 import { DiagramPresentation } from "./diagram-presentation";
 
 export function TopMenuBar() {
@@ -51,7 +54,28 @@ export function TopMenuBar() {
 	const [guidePickerOpen, setGuidePickerOpen] = useState(false);
 	const [editingTitle, setEditingTitle] = useState(false);
 	const [presentation, setPresentation] = useState<{ model: ThreatModel; diagramId?: string }>();
+	const [diagramExportError, setDiagramExportError] = useState<string>();
 	const titleInputRef = useRef<HTMLInputElement>(null);
+
+	function diagramSnapshot() {
+		if (!model) return;
+		const { selectedSequenceId } = useModelStore.getState();
+		return {
+			model: isDirty ? captureCanvasIntoModel(model, useCanvasStore.getState()) : model,
+			diagramId: sequenceDiagrams(model).find(({ id }) => id === selectedSequenceId)?.id,
+		};
+	}
+
+	async function exportDiagram(format: DiagramFormat) {
+		const snapshot = diagramSnapshot();
+		if (!snapshot) return;
+		setDiagramExportError(undefined);
+		try {
+			await saveDiagram(snapshot.model, format, snapshot.diagramId);
+		} catch {
+			setDiagramExportError(`The ${format.toUpperCase()} export could not be saved.`);
+		}
+	}
 
 	// Show file basename when saved, otherwise model title — from the shared helper so the tab,
 	// window title, and this menu-bar title cannot drift, and a Windows path resolves correctly.
@@ -134,8 +158,8 @@ export function TopMenuBar() {
 					<Menu.Trigger
 						render={<Button type="button" variant="ghost" size="icon" />}
 						data-testid="btn-export"
-						aria-label="Export report"
-						title="Export report"
+						aria-label="Export"
+						title="Export"
 						className="text-muted-foreground"
 						disabled={!model}
 					>
@@ -144,6 +168,16 @@ export function TopMenuBar() {
 					<Menu.Portal>
 						<Menu.Positioner align="start" sideOffset={4} className="z-50">
 							<Menu.Popup className="min-w-44 rounded-editor-panel border border-editor-separator bg-editor-raised p-1 shadow-editor-popover">
+								{(["svg", "png"] as const).map((format) => (
+									<Menu.Item
+										key={format}
+										className="cursor-default rounded px-2 py-1.5 text-editor-footnote outline-none data-[highlighted]:bg-editor-hover"
+										onClick={() => void exportDiagram(format)}
+									>
+										Export as {format.toUpperCase()}
+									</Menu.Item>
+								))}
+								<Menu.Separator className="my-1 h-px bg-editor-line" />
 								<Menu.Item
 									className="cursor-default rounded px-2 py-1.5 text-editor-footnote outline-none data-[highlighted]:bg-editor-hover"
 									onClick={() => void exportAsHtml()}
@@ -164,16 +198,8 @@ export function TopMenuBar() {
 				<MenuButton
 					testId="btn-present"
 					icon={IconPresentation}
-					tooltip="Present diagram and export SVG or PNG"
-					onClick={() => {
-						if (model) {
-							const { selectedSequenceId } = useModelStore.getState();
-							setPresentation({
-								model: isDirty ? captureCanvasIntoModel(model, useCanvasStore.getState()) : model,
-								diagramId: sequenceDiagrams(model).find(({ id }) => id === selectedSequenceId)?.id,
-							});
-						}
-					}}
+					tooltip="Present diagram"
+					onClick={() => setPresentation(diagramSnapshot())}
 					disabled={!model}
 				/>
 				<MenuButton
@@ -229,12 +255,19 @@ export function TopMenuBar() {
 
 			{/* Settings + Help */}
 			<div className="flex shrink-0 items-center gap-0.5">
-				<MenuButton
-					testId="btn-guide-picker"
-					icon={IconBook}
-					tooltip="Guided Tours"
-					onClick={() => setGuidePickerOpen(true)}
-				/>
+				<WhatsNewOverlay />
+				<Dialog.Root open={guidePickerOpen} onOpenChange={setGuidePickerOpen}>
+					<Dialog.Trigger
+						render={<Button type="button" variant="ghost" size="icon" />}
+						data-testid="btn-guide-picker"
+						aria-label="Guided Tours"
+						title="Guided Tours"
+						className="text-muted-foreground"
+					>
+						<IconBook size={16} stroke={1.75} aria-hidden="true" />
+					</Dialog.Trigger>
+					{guidePickerOpen && <GuidePicker onClose={() => setGuidePickerOpen(false)} />}
+				</Dialog.Root>
 				<MenuButton
 					testId="btn-settings-dialog"
 					icon={IconSettings}
@@ -242,7 +275,11 @@ export function TopMenuBar() {
 					onClick={openSettingsDialog}
 				/>
 			</div>
-			{guidePickerOpen && <GuidePicker onClose={() => setGuidePickerOpen(false)} />}
+			{diagramExportError && (
+				<p role="alert" className="basis-full text-editor-footnote text-destructive-foreground">
+					{diagramExportError}
+				</p>
+			)}
 		</header>
 	);
 }

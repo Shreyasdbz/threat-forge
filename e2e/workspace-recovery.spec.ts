@@ -22,10 +22,27 @@ test("a failed IndexedDB migration is explained without deleting storage", async
 	});
 	await page.goto("/app");
 	await expect(page.getByTestId("local-persistence-status")).toHaveText("Recovery needed");
-	await page.getByRole("button", { name: "Workspace recovery" }).click();
+	await expect(
+		page
+			.getByText(/Local storage could not be opened/)
+			.filter({ visible: true })
+			.first(),
+	).toBeVisible();
+	await page.getByRole("button", { name: "Workspace recovery" }).press("Enter");
 	const recovery = page.getByRole("dialog", { name: "Workspace recovery" });
 	await expect(recovery.getByRole("alert")).toContainText("No stored documents were deleted.");
 	await expect(
 		recovery.getByRole("button", { name: "Download partial recovery bundle" }),
 	).toBeVisible();
+});
+
+test("workspace recovery is available to keyboard users from the command palette", async ({
+	page,
+}) => {
+	await page.goto("/app");
+	await page.getByTestId("btn-new").press("ControlOrMeta+k");
+	const search = page.getByPlaceholder("Type a command…");
+	await search.fill("Workspace recovery");
+	await search.press("Enter");
+	await expect(page.getByRole("dialog", { name: "Workspace recovery" })).toBeVisible();
 });

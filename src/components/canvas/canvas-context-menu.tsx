@@ -90,11 +90,12 @@ export function CanvasContextMenu({ x, y, items, onClose, trigger }: CanvasConte
 					type="button"
 					key={item.label}
 					role="menuitem"
+					data-variant={item.variant}
 					tabIndex={-1}
 					className={cn(
 						"flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors focus-visible:bg-editor-hover focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-editor-accent",
 						item.variant === "danger"
-							? "text-red-400 hover:bg-red-400/10"
+							? "text-destructive-foreground hover:bg-editor-hover"
 							: "text-foreground hover:bg-accent",
 					)}
 					onClick={() => {

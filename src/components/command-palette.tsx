@@ -9,6 +9,7 @@ import type { DocumentId } from "@/types/document";
 interface CommandPaletteProps {
 	open: boolean;
 	onClose: () => void;
+	onRecoverWorkspace?: () => void;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -20,7 +21,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 	component: "Add Component",
 };
 
-export function CommandPalette({ open, onClose }: CommandPaletteProps) {
+export function CommandPalette({ open, onClose, onRecoverWorkspace }: CommandPaletteProps) {
 	const [query, setQuery] = useState("");
 	const [selectedIndex, setSelectedIndex] = useState(0);
 	const dialogRef = useRef<HTMLDialogElement>(null);
@@ -70,6 +71,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 				previousDocument: () => stepDocument(-1),
 				switchToDocument,
 				openDocuments,
+				recoverWorkspace: onRecoverWorkspace,
 			}),
 		[
 			newModel,
@@ -82,6 +84,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 			stepDocument,
 			switchToDocument,
 			openDocuments,
+			onRecoverWorkspace,
 		],
 	);
 

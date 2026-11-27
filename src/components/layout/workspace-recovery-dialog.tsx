@@ -137,6 +137,15 @@ export function WorkspaceRecoveryDialog({ onClose }: { onClose: () => void }) {
 								: "Browser workspace storage could not be read. Data that could not be read is not in the recovery bundle."}
 						</p>
 					)}
+					<Button
+						type="button"
+						variant="outline"
+						className="mb-4"
+						disabled={busy}
+						onClick={() => downloadWorkspaceRecovery(recovery)}
+					>
+						{recovery.partial ? "Download partial recovery bundle" : "Download recovery bundle"}
+					</Button>
 					{recovery.documents.length ? (
 						<ul className="divide-y divide-editor-line">
 							{recovery.documents.map((document) => (
@@ -195,18 +204,11 @@ export function WorkspaceRecoveryDialog({ onClose }: { onClose: () => void }) {
 							</p>
 						)
 					)}
-					<footer className="mt-4 flex flex-wrap justify-between gap-2 border-t border-editor-line pt-4">
+					<footer className="mt-4 flex justify-end border-t border-editor-line pt-4">
 						<Button
 							type="button"
-							variant="outline"
-							disabled={busy}
-							onClick={() => downloadWorkspaceRecovery(recovery)}
-						>
-							{recovery.partial ? "Download partial recovery bundle" : "Download recovery bundle"}
-						</Button>
-						<Button
-							type="button"
-							variant="destructive"
+							variant="ghost"
+							className="text-destructive-foreground hover:text-destructive-foreground"
 							disabled={busy}
 							onClick={() => void clear()}
 						>
