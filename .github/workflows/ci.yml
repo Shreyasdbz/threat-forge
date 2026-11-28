@@ -150,11 +150,22 @@ jobs:
           cargo test --manifest-path src-tauri/Cargo.toml --frozen
 
       - name: Compare browser downloads with MCP exports
+        id: export-parity
         env:
           THREATFORGE_MCP_BINARY: ./src-tauri/target/debug/threatforge-mcp
         run: |
           npx playwright install --with-deps chromium
           npx playwright test e2e/export-parity.spec.ts
+
+      - name: Upload export parity failure evidence
+        if: failure() && steps.export-parity.outcome == 'failure'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: export-parity-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
 
       - name: Verify committed scene WASM and glue
         run: |
