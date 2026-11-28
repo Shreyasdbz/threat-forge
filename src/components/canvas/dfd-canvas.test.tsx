@@ -1,4 +1,5 @@
 import { act, render } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 interface Vp {
@@ -137,6 +138,25 @@ it("applies live grid snapping preferences to node dragging", () => {
 });
 
 describe("DfdCanvas viewport on activation (#54 step 7)", () => {
+	it("projects and fits only once when React replays the initial effect", () => {
+		const stores = createDocumentStores();
+		stores.model.getState().setModel(makeModel("Restored", [elementFixture]), null);
+		const sync = vi.spyOn(stores.canvas.getState(), "syncFromModel");
+		setActiveStores(stores);
+
+		render(
+			<StrictMode>
+				<DfdCanvas />
+			</StrictMode>,
+		);
+		expect(sync).toHaveBeenCalledTimes(1);
+		expect(rf.fitView).toHaveBeenCalledTimes(1);
+
+		act(() => stores.model.getState().updateElement("comp-1", { name: "Renamed" }));
+		expect(sync).toHaveBeenCalledTimes(2);
+		expect(rf.fitView).toHaveBeenCalledTimes(1);
+	});
+
 	it("fits the view for an imported document with no inline positions, never inheriting the previous document's viewport", () => {
 		const registry = useDocumentRegistry.getState();
 		registry.createDocument({ model: makeModel("A"), filePath: "/a.thf", pendingLayout: null });

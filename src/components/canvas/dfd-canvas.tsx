@@ -139,12 +139,10 @@ export function DfdCanvas() {
 	const viewportActivation = useRef(0);
 	// The active document this canvas last ran the viewport decision for; a change is a real switch.
 	const lastActivatedIdRef = useRef(activeDocumentId);
+	const lastProjection = useRef<{ model: typeof model; sync: typeof syncFromModel } | null>(null);
 
 	// Sync the canvas from the model on every relevant change (edit, new model, file open, tab
 	// switch) and, once per activation, decide the incoming viewport after the nodes are synced.
-	// `model` and `activeDocumentId` are in deps to re-run on edits and on switches; everything else
-	// is read from store snapshots rather than subscribed.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: model/activeDocumentId trigger re-sync
 	useEffect(() => {
 		// A newly activated document must re-run the viewport decision even if the previous document
 		// had already latched it. This closes the hole (#54 step 7) where importing a model with no
@@ -159,7 +157,14 @@ export function DfdCanvas() {
 		// A pending layout means a file/layout was just loaded — reset so we apply its viewport.
 		if (hadPendingLayout) initialSyncDone.current = false;
 
-		syncFromModel();
+		if (
+			hadPendingLayout ||
+			lastProjection.current?.model !== model ||
+			lastProjection.current?.sync !== syncFromModel
+		) {
+			syncFromModel();
+			lastProjection.current = { model, sync: syncFromModel };
+		}
 
 		// Decide the viewport only once per activation, and only after syncFromModel has populated
 		// this document's nodes — deciding before the sync would act on the outgoing document's

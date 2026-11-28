@@ -8,7 +8,7 @@ import type { Page } from "@playwright/test";
 import { readThreatModelText } from "../src/lib/thf-validation";
 import { parseThreatModelYaml, serializeThreatModelYaml } from "../src/lib/thf-yaml";
 import type { ThreatModel } from "../src/types/threat-model";
-import { expect, test, waitForCanvasReady } from "./fixtures";
+import { expect, test, waitForCanvasReady, waitForCanvasSettled } from "./fixtures";
 import { digest, layoutDigest, scaleFixture } from "./fixtures/gen-scale-workspace.mjs";
 import { createDocument, editElementName, openDocument, switchToTab } from "./support/interactions";
 
@@ -239,6 +239,10 @@ test("1k workspace preserves model and layout across browser edits and MCP trans
 		parseThreatModelYaml(firstEdit.thf).diagrams[0].viewport,
 	);
 	await page.reload();
+	await waitForCanvasSettled(
+		page,
+		original.elements.length + original.trust_boundaries.length + (original.groups?.length ?? 0),
+	);
 	await expect(node).toContainText("Orders client");
 	await waitForCanvasReady(page);
 	await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));

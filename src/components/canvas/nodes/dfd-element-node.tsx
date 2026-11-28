@@ -1,5 +1,5 @@
 import type { NodeProps } from "@xyflow/react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { IconRenderer } from "@/components/icons/icon-renderer";
 import { useCanvasDraft } from "@/hooks/use-canvas-draft";
 import { DEFAULT_NODE_WIDTH } from "@/lib/canvas-utils";
@@ -41,7 +41,9 @@ function shapeClass(shape: ShapeKind): string {
 	}
 }
 
-export function DfdElementNode({ id, data, selected }: NodeProps) {
+type ElementNodeProps = Pick<NodeProps, "id" | "data" | "selected">;
+
+function ElementNode({ id, data, selected }: ElementNodeProps) {
 	const nodeData = data as DfdNodeData;
 	const [isEditing, setIsEditing] = useState(false);
 	useCanvasDraft(isEditing);
@@ -198,6 +200,12 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 		</div>
 	);
 }
+
+export const DfdElementNode = memo(
+	ElementNode,
+	(previous, next) =>
+		previous.id === next.id && previous.data === next.data && previous.selected === next.selected,
+);
 
 function syncNodeLabel(elementId: string, name: string) {
 	const nodes = useCanvasStore.getState().nodes;

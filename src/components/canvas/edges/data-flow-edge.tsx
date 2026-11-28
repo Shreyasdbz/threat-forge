@@ -4,28 +4,27 @@ import {
 	type EdgeProps,
 	getBezierPath,
 	useReactFlow,
-	useViewport,
 } from "@xyflow/react";
 import { Lock, Plus } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useCanvasDraft } from "@/hooks/use-canvas-draft";
-import { nodeToRect } from "@/lib/canvas-utils";
 import { cn } from "@/lib/utils";
 import { type DfdEdgeData, useCanvasStore } from "@/stores/canvas-store";
 import { useHistoryStore } from "@/stores/history-store";
 import { useModelStore } from "@/stores/model-store";
 import { useUiStore } from "@/stores/ui-store";
 import type { ThreatModel } from "@/types/threat-model";
+import { getLabelObstacles, type NodeRect } from "./label-obstacles";
 
 function clearLabelPosition(
 	x: number,
 	y: number,
 	width: number,
 	height: number,
-	nodes: ReturnType<typeof nodeToRect>[],
+	nodes: readonly NodeRect[],
 	fallback?: { x: number; y: number },
 ) {
-	const overlaps = (cx: number, cy: number, node: ReturnType<typeof nodeToRect>) =>
+	const overlaps = (cx: number, cy: number, node: NodeRect) =>
 		cx + width / 2 + 6 > node.x &&
 		cx - width / 2 - 6 < node.x + node.width &&
 		cy + height / 2 + 6 > node.y &&
@@ -80,35 +79,17 @@ export function DataFlowEdge({
 	markerEnd,
 }: EdgeProps) {
 	const edgeData = data as DfdEdgeData | undefined;
-	const { setEdges } = useReactFlow();
-	const nodes = useCanvasStore((state) => state.nodes);
-	const { obstacles, midpoint } = useMemo(() => {
-		const byId = new Map(nodes.map((node) => [node.id, node]));
-		const rects = new Map(
-			nodes
-				.filter((node) => !node.data.isBoundary && node.type !== "architectureGroup")
-				.map((node) => {
-					const rect = nodeToRect(node);
-					const parent = node.parentId ? byId.get(node.parentId) : undefined;
-					return [
-						node.id,
-						parent
-							? { ...rect, x: rect.x + parent.position.x, y: rect.y + parent.position.y }
-							: rect,
-					] as const;
-				}),
-		);
-		const a = rects.get(source);
-		const b = rects.get(target);
-		const midpoint =
-			a && b && source !== target
-				? {
-						x: (a.x + a.width / 2 + b.x + b.width / 2) / 2,
-						y: (a.y + a.height / 2 + b.y + b.height / 2) / 2,
-					}
-				: undefined;
-		return { obstacles: [...rects.values()], midpoint };
-	}, [nodes, source, target]);
+	const { setEdges, getZoom } = useReactFlow();
+	const { byId, obstacles } = useCanvasStore((state) => getLabelObstacles(state.nodes));
+	const a = byId.get(source);
+	const b = byId.get(target);
+	const midpoint =
+		a && b && source !== target
+			? {
+					x: (a.x + a.width / 2 + b.x + b.width / 2) / 2,
+					y: (a.y + a.height / 2 + b.y + b.height / 2) / 2,
+				}
+			: undefined;
 
 	const isSelfLoop = source === target;
 
@@ -166,7 +147,6 @@ export function DataFlowEdge({
 	const [isHovered, setIsHovered] = useState(false);
 	const [isEditing, setIsEditing] = useState(false);
 	const showLabel = hasLabel && !isEditing;
-	const { zoom } = useViewport();
 
 	// --- Draggable label via native pointer events ---
 	// React synthetic stopPropagation doesn't prevent ReactFlow's native
@@ -174,23 +154,23 @@ export function DataFlowEdge({
 	// DOM element stops propagation before it reaches ReactFlow's container,
 	// preventing pane-click deselection and pan/drag interference.
 	const labelRef = useRef<HTMLButtonElement>(null);
-	useLayoutEffect(() => {
+	useEffect(() => {
 		if (!showLabel) return;
 		const label = labelRef.current;
 		if (!label) return;
-		const measure = () =>
-			setLabelSize((size) =>
-				size.width === label.offsetWidth && size.height === label.offsetHeight
-					? size
-					: { width: label.offsetWidth, height: label.offsetHeight },
-			);
-		measure();
 		let frame = 0;
-		const observer = new ResizeObserver(() => {
+		const observer = new ResizeObserver(([entry]) => {
+			const { inlineSize, blockSize } = entry.borderBoxSize[0];
+			const width = Math.round(inlineSize);
+			const height = Math.round(blockSize);
 			cancelAnimationFrame(frame);
-			frame = requestAnimationFrame(measure);
+			frame = requestAnimationFrame(() => {
+				setLabelSize((size) =>
+					size.width === width && size.height === height ? size : { width, height },
+				);
+			});
 		});
-		observer.observe(label);
+		observer.observe(label, { box: "border-box" });
 		return () => {
 			observer.disconnect();
 			cancelAnimationFrame(frame);
@@ -210,7 +190,6 @@ export function DataFlowEdge({
 		labelY,
 		defaultLabelX,
 		defaultLabelY,
-		zoom,
 		selected: !!selected,
 	});
 	stateRef.current = {
@@ -220,7 +199,6 @@ export function DataFlowEdge({
 		labelY,
 		defaultLabelX,
 		defaultLabelY,
-		zoom,
 		selected: !!selected,
 	};
 
@@ -240,7 +218,8 @@ export function DataFlowEdge({
 			e.preventDefault();
 
 			const start = stateRef.current;
-			const { offsetX: ox, offsetY: oy, zoom: z, selected: sel } = start;
+			const { offsetX: ox, offsetY: oy, selected: sel } = start;
+			const z = getZoom();
 			wasSelectedBefore.current = sel;
 
 			// Capture pre-drag model with current label offset baked in (for undo)
@@ -336,7 +315,7 @@ export function DataFlowEdge({
 			if (activeMoveListener) document.removeEventListener("pointermove", activeMoveListener);
 			if (activeUpListener) document.removeEventListener("pointerup", activeUpListener);
 		};
-	}, [id, setEdges, showLabel]);
+	}, [getZoom, id, setEdges, showLabel]);
 
 	return (
 		<>
