@@ -173,6 +173,16 @@ test("1k workspace preserves model and layout across browser edits and MCP trans
 	await page.goto("/app");
 	await openDocument(page, path);
 	await expect(page.locator('[data-testid^="node-bulk-"]')).toHaveCount(996);
+	const canvas = page.locator(".react-flow");
+	await expect(canvas.locator(".react-flow__edge")).toHaveCount(fingerprint.flows);
+	await expect(canvas.locator(".react-flow__viewport")).toHaveCSS("will-change", "transform");
+	expect(
+		await canvas
+			.locator(".react-flow__node, .react-flow__edges > svg")
+			.evaluateAll(
+				(items) => items.filter((item) => getComputedStyle(item).willChange !== "auto").length,
+			),
+	).toBe(0);
 	await page.getByTestId("tab-architecture").click();
 	await expect(page.getByRole("region", { name: "Groups" })).toContainText("Regional service");
 	await page.getByRole("combobox", { name: "Diagram view" }).selectOption("order-sequence");

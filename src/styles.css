@@ -381,6 +381,10 @@ html.light {
 		width: 100%;
 	}
 
+	.react-flow__viewport {
+		will-change: transform;
+	}
+
 	.react-flow__minimap-node {
 		vector-effect: non-scaling-stroke;
 	}
