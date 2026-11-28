@@ -17,6 +17,7 @@ import { Layers3, Map as MapIcon } from "lucide-react";
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { isTauri } from "@/lib/platform";
+import { requestGraphDeletion } from "@/lib/request-graph-deletion";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import type { DfdEdge, DfdNode } from "@/stores/canvas-store";
 import { useCanvasStore } from "@/stores/canvas-store";
@@ -440,17 +441,7 @@ export function DfdCanvas() {
 					useUiStore.getState().setRightPanelTab("properties");
 				},
 				onDelete: () => {
-					// Select the node then delete
-					const nodeId = contextMenu.nodeId;
-					if (nodeId) {
-						const nodes = useCanvasStore.getState().nodes;
-						const updated = nodes.map((n) => ({
-							...n,
-							selected: n.id === nodeId,
-						}));
-						useCanvasStore.setState({ nodes: updated });
-						useCanvasStore.getState().deleteSelected();
-					}
+					if (contextMenu.nodeId) void requestGraphDeletion({ nodeId: contextMenu.nodeId });
 				},
 				onDuplicate: () => {
 					if (contextMenu.nodeId) duplicateElement(contextMenu.nodeId);
@@ -469,16 +460,7 @@ export function DfdCanvas() {
 					useUiStore.getState().setRightPanelTab("properties");
 				},
 				onDelete: () => {
-					const edgeId = contextMenu.edgeId;
-					if (edgeId) {
-						const edges = useCanvasStore.getState().edges;
-						const updated = edges.map((e) => ({
-							...e,
-							selected: e.id === edgeId,
-						}));
-						useCanvasStore.setState({ edges: updated });
-						useCanvasStore.getState().deleteSelected();
-					}
+					if (contextMenu.edgeId) void requestGraphDeletion({ edgeId: contextMenu.edgeId });
 				},
 				onReverseDirection: () => {
 					if (contextMenu.edgeId) reverseEdge(contextMenu.edgeId);

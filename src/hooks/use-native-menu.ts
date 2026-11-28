@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 import { isTauri } from "@/lib/platform";
+import { requestGraphDeletion } from "@/lib/request-graph-deletion";
 import { showingSequence } from "@/lib/sequence-views";
 import { isTextEditing } from "@/lib/text-editing";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
-import { useCanvasStore } from "@/stores/canvas-store";
 import { useClipboardStore } from "@/stores/clipboard-store";
 import { getActiveStores } from "@/stores/document-stores";
 import { restoreHistorySnapshot, useHistoryStore } from "@/stores/history-store";
@@ -142,7 +142,8 @@ export function useNativeMenu() {
 						break;
 					}
 					case "edit-delete":
-						if (!graphHidden) useCanvasStore.getState().deleteSelected();
+						if (isTextEditing(document.activeElement)) document.execCommand("delete");
+						else if (!graphHidden) void requestGraphDeletion();
 						break;
 
 					// View

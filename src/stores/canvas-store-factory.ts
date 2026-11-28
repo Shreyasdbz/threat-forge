@@ -32,6 +32,21 @@ import type { ModelState } from "./model-store-factory";
 
 export type { DfdEdge, DfdEdgeData, DfdNode, DfdNodeData } from "@/lib/canvas-projection";
 
+export interface GraphDeletion {
+	nodes: readonly string[];
+	edges: readonly string[];
+}
+
+export function selectedGraphItems(
+	canvas: Pick<CanvasState, "nodes" | "edges">,
+	selectedEdgeId: string | null,
+): GraphDeletion {
+	const nodes = canvas.nodes.filter((node) => node.selected).map((node) => node.id);
+	const edges = canvas.edges.filter((edge) => edge.selected).map((edge) => edge.id);
+	if (!nodes.length && !edges.length && selectedEdgeId) edges.push(selectedEdgeId);
+	return { nodes, edges };
+}
+
 export interface CanvasState {
 	nodes: DfdNode[];
 	edges: DfdEdge[];
@@ -63,7 +78,7 @@ export interface CanvasState {
 		opts?: { sourceHandle?: string; targetHandle?: string; name?: string },
 	) => string | null;
 	addTrustBoundary: (name: string, position: { x: number; y: number }) => void;
-	deleteSelected: () => void;
+	deleteSelected: (targets?: GraphDeletion) => void;
 	duplicateElement: (
 		nodeId: string,
 		opts?: { offset?: { x: number; y: number }; select?: boolean; skipHistory?: boolean },
@@ -489,24 +504,13 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			}
 		},
 
-		deleteSelected: () => {
+		deleteSelected: (targets = selectedGraphItems(get(), deps.model.getState().selectedEdgeId)) => {
 			const currentNodes = get().nodes;
 			const currentEdges = get().edges;
-			const selectedNodes = currentNodes.filter((n) => n.selected);
-			let selectedEdges = currentEdges.filter((e) => e.selected);
-
-			// Fallback: if no edges are selected in ReactFlow but model store has a
-			// selected edge (happens when user clicks the edge label, which uses
-			// stopPropagation and only sets selection in model store), include it.
-			if (selectedEdges.length === 0 && selectedNodes.length === 0) {
-				const modelSelectedEdgeId = deps.model.getState().selectedEdgeId;
-				if (modelSelectedEdgeId) {
-					const fallbackEdge = currentEdges.find((e) => e.id === modelSelectedEdgeId);
-					if (fallbackEdge) {
-						selectedEdges = [fallbackEdge];
-					}
-				}
-			}
+			const targetNodes = new Set(targets.nodes);
+			const targetEdges = new Set(targets.edges);
+			const selectedNodes = currentNodes.filter((node) => targetNodes.has(node.id));
+			const selectedEdges = currentEdges.filter((edge) => targetEdges.has(edge.id));
 
 			if (selectedNodes.length === 0 && selectedEdges.length === 0) return;
 

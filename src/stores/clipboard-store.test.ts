@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ThreatModel } from "@/types/threat-model";
 import { useCanvasStore } from "./canvas-store";
 import { useClipboardStore } from "./clipboard-store";
@@ -212,7 +212,9 @@ describe("clipboard-store", () => {
 			selectNodes("el-1");
 			const initialCount = useCanvasStore.getState().nodes.length;
 
+			const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(true);
 			useClipboardStore.getState().cutSelected();
+			confirm.mockRestore();
 
 			// Clipboard should have the cut element
 			const clipboard = useClipboardStore.getState().clipboard;

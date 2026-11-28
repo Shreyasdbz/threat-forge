@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { requestGraphDeletion } from "@/lib/request-graph-deletion";
 import { useModelStore } from "@/stores/model-store";
 import { EdgeProperties } from "./properties/edge-properties";
 import { ElementProperties } from "./properties/element-properties";
@@ -18,7 +20,18 @@ export function PropertiesTab() {
 		if (!flow) {
 			return <p className="text-editor-caption text-muted-foreground">Data flow not found.</p>;
 		}
-		return <EdgeProperties key={flow.id} flow={flow} />;
+		return (
+			<>
+				<EdgeProperties key={flow.id} flow={flow} />
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => void requestGraphDeletion({ edgeId: flow.id })}
+				>
+					Delete connector
+				</Button>
+			</>
+		);
 	}
 
 	if (selectedBoundaryId) {
@@ -26,11 +39,33 @@ export function PropertiesTab() {
 		if (!boundary) {
 			return <p className="text-editor-caption text-muted-foreground">Trust boundary not found.</p>;
 		}
-		return <TrustBoundaryProperties boundaryId={selectedBoundaryId} />;
+		return (
+			<>
+				<TrustBoundaryProperties boundaryId={selectedBoundaryId} />
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => void requestGraphDeletion({ nodeId: selectedBoundaryId })}
+				>
+					Delete boundary
+				</Button>
+			</>
+		);
 	}
 
 	if (selectedElementId) {
-		return <ElementProperties key={selectedElementId} elementId={selectedElementId} />;
+		return (
+			<>
+				<ElementProperties key={selectedElementId} elementId={selectedElementId} />
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => void requestGraphDeletion({ nodeId: selectedElementId })}
+				>
+					Delete element
+				</Button>
+			</>
+		);
 	}
 
 	return (

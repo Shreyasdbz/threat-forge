@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { requestGraphDeletion } from "@/lib/request-graph-deletion";
 import { showingSequence } from "@/lib/sequence-views";
 import { isTextEditing } from "@/lib/text-editing";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
@@ -45,7 +46,7 @@ export function useKeyboardShortcuts() {
 					case "Backspace":
 						if (graphHidden) return;
 						e.preventDefault();
-						useCanvasStore.getState().deleteSelected();
+						void requestGraphDeletion();
 						return;
 					case "1":
 						e.preventDefault();

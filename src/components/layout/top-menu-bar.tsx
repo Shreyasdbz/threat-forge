@@ -12,15 +12,19 @@ import {
 	IconLayoutSidebarRight,
 	IconPresentation,
 	IconSettings,
+	IconTrash,
 } from "@tabler/icons-react";
 import { useCallback, useRef, useState } from "react";
+import { useStore } from "zustand";
 import { Button } from "@/components/ui/button";
 import { useFileOperations } from "@/hooks/use-file-operations";
 import { documentDisplayTitle } from "@/lib/document-display-title";
 import { type DiagramFormat, saveDiagram } from "@/lib/export/diagram-export";
 import { captureCanvasIntoModel } from "@/lib/model-capture";
-import { sequenceDiagrams } from "@/lib/sequence-views";
+import { requestGraphDeletion } from "@/lib/request-graph-deletion";
+import { sequenceDiagrams, showingSequence } from "@/lib/sequence-views";
 import { useCanvasStore } from "@/stores/canvas-store";
+import { useActiveStores } from "@/stores/document-stores";
 import { useModelStore } from "@/stores/model-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useUiStore } from "@/stores/ui-store";
@@ -32,6 +36,13 @@ import { DiagramPresentation } from "./diagram-presentation";
 export function TopMenuBar() {
 	const isDirty = useModelStore((s) => s.isDirty);
 	const model = useModelStore((s) => s.model);
+	const edgeSelected = useModelStore((s) => Boolean(s.selectedEdgeId));
+	const graphSelected = useCanvasStore(
+		(s) => s.nodes.some((n) => n.selected) || s.edges.some((e) => e.selected),
+	);
+	const sequenceVisible = useModelStore(showingSequence);
+	const { interview } = useActiveStores();
+	const interviewVisible = useStore(interview, (s) => s.visible);
 	const componentCount = model?.elements.length ?? 0;
 	const dataFlowCount = model?.data_flows.length ?? 0;
 	const threatCount = model?.threats.length ?? 0;
@@ -154,6 +165,14 @@ export function TopMenuBar() {
 					onClick={() => void saveModel()}
 					disabled={!model}
 				/>
+				{(graphSelected || edgeSelected) && !sequenceVisible && !interviewVisible && (
+					<MenuButton
+						testId="btn-delete-selection"
+						icon={IconTrash}
+						tooltip="Delete selection"
+						onClick={() => void requestGraphDeletion()}
+					/>
+				)}
 				<Menu.Root>
 					<Menu.Trigger
 						render={<Button type="button" variant="ghost" size="icon" />}

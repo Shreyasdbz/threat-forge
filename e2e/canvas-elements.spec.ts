@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import { addPaletteItem, createModel, expect, test } from "./fixtures";
 
 test.describe("Canvas Elements", () => {
@@ -49,10 +50,45 @@ test.describe("Canvas Elements", () => {
 		const node = page.locator("[data-testid^='node-']").first();
 		await node.click();
 		// Press Delete
+		page.once("dialog", (dialog) => dialog.accept());
 		await page.keyboard.press("Delete");
 		// Node should be gone
 		await expect(page.locator("[data-testid^='node-']")).toHaveCount(0);
 	});
+
+	const deletionActions: Record<string, (page: Page) => Promise<void>> = {
+		keyboard: (page) => page.keyboard.press("Delete"),
+		"context menu": async (page) => {
+			await page.locator("[data-testid^='node-']").first().click({ button: "right" });
+			await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+		},
+		inspector: (page) => page.getByRole("button", { name: "Delete element" }).click(),
+		toolbar: (page) => page.getByRole("button", { name: "Delete selection" }).click(),
+	};
+
+	for (const [entry, remove] of Object.entries(deletionActions)) {
+		test(`${entry} deletion respects confirmation and can be cancelled`, async ({ page }) => {
+			await addPaletteItem(page, "palette-item-generic");
+			const node = page.locator("[data-testid^='node-']").first();
+			await node.click();
+			const messages: string[] = [];
+			page.once("dialog", async (dialog) => {
+				messages.push(dialog.message());
+				await dialog.dismiss();
+			});
+			await remove(page);
+			expect(messages).toEqual(["Delete this item?"]);
+			await expect(node).toBeVisible();
+
+			page.once("dialog", async (dialog) => {
+				messages.push(dialog.message());
+				await dialog.accept();
+			});
+			await remove(page);
+			await expect(node).toHaveCount(0);
+			expect(messages).toEqual(["Delete this item?", "Delete this item?"]);
+		});
+	}
 
 	test("clicking element shows properties panel", async ({ page }) => {
 		await addPaletteItem(page, "palette-item-web-server");

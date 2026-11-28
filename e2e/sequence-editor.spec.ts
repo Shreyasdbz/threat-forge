@@ -32,6 +32,7 @@ test("opening a sequence's linked flow replaces the graph selection", async ({ p
 	await page.getByRole("button", { name: "Show linked flow and findings" }).click();
 	await expect(graph.locator(".react-flow__node.selected")).toHaveCount(0);
 	await expect(graph.locator('.react-flow__edge[data-id="submit"]')).toHaveClass(/\bselected\b/);
+	page.once("dialog", (dialog) => dialog.accept());
 	await page.keyboard.press("Delete");
 	await expect(page.getByRole("alert")).toContainText("Unlink or remove the sequence reference");
 	await expect(graph.locator(".react-flow__node")).toHaveCount(2);
