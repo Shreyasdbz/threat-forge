@@ -69,6 +69,15 @@ export function useKeyboardShortcuts() {
 						} else if (useSettingsStore.getState().settingsDialogOpen) {
 							useSettingsStore.getState().closeSettingsDialog();
 						} else {
+							useCanvasStore.setState((state) => ({
+								nodes: state.nodes.map((node) =>
+									node.selected ? { ...node, selected: false } : node,
+								),
+								edges: state.edges.map((edge) =>
+									edge.selected ? { ...edge, selected: false } : edge,
+								),
+								passiveUpdate: state.passiveUpdate + 1,
+							}));
 							useModelStore.getState().setSelectedElement(null);
 							useModelStore.getState().setSelectedThreat(null);
 						}
