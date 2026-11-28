@@ -489,6 +489,8 @@ export function DfdCanvas() {
 	}, [contextMenu, duplicateElement, reverseEdge]);
 
 	const minimapVisible = useSettingsStore((s) => s.settings.minimapVisible);
+	const gridSnap = useSettingsStore((s) => s.settings.gridSnap);
+	const gridSize = useSettingsStore((s) => s.settings.gridSize);
 	const canvasRef = useRef<HTMLDivElement>(null);
 
 	return (
@@ -565,8 +567,8 @@ export function DfdCanvas() {
 				edgeTypes={edgeTypes}
 				defaultEdgeOptions={defaultEdgeOptions}
 				minZoom={0.01}
-				snapToGrid
-				snapGrid={[16, 16]}
+				snapToGrid={gridSnap}
+				snapGrid={[gridSize, gridSize]}
 				multiSelectionKeyCode="Shift"
 				selectionMode={SelectionMode.Partial}
 				deleteKeyCode={null}

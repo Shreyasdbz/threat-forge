@@ -38,8 +38,18 @@ const rf = vi.hoisted(() => {
 });
 
 vi.mock("@xyflow/react", () => ({
-	ReactFlow: ({ children }: { children?: React.ReactNode }) => (
-		<div data-testid="react-flow">{children}</div>
+	ReactFlow: ({
+		children,
+		snapToGrid,
+		snapGrid,
+	}: {
+		children?: React.ReactNode;
+		snapToGrid: boolean;
+		snapGrid: [number, number];
+	}) => (
+		<div data-testid="react-flow" data-snap={snapToGrid} data-grid={snapGrid.join(",")}>
+			{children}
+		</div>
 	),
 	Background: () => null,
 	BackgroundVariant: { Dots: "dots" },
@@ -68,6 +78,7 @@ import { useCanvasStore } from "@/stores/canvas-store";
 import { useDocumentRegistry } from "@/stores/document-registry";
 import { createDocumentStores, setActiveStores } from "@/stores/document-stores";
 import { useModelStore } from "@/stores/model-store";
+import { useSettingsStore } from "@/stores/settings-store";
 import type { Element, ThreatModel } from "@/types/threat-model";
 import { DfdCanvas } from "./dfd-canvas";
 
@@ -108,6 +119,21 @@ beforeEach(() => {
 
 afterEach(() => {
 	globalThis.requestAnimationFrame = originalRaf;
+	useSettingsStore.getState().resetToDefaults();
+});
+
+it("applies live grid snapping preferences to node dragging", () => {
+	const { getByTestId } = render(<DfdCanvas />);
+	const canvas = getByTestId("react-flow");
+	expect(canvas.getAttribute("data-snap")).toBe("true");
+	expect(canvas.getAttribute("data-grid")).toBe("16,16");
+
+	act(() => {
+		useSettingsStore.getState().updateSetting("gridSize", 24);
+		useSettingsStore.getState().updateSetting("gridSnap", false);
+	});
+	expect(canvas.getAttribute("data-grid")).toBe("24,24");
+	expect(canvas.getAttribute("data-snap")).toBe("false");
 });
 
 describe("DfdCanvas viewport on activation (#54 step 7)", () => {
