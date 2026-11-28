@@ -175,7 +175,7 @@ test("1k workspace preserves model and layout across browser edits and MCP trans
 	await expect(page.locator('[data-testid^="node-bulk-"]')).toHaveCount(996);
 	const canvas = page.locator(".react-flow");
 	await expect(canvas.locator(".react-flow__edge")).toHaveCount(fingerprint.flows);
-	await expect(canvas.locator(".react-flow__viewport")).toHaveCSS("will-change", "transform");
+	await expect(canvas.locator(".react-flow__viewport")).toHaveCSS("will-change", "auto");
 	expect(
 		await canvas
 			.locator(".react-flow__node, .react-flow__edges > svg")

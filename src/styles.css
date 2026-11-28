@@ -381,7 +381,7 @@ html.light {
 		width: 100%;
 	}
 
-	.react-flow__viewport {
+	.desktop-linux-canvas .react-flow__viewport {
 		will-change: transform;
 	}
 

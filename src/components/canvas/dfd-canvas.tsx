@@ -16,6 +16,7 @@ import "@xyflow/react/dist/style.css";
 import { Layers3, Map as MapIcon } from "lucide-react";
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { isTauri } from "@/lib/platform";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import type { DfdEdge, DfdNode } from "@/stores/canvas-store";
 import { useCanvasStore } from "@/stores/canvas-store";
@@ -572,7 +573,11 @@ export function DfdCanvas() {
 				nodesDraggable={!canvasLocked}
 				nodesConnectable={!canvasLocked}
 				elementsSelectable={!canvasLocked}
-				className="bg-editor-canvas"
+				className={
+					isTauri() && navigator.platform.startsWith("Linux")
+						? "bg-editor-canvas desktop-linux-canvas"
+						: "bg-editor-canvas"
+				}
 				proOptions={{ hideAttribution: true }}
 			>
 				<Background
