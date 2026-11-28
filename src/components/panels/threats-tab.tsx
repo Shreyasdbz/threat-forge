@@ -1,5 +1,6 @@
+import { defaultRangeExtractor, useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
 import { ChevronDown, ChevronRight, Copy, Loader2, Shield, Trash2 } from "lucide-react";
-import { useRef, useState } from "react";
+import { type KeyboardEvent, useCallback, useLayoutEffect, useRef, useState } from "react";
 import { CanvasContextMenu, type ContextMenuItem } from "@/components/canvas/canvas-context-menu";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -36,6 +37,8 @@ const MITIGATION_STATUSES: MitigationStatus[] = [
 	"transferred",
 ];
 
+const VIRTUALIZE_AFTER = 80;
+
 export function ThreatsTab() {
 	const model = useModelStore((s) => s.model);
 	const selectedElementId = useModelStore((s) => s.selectedElementId);
@@ -66,7 +69,7 @@ export function ThreatsTab() {
 	const selectedFlow = model.data_flows.find((flow) => flow.id === selectedEdgeId);
 
 	return (
-		<div className="flex flex-col gap-3">
+		<div className={cn("flex flex-col gap-3", threats.length > VIRTUALIZE_AFTER && "h-full")}>
 			<div className="flex flex-wrap items-center justify-between gap-2">
 				<h2 className="flex items-baseline gap-2 text-editor-title3">
 					Threats
@@ -126,17 +129,118 @@ export function ThreatsTab() {
 				</p>
 			)}
 
-			{/* Threat list */}
-			<div className="divide-y divide-editor-line">
-				{threats.map((threat) => (
-					<ThreatCard
-						key={threat.id}
-						threat={threat}
-						isSelected={selectedThreatId === threat.id}
-						onSelect={() => setSelectedThreat(selectedThreatId === threat.id ? null : threat.id)}
-					/>
-				))}
-			</div>
+			<FindingsList threats={threats} selectedId={selectedThreatId} onSelect={setSelectedThreat} />
+		</div>
+	);
+}
+
+function FindingsList({
+	threats,
+	selectedId,
+	onSelect,
+}: {
+	threats: Threat[];
+	selectedId: string | null;
+	onSelect: (id: string | null) => void;
+}) {
+	const scrollRef = useRef<HTMLDivElement>(null);
+	const listRef = useRef<HTMLUListElement>(null);
+	const [focusedId, setFocusedId] = useState<string | null>(null);
+	const [pendingFocus, setPendingFocus] = useState<number | null>(null);
+	const virtual = threats.length > VIRTUALIZE_AFTER;
+	const focusedIndex = threats.findIndex(({ id }) => id === focusedId);
+	const selectedIndex = threats.findIndex(({ id }) => id === selectedId);
+	const virtualizer = useVirtualizer({
+		count: threats.length,
+		enabled: virtual,
+		getScrollElement: () => scrollRef.current,
+		getItemKey: useCallback((index: number) => threats[index].id, [threats]),
+		estimateSize: () => 64,
+		overscan: 6,
+		rangeExtractor: (range) => {
+			const indexes = new Set(defaultRangeExtractor(range));
+			if (focusedIndex >= 0) indexes.add(focusedIndex);
+			if (pendingFocus !== null && pendingFocus < threats.length) indexes.add(pendingFocus);
+			return [...indexes].sort((a, b) => a - b);
+		},
+	});
+
+	useLayoutEffect(() => {
+		if (selectedIndex < 0) return;
+		if (virtual) {
+			virtualizer.scrollToIndex(selectedIndex, { align: "auto" });
+		} else {
+			listRef.current?.children[selectedIndex]?.scrollIntoView?.({ block: "nearest" });
+		}
+	}, [selectedIndex, virtual, virtualizer]);
+
+	useLayoutEffect(() => {
+		if (pendingFocus === null) return;
+		const row = listRef.current?.querySelector(`[data-index="${pendingFocus}"]`);
+		row?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+		setPendingFocus(null);
+	}, [pendingFocus]);
+
+	function navigate(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+		if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+		const next =
+			event.key === "ArrowDown"
+				? index + 1
+				: event.key === "ArrowUp"
+					? index - 1
+					: event.key === "Home"
+						? 0
+						: event.key === "End"
+							? threats.length - 1
+							: null;
+		if (next === null) return;
+		event.preventDefault();
+		if (next < 0 || next >= threats.length || next === index) return;
+		virtualizer.scrollToIndex(next, { align: "auto" });
+		setPendingFocus(next);
+	}
+
+	function renderRow(threat: Threat, index: number, item?: VirtualItem) {
+		const selected = selectedId === threat.id;
+		return (
+			<li
+				key={threat.id}
+				aria-posinset={index + 1}
+				aria-setsize={threats.length}
+				data-index={index}
+				ref={item ? virtualizer.measureElement : undefined}
+				onFocusCapture={item ? () => setFocusedId(threat.id) : undefined}
+				className={
+					item ? "absolute inset-x-0 top-0 border-b border-editor-line last:border-b-0" : undefined
+				}
+				style={item ? { transform: `translateY(${item.start}px)` } : undefined}
+			>
+				<ThreatCard
+					threat={threat}
+					isSelected={selected}
+					onSelect={() => onSelect(selected ? null : threat.id)}
+					onNavigate={item ? (event) => navigate(event, index) : undefined}
+				/>
+			</li>
+		);
+	}
+
+	return (
+		<div ref={scrollRef} className={virtual ? "min-h-0 flex-1 overflow-y-auto" : undefined}>
+			<ul
+				ref={listRef}
+				// biome-ignore lint/a11y/noRedundantRoles: WebKit drops list semantics when list-style is none.
+				role="list"
+				aria-label="Findings"
+				className={virtual ? "relative" : "divide-y divide-editor-line"}
+				style={virtual ? { height: virtualizer.getTotalSize() } : undefined}
+			>
+				{virtual
+					? virtualizer
+							.getVirtualItems()
+							.map((item) => renderRow(threats[item.index], item.index, item))
+					: threats.map((threat, index) => renderRow(threat, index))}
+			</ul>
 		</div>
 	);
 }
@@ -145,10 +249,12 @@ function ThreatCard({
 	threat,
 	isSelected,
 	onSelect,
+	onNavigate,
 }: {
 	threat: Threat;
 	isSelected: boolean;
 	onSelect: () => void;
+	onNavigate?: (event: KeyboardEvent<HTMLButtonElement>) => void;
 }) {
 	const setSelectedElement = useModelStore((s) => s.setSelectedElement);
 	const setRightPanelTab = useUiStore((s) => s.setRightPanelTab);
@@ -199,6 +305,7 @@ function ThreatCard({
 					onClick={onSelect}
 					aria-keyshortcuts="Shift+F10 ContextMenu"
 					onKeyDown={(event) => {
+						onNavigate?.(event);
 						if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
 						event.preventDefault();
 						const { left, bottom } = event.currentTarget.getBoundingClientRect();

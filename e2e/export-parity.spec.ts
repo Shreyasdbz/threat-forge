@@ -319,6 +319,9 @@ test("1k workspace preserves model and layout across browser edits and MCP trans
 	await expect(status).toHaveText("Saved locally");
 	const analyzed = parseThreatModelYaml((await currentRevision(page)).thf);
 	await expect(threats).toHaveAccessibleDescription(`${analyzed.threats.length} identified`);
+	const findings = page.getByRole("list", { name: "Findings" }).getByRole("listitem");
+	await expect(findings.first()).toHaveAttribute("aria-setsize", String(analyzed.threats.length));
+	expect(await findings.count()).toBeLessThan(80);
 	expect(layoutDigest(analyzed)).toBe(layoutDigest(reopened));
 });
 
