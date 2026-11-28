@@ -68,6 +68,13 @@ pub fn build_menu(app: &App) -> Result<Menu<Wry>, Box<dyn std::error::Error>> {
         true,
         Some("CmdOrCtrl+Shift+E"),
     )?;
+    let file_export_markdown = MenuItem::with_id(
+        handle,
+        "file-export-markdown",
+        "Export as Markdown…",
+        true,
+        None::<&str>,
+    )?;
     let file_import =
         MenuItem::with_id(handle, "file-import", "Import\u{2026}", true, None::<&str>)?;
     let file_close = MenuItem::with_id(
@@ -95,6 +102,7 @@ pub fn build_menu(app: &App) -> Result<Menu<Wry>, Box<dyn std::error::Error>> {
             &file_save,
             &file_save_as,
             &file_export_html,
+            &file_export_markdown,
             &PredefinedMenuItem::separator(handle)?,
             &file_close,
             #[cfg(any(target_os = "windows", target_os = "linux"))]

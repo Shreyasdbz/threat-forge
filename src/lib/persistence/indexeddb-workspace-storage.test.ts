@@ -39,6 +39,15 @@ describe("IndexeddbWorkspaceStorage reads and writes", () => {
 		expect(await storage.readDocumentBody(DOC)).toBeNull();
 	});
 
+	it("does not write a new revision for an unchanged snapshot after reopening storage", async () => {
+		await new IndexeddbWorkspaceStorage().writeDocumentBody(DOC, "saved snapshot");
+		const reopened = new IndexeddbWorkspaceStorage();
+		await reopened.writeDocumentBody(DOC, "saved snapshot");
+		expect(await pointerFor(reopened, DOC)).toBe(`${DOC}#1`);
+		await reopened.writeDocumentBody(DOC, "edited snapshot");
+		expect(await pointerFor(reopened, DOC)).toBe(`${DOC}#2`);
+	});
+
 	it("reports availability when IndexedDB opens", async () => {
 		const storage = new IndexeddbWorkspaceStorage();
 		expect(await storage.isAvailable()).toBe(true);
@@ -51,6 +60,18 @@ describe("IndexeddbWorkspaceStorage reads and writes", () => {
 
 		expect(await storage.readDocumentBody(DOC)).toBe("doc-1-body");
 		expect(await storage.readDocumentBody(OTHER)).toBe("doc-2-body");
+	});
+
+	it("does not resurrect a cleared document from a different connection", async () => {
+		const originalTab = new IndexeddbWorkspaceStorage();
+		const otherTab = new IndexeddbWorkspaceStorage();
+		await originalTab.writeDocumentBody(DOC, "body");
+		await otherTab.deleteDocument(DOC);
+		await expect(originalTab.writeDocumentBody(DOC, "stale edit")).rejects.toMatchObject({
+			kind: "not-found",
+		});
+		expect(await otherTab.readDocumentBody(DOC)).toBeNull();
+		expect(await otherTab.listRevisions(DOC)).toEqual([]);
 	});
 });
 

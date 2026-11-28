@@ -114,12 +114,18 @@ describe("read tool schemas", () => {
 		}
 	});
 
-	it("pins get_document_summary to a closed, argument-free object", () => {
-		expect(toolNamed("get_document_summary").jsonSchema()).toEqual({
+	it("pins get_document_summary to a closed object with optional description and layout offsets", () => {
+		expect(toolNamed("get_document_summary").jsonSchema()).toMatchObject({
 			type: "object",
-			properties: {},
+			properties: {
+				description_offset: { type: "integer", minimum: 0 },
+				layout_offset: { type: "integer", minimum: 0 },
+			},
 			additionalProperties: false,
 		});
+		expect(toolNamed("get_document_summary").prepare({}).ok).toBe(true);
+		expect(toolNamed("get_document_summary").prepare({ description_offset: -1 }).ok).toBe(false);
+		expect(toolNamed("get_document_summary").prepare({ layout_offset: -1 }).ok).toBe(false);
 	});
 
 	it("pins get_entity to a closed object requiring kind and id", () => {
@@ -147,6 +153,139 @@ describe("read tool schemas", () => {
 // ---------------------------------------------------------------------------
 
 describe("get_document_summary", () => {
+	it("keeps the summary readable and rejects continuation when metadata description is malformed", async () => {
+		const model = baseModel();
+		Object.assign(model.metadata, { description: 123 });
+		expect(parseOkBody(await run("get_document_summary", {}, model))).toMatchObject({
+			metadata: { title: "Payments", description: "", description_next_offset: null },
+		});
+		expect(await run("get_document_summary", { description_offset: 0 }, model)).toMatchObject({
+			status: "error",
+			result: expect.stringContaining("description"),
+		});
+	});
+
+	it("does not emit invalid saved geometry in layout pages or entity details", async () => {
+		const model = baseModel();
+		model.elements[0].position = { x: Number.NaN, y: 0 };
+		model.elements[1].position = { x: Number.MAX_VALUE, y: 1 };
+		model.trust_boundaries = [
+			{
+				id: "overflow",
+				name: "Overflow",
+				contains: [model.elements[1].id],
+				position: { x: Number.MAX_VALUE, y: 0 },
+				size: { width: Number.POSITIVE_INFINITY, height: 20 },
+			},
+			{
+				id: "invalid",
+				name: "Invalid",
+				contains: [],
+				position: { x: 0, y: Number.NEGATIVE_INFINITY },
+			},
+		];
+		const layout = parseOkBody(await run("get_document_summary", { layout_offset: 0 }, model));
+		expect(layout).toMatchObject({
+			anchor_bounds: null,
+			unpositioned_count: 1,
+			unresolved_count: 1,
+			results: [{ id: model.elements[1].id, canvas_position: null }],
+		});
+		expect(
+			parseOkBody(await run("get_entity", { kind: "elements", id: model.elements[0].id }, model)),
+		).not.toHaveProperty("position");
+		expect(
+			parseOkBody(await run("get_entity", { kind: "trust_boundaries", id: "invalid" }, model)),
+		).not.toHaveProperty("position");
+		expect(
+			parseOkBody(await run("get_entity", { kind: "trust_boundaries", id: "overflow" }, model)),
+		).not.toHaveProperty("size");
+	});
+
+	it("summarizes saved canvas anchors across a large model and pages them in document order", async () => {
+		const model = baseModel();
+		model.elements = Array.from({ length: 80 }, (_, i) => ({
+			...model.elements[0],
+			id: `node-${i}`,
+			position: { x: i * 10, y: -i },
+		}));
+		model.elements[2].position = undefined;
+		model.trust_boundaries = [
+			{ id: "outer", name: "Outer", contains: ["node-79"], position: { x: 1_000, y: -100 } },
+			{ id: "unplaced", name: "Unplaced", contains: ["node-1"] },
+		];
+		const first = parseOkBody(await run("get_document_summary", { layout_offset: 0 }, model));
+		expect(first).toMatchObject({
+			anchor_bounds: { min_x: 0, min_y: -179, max_x: 1790, max_y: 0 },
+			unpositioned_count: 1,
+			unresolved_count: 1,
+			page: { next_offset: 50, total: 79 },
+		});
+		expect(first.results).toHaveLength(50);
+		expect(first.results).toContainEqual({
+			id: "node-1",
+			boundary_id: "unplaced",
+			position: { x: 10, y: -1 },
+			canvas_position: null,
+		});
+		const second = parseOkBody(await run("get_document_summary", { layout_offset: 50 }, model));
+		expect(second.page).toMatchObject({ next_offset: null, total: 79 });
+		expect(second.results).toHaveLength(29);
+		expect(second.results).toContainEqual({
+			id: "node-79",
+			boundary_id: "outer",
+			position: { x: 790, y: -79 },
+			canvas_position: { x: 1790, y: -179 },
+		});
+		expect(await run("get_document_summary", { layout_offset: 79 }, model)).toMatchObject({
+			status: "error",
+			result: expect.stringContaining("page.next_offset"),
+		});
+		expect(
+			await run("get_document_summary", { layout_offset: 0, description_offset: 0 }, model),
+		).toMatchObject({
+			status: "error",
+			result: expect.stringContaining("separately"),
+		});
+	});
+
+	it("returns every safe code point of a long description through bounded continuation pages", async () => {
+		const model = baseModel();
+		const text = `${"x".repeat(199)}😀${"漢😀".repeat(900)}tail detail`;
+		model.metadata.description = text;
+		const summary = parseOkBody(await run("get_document_summary", {}, model));
+		const metadata = summary.metadata as {
+			description: string;
+			description_next_offset: number | null;
+		};
+		expect(metadata.description).toBe(`${"x".repeat(199)}😀`);
+		expect(metadata.description_next_offset).toBe(201);
+
+		let description = metadata.description;
+		let offset = metadata.description_next_offset;
+		for (let page = 0; page < 10 && offset !== null; page++) {
+			const outcome = await run("get_document_summary", { description_offset: offset }, model);
+			const body = parseOkBody(outcome) as {
+				description: string;
+				description_next_offset: number | null;
+			};
+			expect(new TextEncoder().encode(JSON.stringify(body)).length).toBeLessThanOrEqual(
+				READ_RESULT_MAX_BYTES,
+			);
+			expect(body.description_next_offset === null || body.description_next_offset > offset).toBe(
+				true,
+			);
+			description += body.description;
+			offset = body.description_next_offset;
+		}
+		expect(offset).toBeNull();
+		expect(description).toBe(text);
+		expect(await run("get_document_summary", { description_offset: 200 }, model)).toMatchObject({
+			status: "error",
+			result: expect.stringContaining("description_next_offset"),
+		});
+	});
+
 	it("returns fixed-order breakdown arrays even when a bucket is empty", async () => {
 		const body = parseOkBody(await run("get_document_summary", {}, baseModel({ threats: [] })));
 

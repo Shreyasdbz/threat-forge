@@ -34,8 +34,8 @@ const POSITION_MAP: Record<HandlePosition, Position> = {
 };
 
 /** Default node dimensions when width/height are unknown */
-const DEFAULT_NODE_WIDTH = 140;
-const DEFAULT_NODE_HEIGHT = 50;
+const DEFAULT_NODE_WIDTH = 208;
+const DEFAULT_NODE_HEIGHT = 72;
 
 /** Ordered octant handles: index 0 = right (0°), each +1 = +45° clockwise. */
 const OCTANT_HANDLES: HandlePosition[] = [

@@ -1,5 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createDocumentId } from "@/lib/document-id";
+import { useDocumentRegistry } from "@/stores/document-registry";
 import { useModelStore } from "@/stores/model-store";
 import { useSettingsStore } from "@/stores/settings-store";
 
@@ -38,6 +40,7 @@ describe("useAutosave", () => {
 	});
 
 	afterEach(() => {
+		useDocumentRegistry.setState({ activeDocumentId: null });
 		vi.useRealTimers();
 	});
 
@@ -131,6 +134,26 @@ describe("useAutosave", () => {
 		vi.advanceTimersByTime(15_000); // Only half the interval
 
 		expect(mockSaveModel).not.toHaveBeenCalled();
+	});
+
+	it("restarts the debounce when switching dirty tabs with the same file path", async () => {
+		useSettingsStore.setState({
+			settings: {
+				...useSettingsStore.getState().settings,
+				autosaveEnabled: true,
+				autosaveIntervalSeconds: 10,
+			},
+		});
+		useModelStore.setState({ isDirty: true, filePath: "/tmp/test.thf" });
+		useDocumentRegistry.setState({ activeDocumentId: createDocumentId() });
+		renderHook(() => useAutosave());
+
+		await act(async () => vi.advanceTimersByTime(9_000));
+		act(() => useDocumentRegistry.setState({ activeDocumentId: createDocumentId() }));
+		await act(async () => vi.advanceTimersByTime(1_000));
+		expect(mockSaveModel).not.toHaveBeenCalled();
+		await act(async () => vi.advanceTimersByTime(9_000));
+		expect(mockSaveModel).toHaveBeenCalledOnce();
 	});
 
 	it("respects custom interval setting", async () => {

@@ -89,8 +89,8 @@ const maxFilledModel: ThreatModel = {
 			name: "Frontend Cluster",
 			type: "cluster",
 			description: "Edge-facing services",
-			position: { x: 40, y: 40 },
-			size: { width: 320, height: 220 },
+			position: { x: 56, y: 56 },
+			size: { width: 304, height: 240 },
 			fill_color: "#3b82f6",
 			stroke_color: "#1e40af",
 			fill_opacity: 0.1,
@@ -101,8 +101,8 @@ const maxFilledModel: ThreatModel = {
 			name: "Backend Cluster",
 			type: "cluster",
 			description: "Internal services and stores",
-			position: { x: 420, y: 40 },
-			size: { width: 420, height: 360 },
+			position: { x: 456, y: 56 },
+			size: { width: 416, height: 460 },
 			fill_color: "#22c55e",
 			stroke_color: "#15803d",
 			fill_opacity: 0.1,
@@ -114,8 +114,8 @@ const maxFilledModel: ThreatModel = {
 			type: "cluster",
 			parent: "backend-cluster",
 			description: "API tier nested inside the backend",
-			position: { x: 440, y: 80 },
-			size: { width: 200, height: 160 },
+			position: { x: 504, y: 104 },
+			size: { width: 304, height: 168 },
 			fill_color: "#f97316",
 			stroke_color: "#c2410c",
 			fill_opacity: 0.12,
@@ -133,7 +133,8 @@ const maxFilledModel: ThreatModel = {
 			description: "React storefront",
 			technologies: ["react", "vite"],
 			tags: ["tier-1"],
-			position: { x: 100, y: 120 },
+			position: { x: 104, y: 152 },
+			size: { width: 208, height: 90 },
 		},
 		{
 			id: "api-gateway",
@@ -147,7 +148,7 @@ const maxFilledModel: ThreatModel = {
 			description: "Terminates TLS and routes requests",
 			technologies: ["nginx"],
 			tags: ["pci", "tier-1"],
-			position: { x: 480, y: 120 },
+			position: { x: 552, y: 152 },
 			fill_color: "#3b82f6",
 			stroke_color: "#1e40af",
 			fill_opacity: 0.15,
@@ -169,7 +170,7 @@ const maxFilledModel: ThreatModel = {
 			tags: ["pci"],
 			stores: ["order_records"],
 			encryption: "AES-256-at-rest",
-			position: { x: 480, y: 320 },
+			position: { x: 552, y: 388 },
 			fill_color: "#22c55e",
 			stroke_color: "#15803d",
 			fill_opacity: 0.2,
@@ -201,6 +202,8 @@ const maxFilledModel: ThreatModel = {
 			protocol: "PostgreSQL/TLS",
 			data: ["order_records"],
 			authenticated: true,
+			source_handle: "bottom",
+			target_handle: "top",
 		},
 	],
 	relationships: [
@@ -229,8 +232,8 @@ const maxFilledModel: ThreatModel = {
 			id: "boundary-1",
 			name: "Corporate Network",
 			contains: ["web-app", "api-gateway", "orders-db"],
-			position: { x: 20, y: 20 },
-			size: { width: 840, height: 400 },
+			position: { x: 0, y: 0 },
+			size: { width: 928, height: 572 },
 			fill_color: "#22c55e",
 			stroke_color: "#15803d",
 			fill_opacity: 0.1,
@@ -268,7 +271,7 @@ describe("architecture schema contract", () => {
 	const loaded = parseThreatModelYaml(body);
 
 	it("parses the canonical fixture to the TypeScript model", () => {
-		// Numbers compare numerically (the fixture's `x: 100.0` parses to JS `100`);
+		// Numbers compare numerically (the fixture's `x: 104.0` parses to JS `104`);
 		// dates load as plain strings under the thf-yaml schema.
 		expect(loaded).toEqual(maxFilledModel);
 	});

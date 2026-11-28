@@ -1,31 +1,15 @@
 import { useEffect } from "react";
-import { buildLayoutFromModel } from "@/lib/model-layout-utils";
 import { isTauri } from "@/lib/platform";
+import { requestGraphDeletion } from "@/lib/request-graph-deletion";
+import { showingSequence } from "@/lib/sequence-views";
+import { isTextEditing } from "@/lib/text-editing";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
-import { useCanvasStore } from "@/stores/canvas-store";
 import { useClipboardStore } from "@/stores/clipboard-store";
-import { useDocumentRegistry } from "@/stores/document-registry";
-import { useHistoryStore } from "@/stores/history-store";
+import { getActiveStores } from "@/stores/document-stores";
+import { restoreHistorySnapshot, useHistoryStore } from "@/stores/history-store";
 import { useModelStore } from "@/stores/model-store";
 import { useUiStore } from "@/stores/ui-store";
 import { useFileOperations } from "./use-file-operations";
-
-/**
- * Open a .thf file by path (used for file association / open-with).
- * Calls the Rust open_threat_model command directly with the given path.
- */
-async function openFileByPath(filePath: string) {
-	const { invoke } = await import("@tauri-apps/api/core");
-	const model = await invoke<import("@/types/threat-model").ThreatModel>("open_threat_model", {
-		path: filePath,
-	});
-
-	const pendingLayout = buildLayoutFromModel(model);
-	// Open in a new tab, matching the in-app Open (`#54` step 6): a file-association open adds a
-	// document rather than replacing the current one. createDocument seeds fileSettings from
-	// model.metadata.settings.
-	useDocumentRegistry.getState().createDocument({ model, filePath, pendingLayout });
-}
 
 /**
  * Listens to native Tauri menu events and dispatches them to the appropriate store actions.
@@ -33,8 +17,16 @@ async function openFileByPath(filePath: string) {
  * No-op in web builds where Tauri APIs are unavailable.
  */
 export function useNativeMenu() {
-	const { newModel, openModel, importModel, saveModel, saveModelAs, closeModel, exportAsHtml } =
-		useFileOperations();
+	const {
+		newModel,
+		openModel,
+		importModel,
+		saveModel,
+		saveModelAs,
+		closeModel,
+		exportAsHtml,
+		exportAsMarkdown,
+	} = useFileOperations();
 
 	useEffect(() => {
 		if (!isTauri()) return;
@@ -47,11 +39,13 @@ export function useNativeMenu() {
 
 			// Listen for file-association open events (double-click .thf in Finder/Explorer)
 			unlistenFile = await listen<string>("open-file", (event) => {
-				void openFileByPath(event.payload);
+				void openModel(event.payload);
 			});
 
 			unlistenMenu = await listen<string>("menu-action", (event) => {
 				const action = event.payload;
+				const { visible, draft } = getActiveStores().interview.getState();
+				const graphHidden = visible || showingSequence(useModelStore.getState());
 
 				switch (action) {
 					// File
@@ -76,30 +70,33 @@ export function useNativeMenu() {
 					case "file-export-html":
 						void exportAsHtml();
 						break;
+					case "file-export-markdown":
+						void exportAsMarkdown();
+						break;
 
 					// Edit
 					case "edit-undo": {
+						if (isTextEditing(document.activeElement)) {
+							document.execCommand("undo");
+							break;
+						}
+						if (visible && draft) break;
 						const currentModel = useModelStore.getState().model;
 						if (!currentModel) break;
 						const snapshot = useHistoryStore.getState().undo(currentModel);
-						if (snapshot) {
-							const layout = buildLayoutFromModel(snapshot);
-							if (layout) useCanvasStore.getState().setPendingLayout(layout);
-							useModelStore.getState().restoreSnapshot(snapshot);
-							useCanvasStore.getState().syncFromModel();
-						}
+						if (snapshot) restoreHistorySnapshot(snapshot);
 						break;
 					}
 					case "edit-redo": {
+						if (isTextEditing(document.activeElement)) {
+							document.execCommand("redo");
+							break;
+						}
+						if (visible && draft) break;
 						const currentModel = useModelStore.getState().model;
 						if (!currentModel) break;
 						const snapshot = useHistoryStore.getState().redo(currentModel);
-						if (snapshot) {
-							const layout = buildLayoutFromModel(snapshot);
-							if (layout) useCanvasStore.getState().setPendingLayout(layout);
-							useModelStore.getState().restoreSnapshot(snapshot);
-							useCanvasStore.getState().syncFromModel();
-						}
+						if (snapshot) restoreHistorySnapshot(snapshot);
 						break;
 					}
 					case "edit-cut":
@@ -131,7 +128,7 @@ export function useNativeMenu() {
 							} else if (action === "edit-paste") {
 								document.execCommand("paste");
 							}
-						} else {
+						} else if (!graphHidden) {
 							if (action === "edit-select-all") {
 								useClipboardStore.getState().selectAll();
 							} else if (action === "edit-copy") {
@@ -145,7 +142,8 @@ export function useNativeMenu() {
 						break;
 					}
 					case "edit-delete":
-						useCanvasStore.getState().deleteSelected();
+						if (isTextEditing(document.activeElement)) document.execCommand("delete");
+						else if (!graphHidden) void requestGraphDeletion();
 						break;
 
 					// View
@@ -189,5 +187,14 @@ export function useNativeMenu() {
 			unlistenMenu?.();
 			unlistenFile?.();
 		};
-	}, [newModel, openModel, importModel, saveModel, saveModelAs, closeModel, exportAsHtml]);
+	}, [
+		newModel,
+		openModel,
+		importModel,
+		saveModel,
+		saveModelAs,
+		closeModel,
+		exportAsHtml,
+		exportAsMarkdown,
+	]);
 }

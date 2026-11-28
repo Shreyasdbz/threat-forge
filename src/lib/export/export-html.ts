@@ -45,12 +45,16 @@ const MITIGATION_LABELS: Record<string, string> = {
 	transferred: "Transferred",
 };
 
-function escapeHtml(str: string): string {
-	return str
+function escapeHtml(value: unknown): string {
+	return (typeof value === "string" || typeof value === "number" ? String(value) : "")
 		.replace(/&/g, "&amp;")
 		.replace(/</g, "&lt;")
 		.replace(/>/g, "&gt;")
 		.replace(/"/g, "&quot;");
+}
+
+function finiteNumber(value: number | undefined, fallback: number): number {
+	return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
 /** Count threats by severity. */
@@ -93,8 +97,8 @@ function getDiagramBounds(model: ThreatModel): {
 	}
 	for (const b of model.trust_boundaries) {
 		if (!b.position) continue;
-		const w = b.size?.width ?? 400;
-		const h = b.size?.height ?? 300;
+		const w = finiteNumber(b.size?.width, 400);
+		const h = finiteNumber(b.size?.height, 300);
 		minX = Math.min(minX, b.position.x);
 		minY = Math.min(minY, b.position.y);
 		maxX = Math.max(maxX, b.position.x + w);
@@ -119,8 +123,8 @@ function renderDiagram(model: ThreatModel): string {
 	let boundariesHtml = "";
 	for (const b of model.trust_boundaries) {
 		if (!b.position) continue;
-		const w = b.size?.width ?? 400;
-		const h = b.size?.height ?? 300;
+		const w = finiteNumber(b.size?.width, 400);
+		const h = finiteNumber(b.size?.height, 300);
 		boundariesHtml += `<div class="dg-boundary" style="left:${b.position.x - ox}px;top:${b.position.y - oy}px;width:${w}px;height:${h}px;">
 			<span class="dg-boundary-label">${escapeHtml(b.name)}</span>
 		</div>\n`;
@@ -136,7 +140,12 @@ function renderDiagram(model: ThreatModel): string {
 				: el.type === "data_store"
 					? "Data Store"
 					: "Process";
-		const shapeClass = `dg-el-${el.type.replace(/_/g, "-")}`;
+		const shapeClass =
+			el.type === "external_entity"
+				? "dg-el-external-entity"
+				: el.type === "data_store"
+					? "dg-el-data-store"
+					: "dg-el-process";
 		elementsHtml += `<div class="dg-element ${shapeClass}" style="left:${el.position.x - ox}px;top:${el.position.y - oy}px;">
 			<div class="dg-el-name">${escapeHtml(el.name)}</div>
 			<div class="dg-el-type">${escapeHtml(typeLabel)}</div>
@@ -261,7 +270,7 @@ function renderFlowTable(flows: DataFlow[], elements: Element[]): string {
 		const toName = elementMap.get(f.to)?.name ?? f.to;
 		const num = f.flow_number != null ? `#${f.flow_number}` : "—";
 		rows += `<tr>
-			<td>${num}</td>
+			<td>${escapeHtml(num)}</td>
 			<td>${escapeHtml(f.name || "—")}</td>
 			<td>${escapeHtml(fromName)}</td>
 			<td>${escapeHtml(toName)}</td>
@@ -318,6 +327,7 @@ export function generateHtmlReport(model: ThreatModel): string {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
 <title>${title} — Threat Model Report</title>
 <style>
 :root {

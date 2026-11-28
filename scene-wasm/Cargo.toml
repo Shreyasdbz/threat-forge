@@ -1,0 +1,25 @@
+[package]
+name = "threatforge-scene-wasm"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+base64 = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
+quick-xml = "=0.41.0"
+resvg = { version = "=0.47.0", default-features = false, features = ["text"] }
+read-fonts = "0.47"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+skera = "0.10"
+thiserror = "2"
+wasm-bindgen = "=0.2.114"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = "debuginfo"

@@ -48,7 +48,7 @@ export async function switchToTab(
 	await test.step(`switchToTab: activate tab (${label})`, async () => {
 		const tab =
 			"index" in locate
-				? page.getByRole("tab").nth(locate.index)
+				? page.getByRole("tablist", { name: "Open documents" }).getByRole("tab").nth(locate.index)
 				: page.getByTestId(`document-tab-${locate.documentId}`).getByRole("tab");
 		await tab.click();
 		await expect(tab).toHaveAttribute("aria-selected", "true");
@@ -171,12 +171,13 @@ export async function saveDocument(page: Page): Promise<Download> {
 	});
 }
 
-/** Click the toolbar Export button and return the real browser download it produces. */
+/** Choose HTML in the toolbar export menu and return the real browser download it produces. */
 export async function exportHtmlReport(page: Page): Promise<Download> {
 	return test.step("exportHtmlReport: export via the toolbar Export button", async () => {
+		await page.getByTestId("btn-export").click();
 		const [download] = await Promise.all([
 			page.waitForEvent("download"),
-			page.getByTestId("btn-export").click(),
+			page.getByRole("menuitem", { name: "Export as HTML" }).click(),
 		]);
 		return download;
 	});
@@ -196,10 +197,10 @@ export async function restoreWorkspace(page: Page): Promise<void> {
 }
 
 /**
- * Wait for the observable local-save state to settle on the just-made edit: "Saving locally..."
- * then "Saved locally", in that order. Promoted verbatim from `browser-restore.spec.ts`.
+ * Wait for the observable local-save state to settle on the just-made edit: "Changes pending"
+ * (or an active write) then "Saved locally", in that order.
  *
- * Every content change synchronously flips the indicator to "Saving locally..." (the hook calls
+ * Every content change synchronously flips the indicator to "Changes pending" (the hook calls
  * `markInFlight(..., "pending")` inside the store subscription, before the 1s debounce fires), so
  * asserting that state first guarantees the caller is tracking *this* edit's write rather than a
  * stale "Saved locally" left by an earlier one. Only then does it wait for the commit. No sleeps.
@@ -215,7 +216,7 @@ export async function restoreWorkspace(page: Page): Promise<void> {
 export async function waitForLocalSave(page: Page): Promise<void> {
 	await test.step("waitForLocalSave: wait for this edit's local save to commit", async () => {
 		const status = page.getByTestId("local-persistence-status");
-		await expect(status).toHaveText("Saving locally...");
+		await expect(status).toHaveText(/^(Changes pending|Saving locally\.\.\.)$/);
 		await expect(status).toHaveText("Saved locally", { timeout: 15000 });
 	});
 }
@@ -228,7 +229,9 @@ export async function openDocuments(page: Page, count: number): Promise<void> {
 	await test.step(`openDocuments: open ${count} documents via the tab-strip control`, async () => {
 		for (let i = 1; i <= count; i++) {
 			await page.getByTestId("btn-new-document").click();
-			await expect(page.getByRole("tab")).toHaveCount(i);
+			await expect(
+				page.getByRole("tablist", { name: "Open documents" }).getByRole("tab"),
+			).toHaveCount(i);
 		}
 	});
 }

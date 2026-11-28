@@ -2,7 +2,9 @@
  * AI Action Executor — applies validated AI actions to the threat model via stores.
  */
 
-import type { AiAction } from "@/lib/ai-actions";
+import type { AllocateActionId } from "@/lib/ai/loop/proposal-ids";
+import { type AiAction, describeAction } from "@/lib/ai-actions";
+import { removeGraphItems } from "@/lib/remove-graph-items";
 import { generateBoundaryId, generateElementId, generateFlowId } from "@/stores/canvas-store";
 import { useHistoryStore } from "@/stores/history-store";
 import { useModelStore } from "@/stores/model-store";
@@ -13,6 +15,91 @@ function generateThreatId(): string {
 	return `threat-${hex}`;
 }
 
+const liveIdGenerators = {
+	element: generateElementId,
+	flow: generateFlowId,
+	boundary: generateBoundaryId,
+	threat: generateThreatId,
+};
+
+export function isDestructiveAction(action: string): boolean {
+	return action.startsWith("delete_");
+}
+
+export function reviewDeletion(action: AiAction, model: ThreatModel | null) {
+	if (!model) return null;
+	switch (action.action) {
+		case "delete_element":
+		case "delete_data_flow":
+		case "delete_trust_boundary":
+		case "delete_threat":
+			break;
+		default:
+			return null;
+	}
+	const next = applyAction(model, action);
+	if (!next) return null;
+	const removed = <T>(before: T[], after: T[]) => {
+		const remaining = new Set(after);
+		return before.filter((item) => !remaining.has(item));
+	};
+	return {
+		elements: removed(model.elements, next.elements),
+		flows: removed(model.data_flows, next.data_flows),
+		relationships: removed(model.relationships ?? [], next.relationships ?? []),
+		threats: removed(model.threats, next.threats),
+		boundaries:
+			action.action === "delete_trust_boundary"
+				? removed(model.trust_boundaries, next.trust_boundaries)
+				: [],
+		membership:
+			action.action === "delete_element"
+				? model.trust_boundaries.filter((b) => b.contains.includes(action.id)).map(({ id }) => id)
+				: [],
+	};
+}
+
+export function describeActionReview(
+	action: AiAction,
+	impact: ReturnType<typeof reviewDeletion>,
+): string {
+	switch (action.action) {
+		case "delete_element":
+		case "delete_data_flow":
+		case "delete_trust_boundary":
+		case "delete_threat":
+			break;
+		default:
+			return describeAction(action);
+	}
+	const quote = (text: string) =>
+		JSON.stringify(text).replace(
+			/[\p{Cc}\p{Bidi_Control}\u2028\u2029]/gu,
+			(char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+		);
+	const summary = describeAction({ ...action, id: quote(action.id) });
+	if (!impact) return summary;
+	const impacts = [
+		[
+			"Data flows also removed",
+			action.action === "delete_element" ? impact.flows.map(({ id }) => quote(id)) : [],
+		],
+		["Relationships removed", impact.relationships.map(({ id }) => quote(id))],
+		[
+			action.action === "delete_threat" ? "Threat" : "Threats removed",
+			impact.threats.map(
+				({ id, title, category }) => `${quote(title)} (${quote(category)}; ${quote(id)})`,
+			),
+		],
+		["Membership removed from boundaries", impact.membership.map(quote)],
+	] as const;
+	return [
+		summary,
+		...impacts
+			.filter(([, ids]) => ids.length > 0)
+			.map(([label, ids]) => `${label}: ${ids.join(", ")}`),
+	].join("\n");
+}
 /** Sort actions so dependencies resolve first: adds before updates/deletes, elements before flows. */
 export function sortActionsByDependency(actions: AiAction[]): AiAction[] {
 	const priority = (a: AiAction): number => {
@@ -44,13 +131,17 @@ export function sortActionsByDependency(actions: AiAction[]): AiAction[] {
  *
  * Exported so the bounded tool loop (issue #62) can execute the same twelve
  * actions as native tools without reimplementing the graph mutations. It is a
- * pure `(ThreatModel, AiAction) => ThreatModel | null`: it never touches a store,
- * pushes history, or syncs the canvas, so the loop owns the commit and undo.
+ * document transformation. ID allocation is injected during staging, and the
+ * caller owns committing the result and pushing history.
  */
-export function applyAction(model: ThreatModel, action: AiAction): ThreatModel | null {
+export function applyAction(
+	model: ThreatModel,
+	action: AiAction,
+	allocateId: AllocateActionId = (kind) => liveIdGenerators[kind](),
+): ThreatModel | null {
 	switch (action.action) {
 		case "add_element": {
-			const id = generateElementId();
+			const id = allocateId("element");
 			const newEl: Element = {
 				id,
 				type: action.element.type,
@@ -82,22 +173,14 @@ export function applyAction(model: ThreatModel, action: AiAction): ThreatModel |
 		case "delete_element": {
 			const exists = model.elements.some((e) => e.id === action.id);
 			if (!exists) return null;
-			return {
-				...model,
-				elements: model.elements.filter((e) => e.id !== action.id),
-				data_flows: model.data_flows.filter((f) => f.from !== action.id && f.to !== action.id),
-				trust_boundaries: model.trust_boundaries.map((b) => ({
-					...b,
-					contains: b.contains.filter((c) => c !== action.id),
-				})),
-			};
+			return removeGraphItems(model, { elements: new Set([action.id]) });
 		}
 
 		case "add_data_flow": {
 			// Validate that referenced elements exist
 			if (!model.elements.some((e) => e.id === action.data_flow.from)) return null;
 			if (!model.elements.some((e) => e.id === action.data_flow.to)) return null;
-			const id = generateFlowId();
+			const id = allocateId("flow");
 			// Compute next flow number
 			const maxNum = model.data_flows.reduce((max, f) => Math.max(max, f.flow_number ?? 0), 0);
 			const newFlow: DataFlow = {
@@ -132,14 +215,11 @@ export function applyAction(model: ThreatModel, action: AiAction): ThreatModel |
 		case "delete_data_flow": {
 			const exists = model.data_flows.some((f) => f.id === action.id);
 			if (!exists) return null;
-			return {
-				...model,
-				data_flows: model.data_flows.filter((f) => f.id !== action.id),
-			};
+			return removeGraphItems(model, { flows: new Set([action.id]) });
 		}
 
 		case "add_trust_boundary": {
-			const id = generateBoundaryId();
+			const id = allocateId("boundary");
 			// Filter out any contains refs that don't match existing elements
 			const validContains = (action.trust_boundary.contains ?? []).filter((c) =>
 				model.elements.some((e) => e.id === c),
@@ -181,7 +261,7 @@ export function applyAction(model: ThreatModel, action: AiAction): ThreatModel |
 		}
 
 		case "add_threat": {
-			const id = generateThreatId();
+			const id = allocateId("threat");
 			const newThreat: Threat = {
 				id,
 				title: action.threat.title,

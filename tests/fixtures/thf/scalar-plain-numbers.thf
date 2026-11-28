@@ -1,0 +1,19 @@
+version: "1.0"
+metadata:
+  title: "Plain Scalars"
+  author: "Tester"
+  created: 2026-01-04
+  modified: 2026-01-04
+  description: 00123
+elements:
+  - id: app
+    type: process
+    name: "Application"
+    position: { x: -0x10, y: +0o10 }
+    size: { width: 0b100000000, height: 01.25e2 }
+  - id: labels
+    type: process
+    name: "+0o10"
+    description: "1e5"
+    position: { x: -0b10, y: 1e2 }
+    tags: ["+0o10", "0x10", "-0x10", 00123, "1e3", ".inf", "~", "null", yes, on, "true", 12:30, ""]

@@ -1,7 +1,10 @@
 import { ReactFlowProvider } from "@xyflow/react";
-import { useCallback, useEffect } from "react";
+import { LucideProvider } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { useStore } from "zustand";
 import { useAutosave } from "@/hooks/use-autosave";
 import { useCloseGuard } from "@/hooks/use-close-guard";
+import { useDocumentSync } from "@/hooks/use-document-sync";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { useNativeMenu } from "@/hooks/use-native-menu";
 import { useOnboardingTriggers } from "@/hooks/use-onboarding-triggers";
@@ -11,6 +14,7 @@ import { useWorkspaceRestore } from "@/hooks/use-workspace-restore";
 import { getKeychainAdapter } from "@/lib/adapters/get-keychain-adapter";
 import { isTauri } from "@/lib/platform";
 import { useDocumentRegistry } from "@/stores/document-registry";
+import { useActiveStores } from "@/stores/document-stores";
 import { RESIDUE_PROVIDERS, useKeyResidueStore } from "@/stores/key-residue-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useUiStore } from "@/stores/ui-store";
@@ -20,16 +24,18 @@ import { Canvas } from "../canvas/canvas";
 import { CommandPalette } from "../command-palette";
 import { GuideProvider } from "../onboarding/guide-provider";
 
-import { WhatsNewOverlay } from "../onboarding/whats-new-overlay";
 import { ComponentPalette } from "../palette/component-palette";
 import { KeyboardShortcutsDialog } from "../panels/keyboard-shortcuts-dialog";
 import { RightPanel } from "../panels/right-panel";
 import { SettingsDialog } from "../panels/settings-dialog";
 import { ResizeHandle } from "../ui/resize-handle";
+import { DiagramViewControl } from "./diagram-view-control";
 import { DocumentTabStrip } from "./document-tab-strip";
+import { InterviewControl, InterviewWorkspace } from "./interview-workspace";
 import { StatusBar } from "./status-bar";
 import { TopMenuBar } from "./top-menu-bar";
 import { UpdateBar } from "./update-bar";
+import { WorkspaceRecoveryDialog } from "./workspace-recovery-dialog";
 
 export function AppLayout() {
 	const leftPanelOpen = useUiStore((s) => s.leftPanelOpen);
@@ -38,12 +44,17 @@ export function AppLayout() {
 	const rightPanelWidth = useUiStore((s) => s.rightPanelWidth);
 	const commandPaletteOpen = useUiStore((s) => s.commandPaletteOpen);
 	const closeCommandPalette = useUiStore((s) => s.closeCommandPalette);
+	const [recoveryOpen, setRecoveryOpen] = useState(false);
+	const openRecovery = useCallback(() => setRecoveryOpen(true), []);
 	const activeDocumentId = useDocumentRegistry((s) => s.activeDocumentId);
+	const { interview } = useActiveStores();
+	const interviewVisible = useStore(interview, (state) => state.visible);
 	const keyboardShortcutsDialogOpen = useUiStore((s) => s.keyboardShortcutsDialogOpen);
 	const settingsDialogOpen = useSettingsStore((s) => s.settingsDialogOpen);
 	useKeyboardShortcuts();
 	useNativeMenu();
 	useAutosave();
+	const reloadExternalChanges = useDocumentSync();
 	// Browser workspace persistence: restore reads storage after first paint and marks
 	// availability; the autosave hook only writes once it reports available.
 	useWorkspaceRestore();
@@ -117,66 +128,86 @@ export function AppLayout() {
 
 	return (
 		<ReactFlowProvider>
-			<div
-				data-testid="app-layout"
-				className="flex h-full w-full flex-col bg-background text-foreground"
-			>
-				<TopMenuBar />
-				<UpdateBar />
+			<LucideProvider size={16} strokeWidth={1.5} absoluteStrokeWidth>
+				<div
+					data-testid="app-layout"
+					className="editor-workspace flex h-full w-full flex-col bg-editor-canvas font-sans text-editor-body text-foreground"
+				>
+					<TopMenuBar />
+					<UpdateBar />
 
-				<div className="flex flex-1 overflow-hidden">
-					{/* Left sidebar — Component palette */}
-					{leftPanelOpen && (
-						<aside
-							className="relative shrink-0 border-r border-border bg-card"
-							style={{ width: leftPanelWidth }}
-						>
-							<ComponentPalette />
-							<ResizeHandle side="right" onResize={handleLeftResize} />
-						</aside>
-					)}
+					<div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row md:overflow-hidden">
+						{/* Left sidebar — Component palette */}
+						{leftPanelOpen && (
+							<aside
+								hidden={interviewVisible}
+								className="relative w-full shrink-0 border-b border-editor-separator bg-editor-grouped-background md:w-(--pane-width) md:border-b-0 md:border-r"
+								style={{ "--pane-width": `${leftPanelWidth}px` } as React.CSSProperties}
+							>
+								<ComponentPalette />
+								<div className="hidden md:block">
+									<ResizeHandle side="right" onResize={handleLeftResize} />
+								</div>
+							</aside>
+						)}
 
-					{/* Main canvas area: the tab strip sits above the canvas, which becomes the tabpanel
+						{/* Main canvas area: the tab strip sits above the canvas, which becomes the tabpanel
 					    the tablist controls. The role/labelling go on the wrapper, not on <main>, so the
 					    main landmark survives (`#54` D4). */}
-					<main className="flex flex-1 flex-col overflow-hidden">
-						<DocumentTabStrip />
-						<div
-							className="flex-1 overflow-hidden"
-							{...(activeDocumentId
-								? {
-										id: "document-panel",
-										role: "tabpanel",
-										"aria-labelledby": `tab-${activeDocumentId}`,
-									}
-								: {})}
-						>
-							<Canvas />
-						</div>
-					</main>
+						<main className="flex min-h-80 min-w-0 flex-1 flex-col overflow-hidden md:min-h-0">
+							<div className="flex shrink-0 bg-editor-surface">
+								<div className="min-w-0 flex-1">
+									<DocumentTabStrip />
+								</div>
+								<DiagramViewControl />
+								{activeDocumentId && <InterviewControl />}
+							</div>
+							<div
+								className="flex-1 overflow-hidden"
+								{...(activeDocumentId
+									? {
+											id: "document-panel",
+											role: "tabpanel",
+											"aria-labelledby": `tab-${activeDocumentId}`,
+										}
+									: {})}
+							>
+								<InterviewWorkspace>
+									<Canvas />
+								</InterviewWorkspace>
+							</div>
+						</main>
 
-					{/* Right panel — Properties / Threats */}
-					{rightPanelOpen && (
-						<aside
-							className="relative shrink-0 border-l border-border bg-card"
-							style={{ width: rightPanelWidth }}
-						>
-							<ResizeHandle side="left" onResize={handleRightResize} />
-							<RightPanel />
-						</aside>
-					)}
+						{/* Right panel — Properties / Threats */}
+						{rightPanelOpen && (
+							<aside
+								hidden={interviewVisible}
+								className="relative h-96 w-full shrink-0 border-t border-editor-separator bg-editor-grouped-background md:h-auto md:w-(--pane-width) md:border-t-0 md:border-l"
+								style={{ "--pane-width": `${rightPanelWidth}px` } as React.CSSProperties}
+							>
+								<div className="hidden md:block">
+									<ResizeHandle side="left" onResize={handleRightResize} />
+								</div>
+								<RightPanel />
+							</aside>
+						)}
+					</div>
+
+					<StatusBar onReloadExternal={reloadExternalChanges} onRecoverWorkspace={openRecovery} />
+
+					{/* Dialogs */}
+					{settingsDialogOpen && <SettingsDialog />}
+					{keyboardShortcutsDialogOpen && <KeyboardShortcutsDialog />}
+					<CommandPalette
+						open={commandPaletteOpen}
+						onClose={closeCommandPalette}
+						onRecoverWorkspace={isTauri() ? undefined : openRecovery}
+					/>
+					{recoveryOpen && <WorkspaceRecoveryDialog onClose={() => setRecoveryOpen(false)} />}
+					<GuideProvider />
+					{closeGuardModal}
 				</div>
-
-				<StatusBar />
-
-				{/* Dialogs */}
-				{settingsDialogOpen && <SettingsDialog />}
-				{keyboardShortcutsDialogOpen && <KeyboardShortcutsDialog />}
-				<CommandPalette open={commandPaletteOpen} onClose={closeCommandPalette} />
-				<GuideProvider />
-				<WhatsNewOverlay />
-				{closeGuardModal}
-			</div>
+			</LucideProvider>
 		</ReactFlowProvider>
 	);
 }

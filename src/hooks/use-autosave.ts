@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useFileOperations } from "@/hooks/use-file-operations";
+import { hasUnloadedLegacyLayout } from "@/lib/model-layout-utils";
+import { isTauri } from "@/lib/platform";
+import { useDocumentRegistry } from "@/stores/document-registry";
 import { useModelStore } from "@/stores/model-store";
 import { useSettingsStore } from "@/stores/settings-store";
 
@@ -10,8 +13,11 @@ import { useSettingsStore } from "@/stores/settings-store";
  * Reports status via the returned object for status bar display.
  */
 export function useAutosave(): AutosaveStatus {
+	const activeDocumentId = useDocumentRegistry((s) => s.activeDocumentId);
 	const isDirty = useModelStore((s) => s.isDirty);
 	const filePath = useModelStore((s) => s.filePath);
+	const fileSync = useModelStore((s) => s.fileSync);
+	const layoutNotLoaded = useModelStore((s) => isTauri() && hasUnloadedLegacyLayout(s.model));
 	const enabled = useSettingsStore((s) => s.settings.autosaveEnabled);
 	const intervalSeconds = useSettingsStore((s) => s.settings.autosaveIntervalSeconds);
 	const { saveModel } = useFileOperations();
@@ -28,15 +34,28 @@ export function useAutosave(): AutosaveStatus {
 	}, []);
 
 	useEffect(() => {
-		if (!enabled || !isDirty || !filePath) {
+		if (
+			!enabled ||
+			!isDirty ||
+			!filePath ||
+			layoutNotLoaded ||
+			fileSync === "conflict" ||
+			fileSync === "unavailable" ||
+			fileSync === "layout-unavailable"
+		) {
 			clearTimer();
 			return;
 		}
 
 		clearTimer();
 		timerRef.current = setTimeout(() => {
+			if (useDocumentRegistry.getState().activeDocumentId !== activeDocumentId) return;
 			statusRef.current = "saving";
-			void saveModel().then(() => {
+			void saveModel().then((saved) => {
+				if (!saved) {
+					statusRef.current = "idle";
+					return;
+				}
 				statusRef.current = "saved";
 				const now = new Date();
 				lastSavedRef.current = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
@@ -44,7 +63,17 @@ export function useAutosave(): AutosaveStatus {
 		}, intervalSeconds * 1000);
 
 		return clearTimer;
-	}, [enabled, isDirty, filePath, intervalSeconds, saveModel, clearTimer]);
+	}, [
+		activeDocumentId,
+		enabled,
+		isDirty,
+		filePath,
+		fileSync,
+		layoutNotLoaded,
+		intervalSeconds,
+		saveModel,
+		clearTimer,
+	]);
 
 	// Reset status when dirty changes (user edits after an autosave)
 	useEffect(() => {

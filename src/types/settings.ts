@@ -65,7 +65,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
 	gridSnap: true,
 	gridSize: 16,
 	reduceMotion: false,
-	minimapVisible: true,
+	minimapVisible: false,
 	authorName: "",
 	authorEmail: "",
 	fontSize: "default",

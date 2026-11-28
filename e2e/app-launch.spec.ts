@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { createModel, expect, test } from "./fixtures";
 
 test.describe("App Launch", () => {
@@ -29,11 +30,20 @@ test.describe("App Launch", () => {
 
 		await page.getByTitle("Untitled Threat Model - Double-click to rename").dblclick();
 		const titleInput = page.getByTestId("top-menu-bar").locator("input");
-		await titleInput.fill("Customer Identity Access Model Customer Identity Access Model");
+		const title = "Customer Identity Access Model Customer Identity Access Model";
+		await titleInput.fill(title);
 		const download = page.waitForEvent("download");
 		await titleInput.press("Enter");
-		await download;
+		const saved = await download;
+		expect(saved.suggestedFilename()).toBe(
+			"customer-identity-access-model-customer-identity-access-model.thf",
+		);
+		expect(await readFile(await saved.path(), "utf8")).toContain(`title: ${title}`);
 
+		await expect(page.getByTestId("canvas-count-badge")).toBeHidden();
+		await expect(page.getByTestId("btn-settings-dialog")).toBeInViewport({ ratio: 1 });
+
+		await page.setViewportSize({ width: 1280, height: 700 });
 		await expect(
 			page.getByRole("region", {
 				name: "Canvas summary: 0 components, 0 data flows, 0 identified threats, 0 mitigated threats",

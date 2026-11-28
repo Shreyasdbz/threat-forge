@@ -34,8 +34,7 @@ import type { ThreatModel } from "@/types/threat-model";
  *   matching serde's non-`deny_unknown_fields` behavior.
  */
 
-/** The one schema version this build understands, mirroring `validate_version` in `reader.rs`. */
-const SUPPORTED_VERSIONS = ["1.0"] as const;
+const SUPPORTED_VERSIONS: readonly string[] = ["1.0", "1.1"];
 
 /** A path-free, parser-free message for a document `js-yaml` could not parse at all. */
 const PARSE_MESSAGE = "This file is not a valid ThreatForge document: it could not be parsed.";
@@ -46,6 +45,7 @@ export type ThfValidationErrorKind =
 	| "unsupported-version"
 	| "duplicate-id"
 	| "invalid-reference"
+	| "invalid-sequence"
 	| "circular-group-nesting";
 
 /**
@@ -100,19 +100,136 @@ export function readThreatModelText(text: string): ThreatModel {
  * Exported so the semantic layer can be exercised directly, independently of YAML parsing.
  */
 export function validateThreatModel(model: ThreatModel): ThreatModel {
+	for (const section of ["elements", "trust_boundaries"] as const) {
+		for (const [index, entry] of model[section].entries()) {
+			const field = `${section}[${index}]`;
+			const { position, size } = asRecord(entry, field);
+			requireOptionalNumericPair(position, `${field}.position`, "x", "y");
+			requireOptionalNumericPair(size, `${field}.size`, "width", "height");
+		}
+	}
 	validateThreatModelVersion(requireString(model.version, "version"));
 	validateReferences(model);
+	validateSequences(model);
 	return model;
+}
+
+function requireOptionalNumericPair(value: unknown, field: string, first: string, second: string) {
+	if (value == null) return;
+	const pair = asRecord(value, field);
+	if (typeof pair[first] !== "number" || typeof pair[second] !== "number") {
+		throw new ThfValidationError(
+			"missing-section",
+			`${field} must contain numeric ${first} and ${second}.`,
+		);
+	}
 }
 
 /** Exact-match version gate. Mirrors `validate_version` (`reader.rs`) and ADR-009's fail-closed rule. */
 export function validateThreatModelVersion(version: string): void {
-	if (!SUPPORTED_VERSIONS.includes(version as (typeof SUPPORTED_VERSIONS)[number])) {
+	if (!SUPPORTED_VERSIONS.includes(version)) {
 		throw new ThfValidationError(
 			"unsupported-version",
 			`Unsupported schema version '${version}'. Supported versions: ${formatIdList(SUPPORTED_VERSIONS)}`,
 		);
 	}
+}
+
+export function assertSequencePromotionAllowed(model: ThreatModel, sourceYaml?: string): void {
+	if (model.version !== "1.0") return;
+	const source = sourceYaml === undefined ? undefined : parseThreatModelYaml(sourceYaml);
+	if (
+		[...model.diagrams, ...(source?.diagrams ?? [])].some(
+			(diagram) =>
+				diagram != null && typeof diagram === "object" && Object.hasOwn(diagram, "sequence"),
+		)
+	) {
+		throw new ThfValidationError(
+			"invalid-sequence",
+			"Cannot create a typed sequence view: this 1.0 document already contains the opaque diagrams[].sequence field.",
+		);
+	}
+}
+
+export function validateSequences(model: ThreatModel): void {
+	if (model.version !== "1.1") return;
+	const diagrams = model.diagrams.map((diagram, index) => asRecord(diagram, `diagrams[${index}]`));
+	const diagramIds = diagrams.map((diagram, index) =>
+		requireString(diagram.id, `diagrams[${index}].id`),
+	);
+	const elementIds = model.elements.map(({ id }) => id);
+	const flows = new Map(model.data_flows.map((flow) => [flow.id, flow]));
+	for (const [index, diagram] of diagrams.entries()) {
+		if (diagram.sequence == null) continue;
+		const id = diagramIds[index];
+		const path = `diagrams[${id}].sequence`;
+		if (diagram.kind !== "sequence") {
+			throw invalidSequence(path, "requires kind: sequence");
+		}
+		requireSequenceId(id, `diagrams[${index}].id`);
+		if (diagramIds.indexOf(id) !== diagramIds.lastIndexOf(id)) {
+			throw duplicateIdError(id, "diagrams");
+		}
+		const sequence = asRecord(diagram.sequence, path);
+		const participants = requireSequenceList(sequence.participants, `${path}.participants`);
+		const messages = requireSequenceList(sequence.messages, `${path}.messages`);
+		const participantIds = participants.map((entry, i) =>
+			requireSequenceId(entry.id, `${path}.participants[${i}].id`),
+		);
+		assertNoDuplicateIds(participantIds, `${path}.participants`);
+		const participantElements = participants.map((entry, i) =>
+			requireString(entry.element_id, `${path}.participants[${i}].element_id`),
+		);
+		assertNoDuplicateIds(participantElements, `${path}.participants.element_id`);
+		participantElements.forEach((element, i) => {
+			requireKnownId(element, elementIds, `${path}.participants[${participantIds[i]}].element_id`);
+		});
+		const endpoints = new Map(
+			participantIds.map((participant, i) => [participant, participantElements[i]]),
+		);
+		const messageIds = messages.map((entry, i) =>
+			requireSequenceId(entry.id, `${path}.messages[${i}].id`),
+		);
+		assertNoDuplicateIds(messageIds, `${path}.messages`);
+		messages.forEach((message, i) => {
+			const field = `${path}.messages[${messageIds[i]}]`;
+			const from = requireString(message.from, `${field}.from`);
+			const to = requireString(message.to, `${field}.to`);
+			requireString(message.label, `${field}.label`);
+			requireKnownId(from, participantIds, `${field}.from`);
+			requireKnownId(to, participantIds, `${field}.to`);
+			if (message.flow_id == null) return;
+			const flowId = requireString(message.flow_id, `${field}.flow_id`);
+			const flow = flows.get(flowId);
+			if (!flow) requireKnownId(flowId, [...flows.keys()], `${field}.flow_id`);
+			if (flow?.from !== endpoints.get(from) || flow?.to !== endpoints.get(to)) {
+				throw invalidSequence(`${field}.flow_id`, "flow endpoints must match message direction");
+			}
+		});
+	}
+}
+
+function invalidSequence(field: string, reason: string): ThfValidationError {
+	return new ThfValidationError(
+		"invalid-sequence",
+		`Invalid sequence field '${field}': ${reason}.`,
+	);
+}
+
+function requireSequenceId(value: unknown, field: string): string {
+	const id = requireString(value, field);
+	if (!id.trim()) throw invalidSequence(field, "ID must not be blank");
+	return id;
+}
+
+function requireSequenceList(value: unknown, field: string): Record<string, unknown>[] {
+	if (!Array.isArray(value)) {
+		throw new ThfValidationError(
+			"missing-section",
+			`This file cannot be opened: ${field} is not a list.`,
+		);
+	}
+	return value.map((item, i) => asRecord(item, `${field}[${i}]`));
 }
 
 /**

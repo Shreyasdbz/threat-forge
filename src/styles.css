@@ -1,4 +1,198 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/figtree";
+@import "@fontsource-variable/outfit";
+
+@custom-variant dark (&:is(.dark *));
+@custom-variant data-horizontal (&:where([data-orientation="horizontal"]));
+@custom-variant data-vertical (&:where([data-orientation="vertical"]));
+
+@font-face {
+	font-family: "Inter";
+	src: url("/fonts/InterVariable.woff2") format("woff2");
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: swap;
+}
+
+@theme static {
+	--font-editor: "Figtree Variable", system-ui, sans-serif;
+	--font-editor-heading: "Outfit Variable", system-ui, sans-serif;
+	--font-heading: var(--font-editor-heading);
+	--font-diagram: "Inter", system-ui, sans-serif;
+	--font-editor-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+	--text-editor-caption2: 0.75rem;
+	--text-editor-caption2--line-height: 1rem;
+	--text-editor-caption2--font-weight: 500;
+	--text-editor-caption2--letter-spacing: -0.005em;
+	--text-editor-caption: 0.75rem;
+	--text-editor-caption--line-height: 1rem;
+	--text-editor-caption--font-weight: 500;
+	--text-editor-caption--letter-spacing: -0.005em;
+	--text-editor-footnote: 0.75rem;
+	--text-editor-footnote--line-height: 1rem;
+	--text-editor-footnote--font-weight: 500;
+	--text-editor-footnote--letter-spacing: -0.005em;
+	--text-editor-body: 0.8125rem;
+	--text-editor-body--line-height: 1.25rem;
+	--text-editor-body--font-weight: 400;
+	--text-editor-body--letter-spacing: -0.005em;
+	--text-editor-headline: 0.8125rem;
+	--text-editor-headline--line-height: 1.25rem;
+	--text-editor-headline--font-weight: 600;
+	--text-editor-headline--letter-spacing: -0.005em;
+	--text-editor-title3: 1rem;
+	--text-editor-title3--line-height: 1.375rem;
+	--text-editor-title3--font-weight: 600;
+	--text-editor-title3--letter-spacing: -0.01em;
+	--text-editor-title2: 1.25rem;
+	--text-editor-title2--line-height: 1.75rem;
+	--text-editor-title2--font-weight: 600;
+	--text-editor-title2--letter-spacing: -0.015em;
+	--radius-editor-control: 0.25rem;
+	--radius-editor-panel: 0rem;
+	--radius-editor-dialog: 0.375rem;
+	--spacing-editor-icon: 1.75rem;
+	--spacing-editor-control: 2rem;
+	--spacing-editor-row: 2.25rem;
+	--spacing-editor-primary: 2.5rem;
+	--shadow-editor-popover: 0 4px 16px rgb(0 0 0 / 0.15);
+	--shadow-editor-dialog: 0 16px 48px rgb(0 0 0 / 0.24);
+	--ease-editor: cubic-bezier(0.2, 0.65, 0.3, 1);
+}
+
+@theme inline {
+	--color-editor-line: var(--editor-separator);
+	--color-editor-separator: var(--editor-separator);
+	--color-editor-label: var(--editor-label);
+	--color-editor-secondary-label: var(--editor-secondary-label);
+	--color-editor-tertiary-label: var(--editor-tertiary-label);
+	--color-editor-grouped-background: var(--editor-grouped-background);
+	--color-editor-surface: var(--editor-surface);
+	--color-editor-raised: var(--editor-raised);
+	--color-editor-canvas: var(--editor-canvas);
+	--color-editor-outline: var(--editor-outline);
+	--color-editor-fill: var(--editor-fill);
+	--color-editor-hover: var(--editor-hover);
+	--color-editor-pressed: var(--editor-pressed);
+	--color-editor-selection: var(--editor-selection);
+	--color-editor-accent: var(--editor-accent);
+	--color-editor-on-accent: var(--editor-on-accent);
+	--color-editor-action: var(--editor-action);
+	--color-editor-danger: var(--editor-danger);
+	--color-editor-warning: var(--editor-warning);
+	--color-editor-success: var(--editor-success);
+}
+
+:root {
+	--editor-label: var(--color-foreground);
+	--editor-secondary-label: color-mix(
+		in oklab,
+		var(--color-muted-foreground),
+		var(--color-foreground) 12%
+	);
+	--editor-tertiary-label: var(--editor-secondary-label);
+	--editor-grouped-background: var(--color-background);
+	--editor-surface: var(--color-card);
+	--editor-raised: var(--color-popover);
+	--editor-canvas: color-mix(in oklab, var(--color-background), var(--color-card) 45%);
+	--editor-separator: var(--color-border);
+	--editor-outline: color-mix(in oklab, var(--color-card), var(--color-foreground) 45%);
+	--editor-fill: var(--color-muted);
+	--editor-hover: var(--color-accent);
+	--editor-pressed: color-mix(in oklab, var(--color-accent), var(--color-foreground) 8%);
+	--editor-selection: color-mix(in oklab, var(--color-card), var(--editor-accent) 14%);
+	--editor-accent: var(--color-sidebar-primary);
+	--editor-on-accent: var(--color-sidebar-primary-foreground);
+	--editor-action: var(--color-primary);
+	--editor-danger: var(--color-destructive-foreground);
+	--editor-warning: #ffc078;
+	--editor-success: #75d9a2;
+	--editor-canvas-dot: #647081;
+	--editor-container-ink-mix: 24%;
+}
+
+html.light {
+	--editor-grouped-background: var(--color-sidebar);
+	--editor-canvas: color-mix(in oklab, var(--color-background), var(--color-muted) 40%);
+	--editor-accent: var(--color-primary);
+	--editor-on-accent: var(--color-primary-foreground);
+	--editor-warning: #944a06;
+	--editor-success: #197248;
+	--editor-canvas-dot: #aeb9c8;
+	--editor-container-ink-mix: 0%;
+}
+
+html[data-theme-preset]:not([data-theme-preset="midnight"], [data-theme-preset="daylight"]) {
+	--editor-grouped-background: var(--color-background);
+	--editor-canvas: color-mix(in srgb, var(--color-background), var(--color-foreground) 3%);
+	--editor-accent: #79b8ff;
+	--editor-on-accent: #111318;
+	--editor-canvas-dot: color-mix(in srgb, var(--color-background), var(--color-foreground) 30%);
+}
+
+html.light[data-theme-preset]:not([data-theme-preset="daylight"]) {
+	--editor-accent: #005cc8;
+	--editor-on-accent: #fff;
+}
+
+@media (prefers-contrast: more) {
+	html:root {
+		--editor-separator: var(--editor-secondary-label);
+		--editor-outline: var(--editor-label);
+	}
+}
+
+.editor-workspace {
+	--font-sans: var(--font-editor);
+	--font-mono: var(--font-editor-mono);
+	--radius-sm: 0rem;
+	--radius-md: 0rem;
+	--radius-lg: 0rem;
+	--radius-xl: 0rem;
+	--radius-2xl: 0rem;
+	--radius-3xl: 0rem;
+	--radius-4xl: 0rem;
+}
+
+.editor-workspace :is(h1, h2, h3):not(.react-flow *) {
+	font-family: var(--font-editor-heading);
+}
+
+.editor-workspace .react-flow {
+	font-family: var(--font-diagram);
+	font-feature-settings: "cv11";
+}
+
+.editor-workspace :is(button, [role="button"]):not(:disabled, [aria-disabled="true"]) {
+	cursor: pointer;
+}
+
+.editor-workspace
+	:is(
+		.text-editor-caption2,
+		.text-editor-caption,
+		.text-editor-footnote,
+		.text-editor-body,
+		.text-editor-headline
+	) {
+	text-rendering: geometricPrecision;
+}
+
+.editor-workspace .tabular-nums {
+	font-feature-settings: "cv11", "ss01", "tnum";
+}
+
+.editor-workspace :focus-visible {
+	outline: 2px solid var(--editor-accent);
+	outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+	.editor-workspace :focus-visible {
+		outline-color: Highlight;
+	}
+}
 
 /*
  * ThreatForge Design Tokens
@@ -22,28 +216,28 @@
 	/* Colors — shadcn/ui compatible CSS variables (dark/Midnight defaults) */
 	--color-background: oklch(0.145 0 0);
 	--color-foreground: oklch(0.985 0 0);
-	--color-card: oklch(0.145 0 0);
+	--color-card: oklch(0.205 0 0);
 	--color-card-foreground: oklch(0.985 0 0);
-	--color-popover: oklch(0.145 0 0);
+	--color-popover: oklch(0.205 0 0);
 	--color-popover-foreground: oklch(0.985 0 0);
-	--color-primary: oklch(0.985 0 0);
-	--color-primary-foreground: oklch(0.205 0 0);
-	--color-secondary: oklch(0.269 0 0);
+	--color-primary: oklch(0.432 0.095 166.913);
+	--color-primary-foreground: oklch(0.979 0.021 166.113);
+	--color-secondary: oklch(0.274 0.006 286.033);
 	--color-secondary-foreground: oklch(0.985 0 0);
 	--color-muted: oklch(0.269 0 0);
 	--color-muted-foreground: oklch(0.708 0 0);
 	--color-accent: oklch(0.269 0 0);
 	--color-accent-foreground: oklch(0.985 0 0);
-	--color-destructive: oklch(0.396 0.141 25.723);
-	--color-destructive-foreground: oklch(0.637 0.237 25.331);
-	--color-border: oklch(0.269 0 0);
-	--color-input: oklch(0.269 0 0);
+	--color-destructive: oklch(0.704 0.191 22.216);
+	--color-destructive-foreground: oklch(0.704 0.191 22.216);
+	--color-border: oklch(1 0 0 / 10%);
+	--color-input: oklch(1 0 0 / 15%);
 	--color-ring: oklch(0.556 0 0);
-	--color-chart-1: oklch(0.488 0.243 264.376);
+	--color-chart-1: oklch(0.845 0.143 164.978);
 	--color-chart-2: oklch(0.696 0.17 162.48);
-	--color-chart-3: oklch(0.769 0.188 70.08);
-	--color-chart-4: oklch(0.627 0.265 303.9);
-	--color-chart-5: oklch(0.645 0.246 16.439);
+	--color-chart-3: oklch(0.596 0.145 163.225);
+	--color-chart-4: oklch(0.508 0.118 165.612);
+	--color-chart-5: oklch(0.432 0.095 166.913);
 
 	/* ThreatForge brand accents — constant across all themes */
 	--color-tf-zero: #0a0f1e;
@@ -67,13 +261,13 @@
 	--color-tf-signal-ink: #00d97e;
 
 	/* Sidebar — for shadcn sidebar component */
-	--color-sidebar: oklch(0.145 0 0);
+	--color-sidebar: oklch(0.205 0 0);
 	--color-sidebar-foreground: oklch(0.985 0 0);
-	--color-sidebar-primary: oklch(0.488 0.243 264.376);
-	--color-sidebar-primary-foreground: oklch(0.985 0 0);
+	--color-sidebar-primary: oklch(0.696 0.17 162.48);
+	--color-sidebar-primary-foreground: oklch(0.262 0.051 172.552);
 	--color-sidebar-accent: oklch(0.269 0 0);
 	--color-sidebar-accent-foreground: oklch(0.985 0 0);
-	--color-sidebar-border: oklch(0.269 0 0);
+	--color-sidebar-border: oklch(1 0 0 / 10%);
 	--color-sidebar-ring: oklch(0.556 0 0);
 
 	--radius-lg: 0.5rem;
@@ -96,29 +290,29 @@ html.light {
 	--color-card-foreground: oklch(0.145 0 0);
 	--color-popover: oklch(1 0 0);
 	--color-popover-foreground: oklch(0.145 0 0);
-	--color-primary: oklch(0.205 0 0);
-	--color-primary-foreground: oklch(0.985 0 0);
-	--color-secondary: oklch(0.965 0 0);
-	--color-secondary-foreground: oklch(0.205 0 0);
-	--color-muted: oklch(0.965 0 0);
-	--color-muted-foreground: oklch(0.45 0 0);
-	--color-accent: oklch(0.965 0 0);
+	--color-primary: oklch(0.508 0.118 165.612);
+	--color-primary-foreground: oklch(0.979 0.021 166.113);
+	--color-secondary: oklch(0.967 0.001 286.375);
+	--color-secondary-foreground: oklch(0.21 0.006 285.885);
+	--color-muted: oklch(0.97 0 0);
+	--color-muted-foreground: oklch(0.556 0 0);
+	--color-accent: oklch(0.97 0 0);
 	--color-accent-foreground: oklch(0.205 0 0);
 	--color-destructive: oklch(0.577 0.245 27.325);
 	--color-destructive-foreground: oklch(0.577 0.245 27.325);
 	--color-border: oklch(0.922 0 0);
 	--color-input: oklch(0.922 0 0);
 	--color-ring: oklch(0.708 0 0);
-	--color-chart-1: oklch(0.488 0.243 264.376);
-	--color-chart-2: oklch(0.6 0.2 160);
-	--color-chart-3: oklch(0.65 0.2 70);
-	--color-chart-4: oklch(0.55 0.25 303.9);
-	--color-chart-5: oklch(0.55 0.25 16.439);
+	--color-chart-1: oklch(0.845 0.143 164.978);
+	--color-chart-2: oklch(0.696 0.17 162.48);
+	--color-chart-3: oklch(0.596 0.145 163.225);
+	--color-chart-4: oklch(0.508 0.118 165.612);
+	--color-chart-5: oklch(0.432 0.095 166.913);
 	--color-sidebar: oklch(0.985 0 0);
 	--color-sidebar-foreground: oklch(0.145 0 0);
-	--color-sidebar-primary: oklch(0.488 0.243 264.376);
-	--color-sidebar-primary-foreground: oklch(0.985 0 0);
-	--color-sidebar-accent: oklch(0.965 0 0);
+	--color-sidebar-primary: oklch(0.596 0.145 163.225);
+	--color-sidebar-primary-foreground: oklch(0.979 0.021 166.113);
+	--color-sidebar-accent: oklch(0.97 0 0);
 	--color-sidebar-accent-foreground: oklch(0.205 0 0);
 	--color-sidebar-border: oklch(0.922 0 0);
 	--color-sidebar-ring: oklch(0.708 0 0);
@@ -187,9 +381,17 @@ html.light {
 		width: 100%;
 	}
 
+	.desktop-linux-canvas .react-flow__viewport {
+		will-change: transform;
+	}
+
+	.react-flow__minimap-node {
+		vector-effect: non-scaling-stroke;
+	}
+
 	/* Ensure edge labels render above connector lines */
 	.react-flow__edgelabel-renderer {
-		z-index: 5;
+		z-index: 2001;
 	}
 
 	/* Edge reconnect grab handles — circles at edge endpoints for drag-to-reconnect */
@@ -201,7 +403,16 @@ html.light {
 		cursor: grab;
 	}
 	.react-flow__edgeupdater:hover {
-		fill: var(--color-tf-signal);
+		fill: var(--editor-accent);
 		fill-opacity: 0.5;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.editor-workspace *,
+	.editor-workspace *::before,
+	.editor-workspace *::after {
+		animation-duration: 0.01ms;
+		transition-duration: 0.01ms;
 	}
 }

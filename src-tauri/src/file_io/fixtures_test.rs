@@ -16,6 +16,29 @@ const FIXTURE_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/fixtur
 /// Canonical fixtures are `serde_yaml` output and are subject to byte-identity assertions.
 const CANONICAL_FIXTURES: &[&str] = &["v1.0-canonical-full.thf"];
 
+#[test]
+fn architecture_starters_round_trip_without_findings() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/lib/architecture-starters");
+    let output = tempfile::tempdir().unwrap();
+    for id in [
+        "cloud-service",
+        "event-pipeline",
+        "data-platform",
+        "desktop-app",
+        "ai-application",
+    ] {
+        let filename = format!("{id}.thf");
+        let model = read_threat_model(&root.join(&filename)).unwrap();
+        assert!(model.threats.is_empty(), "{id}");
+        assert_eq!(model.layers.len(), 2, "{id}");
+        assert_eq!(model.groups.len(), 1, "{id}");
+        assert_eq!(model.relationships.len(), 1, "{id}");
+        let path = output.path().join(filename);
+        write_threat_model(&path, &model).unwrap();
+        assert_eq!(read_threat_model(&path).unwrap(), model, "{id}");
+    }
+}
+
 /// Legacy fixtures are hand-authored, non-canonical, and assert semantic round trips only.
 const LEGACY_FIXTURES: &[&str] = &[
     "v1.0-minimal.thf",
@@ -420,7 +443,7 @@ fn invalid_fixtures_are_rejected_with_the_expected_error() {
     match bad_version {
         ThreatForgeError::UnsupportedVersion { version, supported } => {
             assert_eq!(version, "2.0");
-            assert_eq!(supported, vec!["1.0".to_string()]);
+            assert_eq!(supported, vec!["1.0".to_string(), "1.1".to_string()]);
         }
         other => panic!("expected UnsupportedVersion, got {other:?}"),
     }
@@ -438,6 +461,67 @@ fn invalid_fixtures_are_rejected_with_the_expected_error() {
         matches!(missing_metadata, ThreatForgeError::YamlParse { .. }),
         "expected YamlParse, got {missing_metadata:?}"
     );
+    for path in [
+        "invalid/missing-element-size-height.thf",
+        "invalid/string-element-size-width.thf",
+        "invalid/string-element-position-x.thf",
+        "invalid/string-boundary-position-y.thf",
+        "invalid/string-boundary-size-width.thf",
+        "invalid/numeric-metadata-description.thf",
+    ] {
+        let error = read_threat_model(&fixture_path(path)).expect_err("invalid shape");
+        assert!(
+            matches!(error, ThreatForgeError::YamlParse { .. }),
+            "{path}: {error:?}"
+        );
+    }
+}
+
+#[test]
+fn reads_scalar_parity_fixtures() {
+    for (name, description, positions) in [
+        ("v1.0-minimal.thf", "", vec![None]),
+        ("scalar-null-description.thf", "", vec![]),
+        (
+            "scalar-plain-numbers.thf",
+            "00123",
+            vec![
+                Some(Position { x: -16.0, y: 8.0 }),
+                Some(Position { x: -2.0, y: 100.0 }),
+            ],
+        ),
+    ] {
+        let model =
+            read_threat_model(&fixture_path(name)).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(model.metadata.description, description, "{name}");
+        assert_eq!(
+            model
+                .elements
+                .iter()
+                .map(|entry| entry.position.clone())
+                .collect::<Vec<_>>(),
+            positions,
+            "{name}"
+        );
+        if name == "scalar-plain-numbers.thf" {
+            assert_eq!(
+                model.elements[0].size,
+                Some(Size {
+                    width: 256.0,
+                    height: 125.0
+                })
+            );
+            assert_eq!(model.elements[1].name, "+0o10");
+            assert_eq!(model.elements[1].description, "1e5");
+            assert_eq!(
+                model.elements[1].tags,
+                [
+                    "+0o10", "0x10", "-0x10", "00123", "1e3", ".inf", "~", "null", "yes", "on",
+                    "true", "12:30", ""
+                ]
+            );
+        }
+    }
 }
 
 #[test]
@@ -448,6 +532,56 @@ fn valid_fixtures_pass_reader_validation() {
         read_threat_model(&fixture_path(name))
             .unwrap_or_else(|e| panic!("valid fixture {name} was rejected: {e}"));
     }
+}
+
+#[test]
+fn typed_sequence_reader_validates_version_shape_and_references() {
+    let fixture = fixture_text("v1.1-sequence.thf");
+    let typed = read_threat_model(&fixture_path("v1.1-sequence.thf")).expect("typed sequence");
+    let sequence = typed.diagrams[1]
+        .sequence
+        .as_ref()
+        .expect("sequence projection");
+    assert_eq!(sequence.messages[0].flow_id.as_deref(), Some("submit"));
+    assert_eq!(sequence.messages[1].id, "response");
+    let dir = tempfile::tempdir().expect("temp dir");
+    let path = dir.path().join("model.thf");
+    for (from, to, message) in [
+        ("to: client", "to: missing", "messages[response].to"),
+        ("id: response", "id: request", "Duplicate ID 'request'"),
+        ("id: client", "id: \" \"", "ID must not be blank"),
+        (
+            "from: client\n          to: service",
+            "from: service\n          to: client",
+            "flow endpoints must match message direction",
+        ),
+    ] {
+        let invalid = fixture.replace(from, to);
+        assert_ne!(invalid, fixture);
+        std::fs::write(&path, invalid).expect("write invalid version");
+        let error = read_threat_model(&path).expect_err("invalid sequence");
+        assert!(error.to_string().contains(message), "{error}");
+    }
+}
+
+#[test]
+fn opaque_sequence_prevents_promotion_before_native_save() {
+    let fixture = fixture_text("v1.0-opaque-sequence.thf");
+    let dir = tempfile::tempdir().expect("temp dir");
+    let path = dir.path().join("model.thf");
+    std::fs::write(&path, &fixture).expect("write opaque file");
+    let snapshot = super::read_document(&path).expect("opaque legacy sequence is valid");
+    assert!(snapshot.model.diagrams[0].sequence.is_none());
+    let mut proposed = snapshot.model;
+    proposed.version = "1.1".into();
+    let Err(error) = super::write_document(&path, Some(&snapshot.revision), proposed) else {
+        panic!("must not promote an opaque extension");
+    };
+    assert!(error.to_string().contains("diagrams[].sequence"));
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read unchanged file"),
+        fixture
+    );
 }
 
 #[test]
@@ -633,10 +767,10 @@ fn max_filled_model() -> ThreatModel {
                 r#type: Some("cluster".to_string()),
                 parent: None,
                 description: Some("Edge-facing services".to_string()),
-                position: Some(Position { x: 40.0, y: 40.0 }),
+                position: Some(Position { x: 56.0, y: 56.0 }),
                 size: Some(Size {
-                    width: 320.0,
-                    height: 220.0,
+                    width: 304.0,
+                    height: 240.0,
                 }),
                 fill_color: Some("#3b82f6".to_string()),
                 stroke_color: Some("#1e40af".to_string()),
@@ -649,10 +783,10 @@ fn max_filled_model() -> ThreatModel {
                 r#type: Some("cluster".to_string()),
                 parent: None,
                 description: Some("Internal services and stores".to_string()),
-                position: Some(Position { x: 420.0, y: 40.0 }),
+                position: Some(Position { x: 456.0, y: 56.0 }),
                 size: Some(Size {
-                    width: 420.0,
-                    height: 360.0,
+                    width: 416.0,
+                    height: 460.0,
                 }),
                 fill_color: Some("#22c55e".to_string()),
                 stroke_color: Some("#15803d".to_string()),
@@ -665,10 +799,10 @@ fn max_filled_model() -> ThreatModel {
                 r#type: Some("cluster".to_string()),
                 parent: Some("backend-cluster".to_string()),
                 description: Some("API tier nested inside the backend".to_string()),
-                position: Some(Position { x: 440.0, y: 80.0 }),
+                position: Some(Position { x: 504.0, y: 104.0 }),
                 size: Some(Size {
-                    width: 200.0,
-                    height: 160.0,
+                    width: 304.0,
+                    height: 168.0,
                 }),
                 fill_color: Some("#f97316".to_string()),
                 stroke_color: Some("#c2410c".to_string()),
@@ -691,7 +825,11 @@ fn max_filled_model() -> ThreatModel {
                 tags: vec!["tier-1".to_string()],
                 stores: None,
                 encryption: None,
-                position: Some(Position { x: 100.0, y: 120.0 }),
+                position: Some(Position { x: 104.0, y: 152.0 }),
+                size: Some(Size {
+                    width: 208.0,
+                    height: 90.0,
+                }),
                 fill_color: None,
                 stroke_color: None,
                 fill_opacity: None,
@@ -713,7 +851,8 @@ fn max_filled_model() -> ThreatModel {
                 tags: vec!["pci".to_string(), "tier-1".to_string()],
                 stores: None,
                 encryption: None,
-                position: Some(Position { x: 480.0, y: 120.0 }),
+                position: Some(Position { x: 552.0, y: 152.0 }),
+                size: None,
                 fill_color: Some("#3b82f6".to_string()),
                 stroke_color: Some("#1e40af".to_string()),
                 fill_opacity: Some(0.15),
@@ -735,7 +874,8 @@ fn max_filled_model() -> ThreatModel {
                 tags: vec!["pci".to_string()],
                 stores: Some(vec!["order_records".to_string()]),
                 encryption: Some("AES-256-at-rest".to_string()),
-                position: Some(Position { x: 480.0, y: 320.0 }),
+                position: Some(Position { x: 552.0, y: 388.0 }),
+                size: None,
                 fill_color: Some("#22c55e".to_string()),
                 stroke_color: Some("#15803d".to_string()),
                 fill_opacity: Some(0.2),
@@ -770,8 +910,8 @@ fn max_filled_model() -> ThreatModel {
                 data: vec!["order_records".to_string()],
                 authenticated: true,
                 label_offset: None,
-                source_handle: None,
-                target_handle: None,
+                source_handle: Some("bottom".to_string()),
+                target_handle: Some("top".to_string()),
                 stroke_color: None,
                 stroke_opacity: None,
             },
@@ -814,10 +954,10 @@ fn max_filled_model() -> ThreatModel {
                 "api-gateway".to_string(),
                 "orders-db".to_string(),
             ],
-            position: Some(Position { x: 20.0, y: 20.0 }),
+            position: Some(Position { x: 0.0, y: 0.0 }),
             size: Some(Size {
-                width: 840.0,
-                height: 400.0,
+                width: 928.0,
+                height: 572.0,
             }),
             fill_color: Some("#22c55e".to_string()),
             stroke_color: Some("#15803d".to_string()),
@@ -848,6 +988,7 @@ fn max_filled_model() -> ThreatModel {
                 y: 25.0,
                 zoom: 0.85,
             }),
+            sequence: None,
         }],
     }
 }
@@ -913,6 +1054,7 @@ fn architecture_only_model() -> ThreatModel {
                 stores: None,
                 encryption: None,
                 position: None,
+                size: None,
                 fill_color: None,
                 stroke_color: None,
                 fill_opacity: None,
@@ -935,6 +1077,7 @@ fn architecture_only_model() -> ThreatModel {
                 stores: None,
                 encryption: None,
                 position: None,
+                size: None,
                 fill_color: None,
                 stroke_color: None,
                 fill_opacity: None,
@@ -966,6 +1109,7 @@ fn architecture_only_model() -> ThreatModel {
             description: None,
             layout_file: None,
             viewport: None,
+            sequence: None,
         }],
     }
 }

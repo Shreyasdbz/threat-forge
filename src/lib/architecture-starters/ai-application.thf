@@ -1,0 +1,79 @@
+version: "1.0"
+metadata:
+  title: AI Application
+  author: ""
+  created: 2026-01-01
+  modified: 2026-01-01
+  description: A gateway sends a scoped request to a hosted model and returns the result.
+layers:
+  - id: entry
+    name: Presentation
+  - id: backend
+    name: Inference path
+groups:
+  - id: subsystem
+    name: Inference path
+    description: Gateway and provider integration
+    position: { x: 324, y: 32 }
+    size: { width: 620, height: 336 }
+elements:
+  - id: entrypoint
+    type: web_browser
+    name: Assistant UI
+    trust_zone: external
+    layer: entry
+    description: Assistant request entry point
+    position: { x: 36, y: 120 }
+  - id: processor
+    type: api_gateway
+    name: Inference Gateway
+    trust_zone: internal
+    layer: backend
+    group: subsystem
+    description: Assistant request processing
+    position: { x: 360, y: 120 }
+  - id: destination
+    type: external_entity
+    name: Hosted Model
+    trust_zone: external
+    layer: backend
+    group: subsystem
+    position: { x: 684, y: 120 }
+    description: Scoped inference request destination
+  - id: note
+    type: text
+    name: "Send only the requested context"
+    position: { x: 360, y: 300 }
+    trust_zone: ""
+    description: ""
+data_flows:
+  - id: request
+    name: Request an answer
+    data: [Assistant request]
+    flow_number: 1
+    from: entrypoint
+    to: processor
+    protocol: HTTPS
+    authenticated: false
+    source_handle: right-source
+    target_handle: left-target
+  - id: exchange
+    name: Submit inference request
+    data: [Scoped inference request]
+    flow_number: 2
+    from: processor
+    to: destination
+    protocol: HTTPS
+    authenticated: true
+    source_handle: right-source
+    target_handle: left-target
+relationships:
+  - id: dependency
+    type: uses
+    from: processor
+    to: destination
+    name: Inference API
+diagrams:
+  - id: architecture
+    name: Inference pipeline
+    kind: architecture

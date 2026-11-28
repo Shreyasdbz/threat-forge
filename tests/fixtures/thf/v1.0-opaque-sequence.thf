@@ -1,0 +1,11 @@
+version: "1.0"
+metadata:
+  title: Legacy extension
+  author: Fixture
+  created: 2026-11-26
+  modified: 2026-11-26
+diagrams:
+  - id: legacy
+    name: Existing view
+    kind: sequence
+    sequence: { participants: external, settings: [42, true, null] } # opaque

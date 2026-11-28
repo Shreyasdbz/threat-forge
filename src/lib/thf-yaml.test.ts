@@ -5,7 +5,7 @@ import {
 	parseThreatModelYaml,
 	serializeThreatModelYaml,
 	serializeThreatYaml,
-	THF_YAML_DUMP_SCHEMA,
+	THF_YAML_DUMP_OPTIONS,
 	THF_YAML_SCHEMA,
 } from "./thf-yaml";
 
@@ -20,15 +20,11 @@ metadata:
   modified: 2026-03-20
 `;
 
-describe("THF_YAML_SCHEMA and THF_YAML_DUMP_SCHEMA", () => {
+describe("THF_YAML_SCHEMA", () => {
 	it("keeps the YAML 1.1 timestamp type out of both the read and write schemas", () => {
-		// js-yaml 5 reorganized its schemas into a flat tag list and split the single default into a
-		// core read default and a YAML 1.1 write default. The timestamp type is the one tag that
-		// would coerce a calendar date to a `Date`, so it must be absent from both paths — and its
-		// absence is deliberate, since `YAML11_SCHEMA`, the write schema's basis, carries it.
 		expect(YAML11_SCHEMA.tags.map((tag) => tag.tagName)).toContain(TIMESTAMP_TAG);
 		expect(THF_YAML_SCHEMA.tags.map((tag) => tag.tagName)).not.toContain(TIMESTAMP_TAG);
-		expect(THF_YAML_DUMP_SCHEMA.tags.map((tag) => tag.tagName)).not.toContain(TIMESTAMP_TAG);
+		expect(THF_YAML_DUMP_OPTIONS.schema).toBe(THF_YAML_SCHEMA);
 	});
 
 	it("keeps merge keys resolving on the read path", () => {
@@ -42,9 +38,6 @@ describe("THF_YAML_SCHEMA and THF_YAML_DUMP_SCHEMA", () => {
 	});
 
 	it("reads the coordinate key `y` as a string but writes it quoted", () => {
-		// The read schema uses core scalar resolution, so a bare `y` stays the string it is on disk.
-		// The write schema uses YAML 1.1 resolution, so it quotes `y`: a YAML 1.1 reader cannot then
-		// mistake the coordinate axis for the boolean `true`. The two schemas still round-trip.
 		const model = parseThreatModelYaml(`${DESKTOP_YAML}elements:
   - id: app
     type: process
@@ -143,6 +136,36 @@ metadata:
 });
 
 describe("serializeThreatModelYaml", () => {
+	it.each([
+		"+0o10",
+		"0x10",
+		"-0x10",
+		"00123",
+		"1e3",
+		".inf",
+		"~",
+		"null",
+		"yes",
+		"on",
+		"true",
+		"12:30",
+		"",
+	])("preserves text scalar %j when saving and reopening", (text) => {
+		const model = parseThreatModelYaml(`${DESKTOP_YAML}elements:
+  - id: app
+    type: process
+    name: App
+`);
+		model.metadata.title = text;
+		model.metadata.description = text;
+		model.elements[0].name = text;
+		model.elements[0].description = text;
+
+		const reopened = parseThreatModelYaml(serializeThreatModelYaml(model));
+		expect(reopened.metadata).toEqual(model.metadata);
+		expect(reopened.elements).toEqual(model.elements);
+	});
+
 	it("writes calendar dates unquoted and time-free", () => {
 		const model = parseThreatModelYaml(DESKTOP_YAML);
 		const dumped = serializeThreatModelYaml(model);

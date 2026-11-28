@@ -1,5 +1,6 @@
 import { AlertTriangle, Eye, EyeOff, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { NativeSelect } from "@/components/ui/native-select";
 import {
 	CLEARING_SITE_DATA_COST,
 	KEY_STORAGE_UNREADABLE,
@@ -428,7 +429,7 @@ export function AiSettingsContent() {
 				<span className="mb-1 block text-[10px] font-medium text-muted-foreground">
 					API key provider
 				</span>
-				<select
+				<NativeSelect
 					aria-label="API key provider"
 					value={provider}
 					disabled={saving}
@@ -440,14 +441,14 @@ export function AiSettingsContent() {
 						setShowKey(false);
 						setMessage(null);
 					}}
-					className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs focus:border-primary focus:outline-none"
+					className="w-full"
 				>
 					{PROVIDERS.map((p) => (
 						<option key={p.value} value={p.value}>
 							{p.label}
 						</option>
 					))}
-				</select>
+				</NativeSelect>
 			</div>
 
 			<p className="text-xs text-muted-foreground">

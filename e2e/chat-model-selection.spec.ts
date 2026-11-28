@@ -325,11 +325,16 @@ test("legacy model selection stays reachable in a narrow zoomed panel", async ({
 		body: await page.screenshot({ animations: "disabled" }),
 		contentType: "image/png",
 	});
-	await panel.hover();
-	await page.mouse.wheel(0, -2000);
-	await expect(
-		panel.getByRole("button", { name: "Configure API Key", exact: true }),
-	).toBeInViewport({ ratio: 1 });
+	const configure = panel.getByRole("button", { name: "Configure API Key", exact: true });
+	await replace.hover();
+	await expect(async () => {
+		await page.mouse.wheel(0, -40);
+		await expect(configure).toBeInViewport({ ratio: 1, timeout: 250 });
+	}).toPass({ timeout: 5000 });
+	await configure.click({ trial: true });
+	await configure.focus();
+	await expect(configure).toBeFocused();
+	await expect(configure).toBeInViewport({ ratio: 1 });
 	await testInfo.attach("keyless-configure-css-zoom", {
 		body: await page.screenshot({ animations: "disabled" }),
 		contentType: "image/png",

@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createProposalIdReservations } from "@/lib/ai/loop/proposal-ids";
 import { createToolRegistry } from "@/lib/ai/loop/tool-runtime";
 import { LEGACY_ACTION_TOOLS } from "@/lib/ai/schemas/actions";
 import { useCanvasStore } from "@/stores/canvas-store";
+import { useHistoryStore } from "@/stores/history-store";
 import { useModelStore } from "@/stores/model-store";
 import type { ThreatModel } from "@/types/threat-model";
 import { GRAPH_ACTION_TOOLS } from "./graph-action-tools";
@@ -56,6 +58,93 @@ const model: ThreatModel = {
 	],
 	diagrams: [],
 };
+
+it("reviews cascades without removing a boundary that shares the element ID", async () => {
+	const document: ThreatModel = {
+		...model,
+		trust_boundaries: [
+			{ id: "web-app", name: "Same ID boundary", contains: ["web-app", "api-gw"] },
+		],
+		relationships: [{ id: "rel-1", type: "depends_on", from: "web-app", to: "api-gw" }],
+		threats: [
+			{ ...model.threats[0], flow: "flow-1" },
+			{ ...model.threats[0], title: "Preserved duplicate" },
+		],
+	};
+	const tool = GRAPH_ACTION_TOOLS.find((tool) => tool.name === "delete_element");
+	const reviewed = tool?.prepare({ action: "delete_element", id: "web-app" }, document);
+	if (!reviewed?.ok) throw new Error("Delete was not prepared");
+	expect(reviewed.call.summary).toBe(
+		[
+			'Delete element: "web-app"',
+			'Data flows also removed: "flow-1"',
+			'Relationships removed: "rel-1"',
+			'Threats removed: "Spoof" ("Spoofing"; "threat-1")',
+			'Membership removed from boundaries: "web-app"',
+		].join("\n"),
+	);
+	const signal = new AbortController().signal;
+	const applied = await reviewed.call.run({ document, signal });
+	if (applied.status !== "ok") throw new Error(applied.result);
+	expect(applied.document).toMatchObject({
+		elements: [document.elements[1]],
+		data_flows: [],
+		relationships: [],
+		threats: [document.threats[1]],
+		trust_boundaries: [{ ...document.trust_boundaries[0], contains: ["api-gw"] }],
+	});
+	const stale = await reviewed.call.run({
+		document: {
+			...document,
+			threats: [...document.threats, { ...document.threats[0], id: "new-threat" }],
+		},
+		signal,
+	});
+	expect(stale.status).toBe("error");
+});
+
+it("allows two independently approved deletions to execute in sequence", async () => {
+	const registry = createGraphToolRegistry();
+	const first = registry
+		.get("delete_trust_boundary")
+		?.prepare(VALID_INPUT.delete_trust_boundary, model);
+	const second = registry
+		.get("delete_element")
+		?.prepare({ action: "delete_element", id: "api-gw" }, model);
+	if (!first?.ok || !second?.ok) throw new Error("Deletes were not prepared");
+	const signal = new AbortController().signal;
+	const afterFirst = await first.call.run({ document: model, signal });
+	if (afterFirst.status !== "ok" || !afterFirst.document) throw new Error("First delete failed");
+	const afterSecond = await second.call.run({ document: afterFirst.document, signal });
+	if (afterSecond.status !== "ok") throw new Error(afterSecond.result);
+	expect(afterSecond.document?.elements.map(({ id }) => id)).toEqual(["web-app"]);
+	expect(afterSecond.document?.trust_boundaries).toEqual([]);
+});
+
+it("quotes and escapes untrusted threat titles and identifiers without collapsing spaces", () => {
+	const document: ThreatModel = {
+		...model,
+		threats: [
+			{
+				...model.threats[0],
+				id: "api  gateway",
+				title: 'Spoof\r\n\t\u202e"Approved"\u2029by  owner',
+			},
+			{ ...model.threats[0], id: "api gateway" },
+		],
+	};
+	const tool = createGraphToolRegistry().get("delete_threat");
+	const doubleSpace = tool?.prepare({ action: "delete_threat", id: "api  gateway" }, document);
+	const singleSpace = tool?.prepare({ action: "delete_threat", id: "api gateway" }, document);
+	if (!doubleSpace?.ok || !singleSpace?.ok) throw new Error("Deletes were not prepared");
+	expect(doubleSpace.call.summary.split("\n")).toEqual([
+		'Delete threat: "api  gateway"',
+		'Threat: "Spoof\\r\\n\\t\\u202e\\"Approved\\"\\u2029by  owner" ("Spoofing"; "api  gateway")',
+	]);
+	expect(singleSpace.call.summary).toBe(
+		'Delete threat: "api gateway"\nThreat: "Spoof" ("Spoofing"; "api gateway")',
+	);
+});
 
 /** One valid input per tool, so every tool can be prepared and run. */
 const VALID_INPUT: Record<string, unknown> = {
@@ -157,6 +246,42 @@ describe("running a tool computes without committing", () => {
 			to: ids[1],
 			protocol: "HTTPS",
 		});
+	});
+
+	it("replays draft allocations without consuming live IDs or changing live state", async () => {
+		const live = useModelStore.getState();
+		const history = useHistoryStore.getState().past;
+		const canvas = useCanvasStore.getState().nodes;
+		const baseline = {
+			...model,
+			elements: [...model.elements, { ...model.elements[0], id: "comp-1" }],
+		};
+		const reserve = createProposalIdReservations(baseline);
+		const first = reserve();
+		const second = reserve();
+		const prepared = createGraphToolRegistry().get("add_element")?.prepare(VALID_INPUT.add_element);
+		if (!prepared?.ok) throw new Error("Valid tool input was rejected");
+
+		const nextElementId = vi.spyOn(useCanvasStore.getState(), "nextElementId");
+		try {
+			const draft = await prepared.call.run({ ...ctx(), document: baseline, allocateId: first });
+			if (draft.status !== "ok" || !draft.document) throw new Error("Creation failed");
+			const initial = await prepared.call.run({
+				...ctx(),
+				document: draft.document,
+				allocateId: second,
+			});
+			const replay = await prepared.call.run({ ...ctx(), document: baseline, allocateId: second });
+			expect(JSON.parse(draft.result).id).toBe("comp-2");
+			expect(JSON.parse(initial.result).id).toBe("comp-3");
+			expect(replay.result).toEqual(initial.result);
+			expect(useModelStore.getState()).toBe(live);
+			expect(useHistoryStore.getState().past).toBe(history);
+			expect(useCanvasStore.getState().nodes).toBe(canvas);
+			expect(nextElementId).not.toHaveBeenCalled();
+		} finally {
+			nextElementId.mockRestore();
+		}
 	});
 
 	it("leaves the model store untouched for every one of the twelve tools", async () => {

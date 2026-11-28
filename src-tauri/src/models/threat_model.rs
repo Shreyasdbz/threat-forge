@@ -1,6 +1,5 @@
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 /// Root threat model document — maps to `.thf`
 ///
@@ -63,6 +62,7 @@ impl ThreatModel {
                 description: None,
                 layout_file: None,
                 viewport: None,
+                sequence: None,
             }],
         }
     }
@@ -140,6 +140,8 @@ pub struct Element {
     pub encryption: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub position: Option<Position>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<Size>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fill_color: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -345,6 +347,30 @@ pub struct Diagram {
     pub layout_file: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub viewport: Option<Viewport>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sequence: Option<SequenceView>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SequenceView {
+    pub participants: Vec<SequenceParticipant>,
+    pub messages: Vec<SequenceMessage>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SequenceParticipant {
+    pub id: String,
+    pub element_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SequenceMessage {
+    pub id: String,
+    pub from: String,
+    pub to: String,
+    pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flow_id: Option<String>,
 }
 
 /// Layout data stored in `.threatforge/layouts/*.json`
@@ -397,18 +423,6 @@ pub fn generate_element_id(name: &str) -> String {
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join("-")
-}
-
-/// Generate a unique threat ID
-pub fn generate_threat_id() -> String {
-    format!(
-        "threat-{}",
-        Uuid::new_v4()
-            .as_simple()
-            .to_string()
-            .get(..8)
-            .unwrap_or("00000000")
-    )
 }
 
 #[cfg(test)]
@@ -506,13 +520,6 @@ diagrams:
         assert_eq!(generate_element_id("API Gateway"), "api-gateway");
         assert_eq!(generate_element_id("payment-db"), "payment-db");
         assert_eq!(generate_element_id("  Stripe  API  "), "stripe-api");
-    }
-
-    #[test]
-    fn test_generate_threat_id() {
-        let id = generate_threat_id();
-        assert!(id.starts_with("threat-"));
-        assert_eq!(id.len(), 15); // "threat-" (7) + 8 hex chars
     }
 
     #[test]

@@ -1,6 +1,14 @@
-import type { Connection, Edge, Node, OnEdgesChange, OnNodesChange, Viewport } from "@xyflow/react";
-import { applyEdgeChanges, applyNodeChanges, MarkerType } from "@xyflow/react";
+import type { Connection, Edge, OnEdgesChange, OnNodesChange, Viewport } from "@xyflow/react";
+import { applyEdgeChanges, applyNodeChanges } from "@xyflow/react";
 import { createStore, type StoreApi } from "zustand/vanilla";
+import {
+	boundaryToNode,
+	type DfdEdge,
+	type DfdNode,
+	elementToNode,
+	flowToEdge,
+	projectCanvas,
+} from "@/lib/canvas-projection";
 import {
 	getSelfLoopHandlePair,
 	getSmartHandlePair,
@@ -8,10 +16,13 @@ import {
 	nodeToRect,
 } from "@/lib/canvas-utils";
 import { getComponent } from "@/lib/registry/registry";
+import { removeGraphItems } from "@/lib/remove-graph-items";
 import type {
 	DataFlow,
 	DiagramLayout,
 	Element,
+	Position,
+	Size,
 	ThreatModel,
 	TrustBoundary,
 } from "@/types/threat-model";
@@ -19,77 +30,40 @@ import { useCanvasInstanceStore } from "./canvas-instance-store";
 import type { HistoryState } from "./history-store-factory";
 import type { ModelState } from "./model-store-factory";
 
-/** ReactFlow node data payload for DFD elements.
- *  Uses `type` + index signature to satisfy ReactFlow's `Record<string, unknown>` constraint. */
-export type DfdNodeData = {
-	[key: string]: unknown;
-	label: string;
-	elementType: string;
-	subtype?: string;
-	icon?: string;
-	trustZone: string;
-	description: string;
-	technologies: string[];
-	/** Element fill color */
-	elementFillColor?: string;
-	/** Element stroke color */
-	elementStrokeColor?: string;
-	/** Element fill opacity (0-1) */
-	elementFillOpacity?: number;
-	/** Element stroke opacity (0-1) */
-	elementStrokeOpacity?: number;
-	/** Font size in pixels (for text annotations) */
-	fontSize?: number;
-	/** Font weight: "normal" | "bold" (for text annotations) */
-	fontWeight?: string;
-	/** For trust boundary group nodes */
-	isBoundary?: boolean;
-	boundaryName?: string;
-	/** Trust boundary fill color (CSS color with opacity) */
-	boundaryFillColor?: string;
-	/** Trust boundary stroke color (CSS color with opacity) */
-	boundaryStrokeColor?: string;
-	/** Trust boundary fill opacity (0-1) */
-	boundaryFillOpacity?: number;
-	/** Trust boundary stroke opacity (0-1) */
-	boundaryStrokeOpacity?: number;
-};
+export type { DfdEdge, DfdEdgeData, DfdNode, DfdNodeData } from "@/lib/canvas-projection";
 
-/** ReactFlow edge data payload for data flows.
- *  Uses `type` + index signature to satisfy ReactFlow's `Record<string, unknown>` constraint. */
-export type DfdEdgeData = {
-	[key: string]: unknown;
-	name: string;
-	protocol: string;
-	data: string[];
-	authenticated: boolean;
-	/** User-facing flow number displayed on the edge */
-	flowNumber?: number;
-	/** Dragged label X offset from default position */
-	labelOffsetX?: number;
-	/** Dragged label Y offset from default position */
-	labelOffsetY?: number;
-	/** Custom edge stroke color (hex) */
-	strokeColor?: string;
-	/** Custom edge stroke opacity (0-1) */
-	strokeOpacity?: number;
-};
+export interface GraphDeletion {
+	nodes: readonly string[];
+	edges: readonly string[];
+}
 
-export type DfdNode = Node<DfdNodeData>;
-export type DfdEdge = Edge<DfdEdgeData>;
+export function selectedGraphItems(
+	canvas: Pick<CanvasState, "nodes" | "edges">,
+	selectedEdgeId: string | null,
+): GraphDeletion {
+	const nodes = canvas.nodes.filter((node) => node.selected).map((node) => node.id);
+	const edges = canvas.edges.filter((edge) => edge.selected).map((edge) => edge.id);
+	if (!nodes.length && !edges.length && selectedEdgeId) edges.push(selectedEdgeId);
+	return { nodes, edges };
+}
 
 export interface CanvasState {
 	nodes: DfdNode[];
 	edges: DfdEdge[];
 	viewport: Viewport;
+	passiveUpdate: number;
 
 	/** Layout to apply on next syncFromModel (set before loading a model) */
 	pendingLayout: DiagramLayout | null;
 
 	// ReactFlow change handlers
-	onNodesChange: OnNodesChange<DfdNode>;
+	onNodesChange: (
+		changes: Parameters<OnNodesChange<DfdNode>>[0],
+		keyboard?: Pick<KeyboardEvent, "key" | "repeat">,
+	) => void;
+	resizeArchitectureGroup: (id: string, size: Size) => void;
 	onEdgesChange: OnEdgesChange<DfdEdge>;
-	setViewport: (viewport: Viewport) => void;
+	setViewport: (viewport: Viewport, passive?: boolean) => void;
 	setPendingLayout: (layout: DiagramLayout | null) => void;
 
 	// Canvas actions
@@ -104,7 +78,7 @@ export interface CanvasState {
 		opts?: { sourceHandle?: string; targetHandle?: string; name?: string },
 	) => string | null;
 	addTrustBoundary: (name: string, position: { x: number; y: number }) => void;
-	deleteSelected: () => void;
+	deleteSelected: (targets?: GraphDeletion) => void;
 	duplicateElement: (
 		nodeId: string,
 		opts?: { offset?: { x: number; y: number }; select?: boolean; skipHistory?: boolean },
@@ -157,91 +131,14 @@ function writePositionsToModel(model: ThreatModel, nodes: DfdNode[]): ThreatMode
 	};
 }
 
-export function elementToNode(element: Element, position: { x: number; y: number }): DfdNode {
-	const isText = element.type === "text";
+function updateGroupGeometry(
+	model: ThreatModel,
+	id: string,
+	geometry: { position?: Position; size?: Size },
+): ThreatModel {
 	return {
-		id: element.id,
-		type: isText ? "textAnnotation" : "dfdElement",
-		position,
-		data: {
-			label: element.name,
-			elementType: element.type,
-			subtype: element.subtype,
-			icon: element.icon,
-			trustZone: element.trust_zone ?? "",
-			description: element.description ?? "",
-			technologies: element.technologies ?? [],
-			elementFillColor: element.fill_color,
-			elementStrokeColor: element.stroke_color,
-			elementFillOpacity: element.fill_opacity,
-			elementStrokeOpacity: element.stroke_opacity,
-			fontSize: element.font_size,
-			fontWeight: element.font_weight,
-		},
-	};
-}
-
-export function boundaryToNode(
-	boundary: TrustBoundary,
-	position: { x: number; y: number },
-): DfdNode {
-	const w = boundary.size?.width ?? 400;
-	const h = boundary.size?.height ?? 300;
-	return {
-		id: boundary.id,
-		type: "trustBoundary",
-		position,
-		width: w,
-		height: h,
-		// pointerEvents:none on the ReactFlow wrapper so clicks inside the boundary
-		// pass through to child nodes and edges. The label and resize handle inside
-		// TrustBoundaryNode opt back in with pointer-events:auto.
-		style: { width: w, height: h, pointerEvents: "none" as const },
-		data: {
-			label: boundary.name,
-			elementType: "", // unused for boundaries
-			trustZone: "",
-			description: "",
-			technologies: [],
-			isBoundary: true,
-			boundaryName: boundary.name,
-			boundaryFillColor: boundary.fill_color,
-			boundaryStrokeColor: boundary.stroke_color,
-			boundaryFillOpacity: boundary.fill_opacity,
-			boundaryStrokeOpacity: boundary.stroke_opacity,
-		},
-	};
-}
-
-export function flowToEdge(flow: DataFlow): DfdEdge {
-	return {
-		id: flow.id,
-		source: flow.from,
-		target: flow.to,
-		type: "dataFlow",
-		sourceHandle: flow.source_handle,
-		targetHandle: flow.target_handle,
-		...(flow.stroke_color
-			? {
-					markerEnd: {
-						type: MarkerType.ArrowClosed,
-						width: 16,
-						height: 16,
-						color: flow.stroke_color,
-					},
-				}
-			: {}),
-		data: {
-			name: flow.name ?? "",
-			protocol: flow.protocol,
-			data: flow.data,
-			authenticated: flow.authenticated,
-			flowNumber: flow.flow_number,
-			labelOffsetX: flow.label_offset?.x,
-			labelOffsetY: flow.label_offset?.y,
-			strokeColor: flow.stroke_color,
-			strokeOpacity: flow.stroke_opacity,
-		},
+		...model,
+		groups: model.groups?.map((group) => (group.id === id ? { ...group, ...geometry } : group)),
 	};
 }
 
@@ -259,6 +156,7 @@ function defaultElementName(type: string): string {
 export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> {
 	/** Model snapshot captured at the start of a drag (with pre-drag canvas positions baked in). */
 	let preDragSnapshot: ThreatModel | null = null;
+	let lastKeyboardMove: { model: ThreatModel; key: string } | null = null;
 
 	/** Nudge gesture state (arrow key): snapshot + debounce timer. */
 	const nudgeState = {
@@ -274,6 +172,7 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 		nodes: [],
 		edges: [],
 		viewport: { x: 0, y: 0, zoom: 1 },
+		passiveUpdate: 0,
 		pendingLayout: null,
 
 		nextElementId: () => {
@@ -291,18 +190,45 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			return `boundary-${boundaryCounter}`;
 		},
 
-		onNodesChange: (changes) => {
+		onNodesChange: (changes, keyboard) => {
+			const previousNodes = get().nodes;
 			// Capture pre-drag model snapshot BEFORE applying changes (nodes still have old positions)
 			const hasDragStart = changes.some((c) => c.type === "position" && c.dragging === true);
 			if (hasDragStart && !preDragSnapshot) {
 				const model = deps.model.getState().model;
 				if (model) {
-					preDragSnapshot = writePositionsToModel(model, get().nodes);
+					preDragSnapshot = writePositionsToModel(model, previousNodes);
 				}
 			}
 
-			// Apply node changes (positions update here)
-			set({ nodes: applyNodeChanges(changes, get().nodes) as DfdNode[] });
+			const key = keyboard?.key;
+			const horizontal = key === "ArrowLeft" || key === "ArrowRight";
+			const vertical = key === "ArrowUp" || key === "ArrowDown";
+			let keyboardMoved = false;
+			const appliedChanges =
+				!preDragSnapshot && (horizontal || vertical)
+					? changes.map((change) => {
+							if (change.type !== "position" || change.dragging !== false || !change.position) {
+								return change;
+							}
+							const before = previousNodes.find((node) => node.id === change.id)?.position;
+							if (!before) return change;
+							const position = {
+								x: horizontal ? change.position.x : before.x,
+								y: vertical ? change.position.y : before.y,
+							};
+							keyboardMoved ||= position.x !== before.x || position.y !== before.y;
+							return { ...change, position };
+						})
+					: changes;
+			const passive = appliedChanges.every(
+				(change) =>
+					change.type === "select" || (change.type === "dimensions" && !change.setAttributes),
+			);
+			set((state) => ({
+				nodes: applyNodeChanges(appliedChanges, previousNodes) as DfdNode[],
+				passiveUpdate: state.passiveUpdate + Number(passive),
+			}));
 
 			// Handle drag end: push pre-drag snapshot to history, write new positions to model.
 			// Skip when altDragActive — the onNodeDragStop handler owns history for Alt+drag.
@@ -310,19 +236,36 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			// Alt+drag is an in-flight pointer gesture on the mounted canvas, not document state.
 			const altDragActive = useCanvasInstanceStore.getState().altDragActive;
 			const hasDragEnd = changes.some((c) => c.type === "position" && c.dragging === false);
-			if (hasDragEnd && preDragSnapshot && !altDragActive) {
-				deps.history.getState().pushSnapshot(preDragSnapshot);
-				preDragSnapshot = null;
+			if (hasDragEnd && !altDragActive) {
 				const model = deps.model.getState().model;
-				if (model) {
-					const updated = writePositionsToModel(model, get().nodes);
+				if (model && (preDragSnapshot || keyboardMoved)) {
+					const isRepeat =
+						keyboardMoved &&
+						keyboard?.repeat &&
+						lastKeyboardMove?.model === model &&
+						lastKeyboardMove.key === key;
+					if (!isRepeat) {
+						deps.history
+							.getState()
+							.pushSnapshot(preDragSnapshot ?? writePositionsToModel(model, previousNodes));
+					}
+					const nodes = get().nodes;
+					let updated = writePositionsToModel(model, nodes);
+					for (const change of changes) {
+						if (change.type !== "position" || change.dragging !== false) continue;
+						const node = nodes.find((candidate) => candidate.id === change.id);
+						if (node?.data.architectureGroupId != null) {
+							updated = updateGroupGeometry(updated, node.data.architectureGroupId, {
+								position: node.position,
+								size: { width: node.width ?? 420, height: node.height ?? 280 },
+							});
+						}
+					}
+					if (keyboardMoved && key) lastKeyboardMove = { model: updated, key };
 					deps.model.setState({ model: updated, isDirty: true });
 				}
 			}
-			if (hasDragEnd && altDragActive) {
-				// Clear preDragSnapshot but don't push — Alt+drag handler will manage history
-				preDragSnapshot = null;
-			}
+			if (hasDragEnd) preDragSnapshot = null;
 
 			// Handle selection changes — process the last selected node for model-store sync.
 			// In multi-select batches, multiple nodes may be selected at once; use the last
@@ -350,31 +293,53 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 				}
 			}
 		},
+		resizeArchitectureGroup: (id, size) => {
+			const { model } = deps.model.getState();
+			const node = get().nodes.find((candidate) => candidate.id === id);
+			if (!model || node?.data.architectureGroupId == null) return;
+			deps.history.getState().pushSnapshot(model);
+			deps.model.setState({
+				model: updateGroupGeometry(model, node.data.architectureGroupId, {
+					position: node.position,
+					size,
+				}),
+				isDirty: true,
+			});
+		},
 
 		onEdgesChange: (changes) => {
-			const prevEdges = get().edges;
-			const nextEdges = applyEdgeChanges(changes, prevEdges) as DfdEdge[];
-			set({ edges: nextEdges });
-
-			// Handle edge removal — remove from model store
 			const removals = changes.filter(
 				(c): c is Extract<typeof c, { type: "remove" }> => c.type === "remove",
 			);
 			if (removals.length > 0) {
-				const model = deps.model.getState().model;
+				const { model, filePath, checkSequenceReferences } = deps.model.getState();
 				if (model) {
-					deps.history.getState().pushSnapshot(model);
 					const removedIds = new Set(removals.map((r) => r.id));
-					const updatedFlows = model.data_flows.filter((f) => !removedIds.has(f.id));
-					deps.model
-						.getState()
-						.setModel({ ...model, data_flows: updatedFlows }, deps.model.getState().filePath);
+					const proposed = {
+						...model,
+						data_flows: model.data_flows.filter((f) => !removedIds.has(f.id)),
+					};
+					if (!checkSequenceReferences(proposed)) return;
+					deps.history.getState().pushSnapshot(model);
+					deps.model.getState().setModel(proposed, filePath);
 					deps.model.getState().markDirty();
 				}
 			}
+			set((state) => ({
+				edges: applyEdgeChanges(changes, state.edges),
+				passiveUpdate: state.passiveUpdate + Number(changes.every((c) => c.type === "select")),
+			}));
 		},
 
-		setViewport: (viewport) => set({ viewport }),
+		setViewport: (viewport, passive = false) => {
+			const current = get().viewport;
+			if (current.x !== viewport.x || current.y !== viewport.y || current.zoom !== viewport.zoom) {
+				set((state) => ({
+					viewport,
+					passiveUpdate: state.passiveUpdate + Number(passive),
+				}));
+			}
+		},
 		setPendingLayout: (layout) => set({ pendingLayout: layout }),
 
 		addElement: (type, position, opts) => {
@@ -539,29 +504,31 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			}
 		},
 
-		deleteSelected: () => {
+		deleteSelected: (targets = selectedGraphItems(get(), deps.model.getState().selectedEdgeId)) => {
 			const currentNodes = get().nodes;
 			const currentEdges = get().edges;
-			const selectedNodes = currentNodes.filter((n) => n.selected);
-			let selectedEdges = currentEdges.filter((e) => e.selected);
-
-			// Fallback: if no edges are selected in ReactFlow but model store has a
-			// selected edge (happens when user clicks the edge label, which uses
-			// stopPropagation and only sets selection in model store), include it.
-			if (selectedEdges.length === 0 && selectedNodes.length === 0) {
-				const modelSelectedEdgeId = deps.model.getState().selectedEdgeId;
-				if (modelSelectedEdgeId) {
-					const fallbackEdge = currentEdges.find((e) => e.id === modelSelectedEdgeId);
-					if (fallbackEdge) {
-						selectedEdges = [fallbackEdge];
-					}
-				}
-			}
+			const targetNodes = new Set(targets.nodes);
+			const targetEdges = new Set(targets.edges);
+			const selectedNodes = currentNodes.filter((node) => targetNodes.has(node.id));
+			const selectedEdges = currentEdges.filter((edge) => targetEdges.has(edge.id));
 
 			if (selectedNodes.length === 0 && selectedEdges.length === 0) return;
 
 			const selectedNodeIds = new Set(selectedNodes.map((n) => n.id));
 			const selectedEdgeIds = new Set(selectedEdges.map((e) => e.id));
+			const { model, filePath, checkSequenceReferences } = deps.model.getState();
+			const proposed =
+				model &&
+				removeGraphItems(model, {
+					elements: new Set(
+						selectedNodes.filter((n) => n.type !== "trustBoundary").map((n) => n.id),
+					),
+					boundaries: new Set(
+						selectedNodes.filter((n) => n.type === "trustBoundary").map((n) => n.id),
+					),
+					flows: selectedEdgeIds,
+				});
+			if (proposed && !checkSequenceReferences(proposed)) return;
 
 			// Find all edges to remove: explicitly selected + connected to removed nodes
 			const connectedEdgeIds = currentEdges
@@ -576,23 +543,9 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			set({ nodes: nextNodes, edges: nextEdges });
 
 			// Update model store
-			const model = deps.model.getState().model;
-			if (model) {
+			if (model && proposed) {
 				deps.history.getState().pushSnapshot(model);
-				deps.model.getState().setModel(
-					{
-						...model,
-						elements: model.elements.filter((e) => !selectedNodeIds.has(e.id)),
-						data_flows: model.data_flows.filter((f) => !allRemovedEdgeIds.has(f.id)),
-						trust_boundaries: model.trust_boundaries
-							.filter((b) => !selectedNodeIds.has(b.id))
-							.map((b) => ({
-								...b,
-								contains: b.contains.filter((c) => !selectedNodeIds.has(c)),
-							})),
-					},
-					deps.model.getState().filePath,
-				);
+				deps.model.getState().setModel(proposed, filePath);
 				deps.model.getState().markDirty();
 				deps.model.getState().setSelectedElement(null);
 			}
@@ -643,8 +596,6 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			const flow = model.data_flows.find((f) => f.id === edgeId);
 			if (!flow) return;
 
-			deps.history.getState().pushSnapshot(model);
-
 			// Update model: swap from/to and handles (use direct set to preserve selection state)
 			const updatedFlows = model.data_flows.map((f) =>
 				f.id === edgeId
@@ -657,8 +608,11 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 						}
 					: f,
 			);
+			const proposed = { ...model, data_flows: updatedFlows };
+			if (!deps.model.getState().checkSequenceReferences(proposed)) return;
+			deps.history.getState().pushSnapshot(model);
 			deps.model.setState({
-				model: { ...model, data_flows: updatedFlows },
+				model: proposed,
 				isDirty: true,
 			});
 
@@ -686,8 +640,6 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			const flow = model.data_flows.find((f) => f.id === oldEdge.id);
 			if (!flow) return;
 
-			deps.history.getState().pushSnapshot(model);
-
 			// Update model data_flows
 			const updatedFlows = model.data_flows.map((f) =>
 				f.id === oldEdge.id
@@ -700,8 +652,11 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 						}
 					: f,
 			);
+			const proposed = { ...model, data_flows: updatedFlows };
+			if (!deps.model.getState().checkSequenceReferences(proposed)) return;
+			deps.history.getState().pushSnapshot(model);
 			deps.model.setState({
-				model: { ...model, data_flows: updatedFlows },
+				model: proposed,
 				isDirty: true,
 			});
 
@@ -761,13 +716,18 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 		syncFromModel: () => {
 			const model = deps.model.getState().model;
 			if (!model) {
-				set({ nodes: [], edges: [], pendingLayout: null });
+				set((state) => ({
+					nodes: [],
+					edges: [],
+					pendingLayout: null,
+					passiveUpdate: state.passiveUpdate + 1,
+				}));
 				return;
 			}
 
 			// Consume pending layout (set before loading a model via setPendingLayout)
 			const layout = get().pendingLayout;
-			const layoutPositions = layout ? new Map(layout.nodes.map((n) => [n.id, n])) : null;
+			if (model === lastKeyboardMove?.model && !layout) return;
 
 			// Reset counters based on existing IDs
 			const maxElementNum = model.elements.reduce((max, e) => {
@@ -786,104 +746,15 @@ export function createCanvasStore(deps: CanvasStoreDeps): StoreApi<CanvasState> 
 			flowCounter = maxFlowNum;
 			boundaryCounter = maxBoundaryNum;
 
-			// Keep existing node state for nodes that still exist (used when model changes in-place)
-			const existingNodes = new Map(get().nodes.map((n) => [n.id, n]));
-			const existingPositions = new Map(get().nodes.map((n) => [n.id, n.position]));
+			const { nodes, edges } = projectCanvas(model, get(), layout);
 
-			// Position priority: saved layout > existing canvas positions > inline model position > default grid
-			function resolvePosition(
-				id: string,
-				inlinePos: { x: number; y: number } | undefined,
-				defaultPos: { x: number; y: number },
-			): { x: number; y: number } {
-				const saved = layoutPositions?.get(id);
-				if (saved) return { x: saved.x, y: saved.y };
-				return existingPositions.get(id) ?? inlinePos ?? defaultPos;
-			}
-
-			// Convert trust boundaries to group nodes
-			const boundaryNodes: DfdNode[] = model.trust_boundaries.map((b, i) => {
-				const pos = resolvePosition(b.id, b.position, { x: 50 + i * 450, y: 50 });
-				const node = boundaryToNode(b, pos);
-				// Restore dimensions: saved layout > existing canvas > default
-				const saved = layoutPositions?.get(b.id);
-				const existing = existingNodes.get(b.id);
-				const w =
-					saved?.width ?? existing?.width ?? (existing?.style as Record<string, unknown>)?.width;
-				const h =
-					saved?.height ?? existing?.height ?? (existing?.style as Record<string, unknown>)?.height;
-				if (w != null && h != null) {
-					node.width = w as number;
-					node.height = h as number;
-					node.style = {
-						...node.style,
-						width: w as number,
-						height: h as number,
-					};
-				}
-				return node;
-			});
-
-			// Build a set of elements that belong to boundaries
-			const elementToBoundary = new Map<string, string>();
-			for (const b of model.trust_boundaries) {
-				for (const elementId of b.contains) {
-					elementToBoundary.set(elementId, b.id);
-				}
-			}
-
-			// Convert elements to nodes
-			const elementNodes: DfdNode[] = model.elements.map((e, i) => {
-				const pos = resolvePosition(e.id, e.position, {
-					x: 100 + (i % 4) * 250,
-					y: 100 + Math.floor(i / 4) * 200,
-				});
-				const node = elementToNode(e, pos);
-
-				// Parent to boundary if contained
-				const parentBoundary = elementToBoundary.get(e.id);
-				if (parentBoundary) {
-					node.parentId = parentBoundary;
-					node.extent = "parent";
-				}
-
-				return node;
-			});
-
-			// Convert flows to edges, preserving handle assignments from existing edges.
-			// Model handles are authoritative when present (from save/load, reconnect, addDataFlow);
-			// only fall back to existing canvas state when the model has no handle data.
-			const existingEdgeMap = new Map(get().edges.map((e) => [e.id, e]));
-			const edges: DfdEdge[] = model.data_flows.map((flow) => {
-				const edge = flowToEdge(flow);
-				const existing = existingEdgeMap.get(flow.id);
-				if (existing?.sourceHandle && !flow.source_handle)
-					edge.sourceHandle = existing.sourceHandle;
-				if (existing?.targetHandle && !flow.target_handle)
-					edge.targetHandle = existing.targetHandle;
-				// Preserve dragged label position only if model has no label_offset for this flow.
-				// When the model has label_offset (e.g. after undo/redo or drag-end write-back),
-				// flowToEdge already applied it — don't override with stale canvas data.
-				if (
-					!flow.label_offset &&
-					(existing?.data?.labelOffsetX != null || existing?.data?.labelOffsetY != null)
-				) {
-					edge.data = {
-						...(edge.data as DfdEdgeData),
-						labelOffsetX: existing.data.labelOffsetX,
-						labelOffsetY: existing.data.labelOffsetY,
-					};
-				}
-				return edge;
-			});
-
-			// Boundaries first (rendered behind), then elements
-			set({
-				nodes: [...boundaryNodes, ...elementNodes],
+			set((state) => ({
+				nodes,
 				edges,
 				pendingLayout: null,
+				passiveUpdate: state.passiveUpdate + 1,
 				...(layout ? { viewport: layout.viewport } : {}),
-			});
+			}));
 		},
 	}));
 }

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { requestGraphDeletion } from "@/lib/request-graph-deletion";
 import type { DataFlow, Element, TrustBoundary } from "@/types/threat-model";
 import { boundaryToNode, elementToNode, flowToEdge, useCanvasStore } from "./canvas-store";
 import { useHistoryStore } from "./history-store";
@@ -30,7 +31,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
 	selectAll: () => {
 		const nodes = useCanvasStore.getState().nodes;
 		if (nodes.length === 0) return;
-		const updated = nodes.map((n) => ({ ...n, selected: true }));
+		const updated = nodes.map((n) => (n.selectable === false ? n : { ...n, selected: true }));
 		useCanvasStore.setState({ nodes: updated });
 	},
 
@@ -96,8 +97,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
 	},
 
 	cutSelected: () => {
-		get().copySelected();
-		useCanvasStore.getState().deleteSelected();
+		void requestGraphDeletion(undefined, get().copySelected);
 	},
 
 	paste: () => {

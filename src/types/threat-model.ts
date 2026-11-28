@@ -82,6 +82,7 @@ export interface Element {
 	stores?: string[];
 	encryption?: string;
 	position?: Position;
+	size?: Size;
 	fill_color?: string;
 	stroke_color?: string;
 	fill_opacity?: number;
@@ -189,6 +190,26 @@ export interface Diagram {
 	description?: string;
 	layout_file?: string;
 	viewport?: Viewport;
+	/** A validated 1.1 document uses SequenceView; 1.0 can contain any YAML value. */
+	sequence?: unknown;
+}
+
+export interface SequenceView {
+	participants: SequenceParticipant[];
+	messages: SequenceMessage[];
+}
+
+export interface SequenceParticipant {
+	id: string;
+	element_id: string;
+}
+
+export interface SequenceMessage {
+	id: string;
+	from: string;
+	to: string;
+	label: string;
+	flow_id?: string;
 }
 
 export interface ThreatModel {

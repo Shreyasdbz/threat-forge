@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DocumentPersistenceState } from "@/lib/persistence/types";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useDocumentRegistry } from "@/stores/document-registry";
@@ -139,7 +139,7 @@ describe("StatusBar local persistence indicator", () => {
 		expect(screen.getByTestId("status-bar")).toHaveTextContent("Saved");
 	});
 
-	it("shows a saved-locally state without disturbing the file save status", () => {
+	it("shows a single save state when the browser copy is saved", () => {
 		openDocument();
 		setActiveDocumentPersistence({ status: "saved", lastPersistedAt: "2026-07-21T00:00:00.000Z" });
 
@@ -149,7 +149,28 @@ describe("StatusBar local persistence indicator", () => {
 		expect(indicator).toHaveTextContent("Saved locally");
 		// A routine save is not announced to assistive technology on every edit burst.
 		expect(screen.getByTestId("local-persistence-alert")).toBeEmptyDOMElement();
-		expect(screen.getByTestId("status-bar")).toHaveTextContent("Saved");
+		expect(screen.queryByTestId("file-save-status")).not.toBeInTheDocument();
+	});
+
+	it("never shows Saved next to an in-progress local write", () => {
+		openDocument();
+		setActiveDocumentPersistence({ status: "writing", lastPersistedAt: null });
+		render(<StatusBar />);
+
+		expect(screen.getByTestId("local-persistence-status")).toHaveTextContent("Saving locally...");
+		expect(screen.queryByTestId("file-save-status")).not.toBeInTheDocument();
+	});
+
+	it("distinguishes queued changes from an active write and saved state", () => {
+		openDocument();
+		setActiveDocumentPersistence({ status: "pending", lastPersistedAt: null });
+		render(<StatusBar />);
+		const indicator = screen.getByTestId("local-persistence-status");
+		expect(indicator).toHaveTextContent("Changes pending");
+		act(() => setActiveDocumentPersistence({ status: "writing", lastPersistedAt: null }));
+		expect(indicator).toHaveTextContent("Saving locally...");
+		act(() => setActiveDocumentPersistence({ status: "saved", lastPersistedAt: "2026-01-01" }));
+		expect(indicator).toHaveTextContent("Saved locally");
 	});
 
 	it("coalesces repeated write failures into one announced indicator", () => {
@@ -211,13 +232,13 @@ describe("StatusBar local persistence indicator", () => {
 			errorKind: "corrupt",
 		});
 
-		render(<StatusBar />);
+		render(<StatusBar onRecoverWorkspace={vi.fn()} />);
 
 		const indicator = screen.getByTestId("local-persistence-status");
 		expect(indicator).toHaveTextContent("Recovery needed");
 		// Nothing has been deleted: the indicator reports state and offers no destructive action.
 		expect(indicator.title).toContain("Nothing has been deleted");
-		expect(screen.queryByRole("button")).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Workspace recovery" })).toBeInTheDocument();
 	});
 
 	it("asks for recovery when the database itself could not be opened", () => {

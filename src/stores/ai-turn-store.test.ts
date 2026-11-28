@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConversationRequest, StreamConversationHandlers } from "@/lib/ai/protocol/client";
 import type { StreamEvent } from "@/lib/ai/protocol/events";
 import { DEFAULT_ANTHROPIC_MODEL } from "@/lib/ai-models";
+import { buildSystemPrompt } from "@/lib/ai-prompt";
 import { useDocumentRegistry } from "@/stores/document-registry";
 import { createDocumentStores, setActiveStores } from "@/stores/document-stores";
 import { useHistoryStore } from "@/stores/history-store";
@@ -18,6 +19,13 @@ vi.mock("@/lib/ai/protocol/client", () => ({ streamConversation: streamConversat
 vi.mock("@/lib/adapters/get-chat-transport", () => ({
 	getChatTransport: () => Promise.resolve({ open: vi.fn() }),
 }));
+
+function applyReviewedProposal(): void {
+	const store = useAiTurnStore.getState();
+	const review = store.turn?.proposal;
+	if (!review) throw new Error("Expected a proposal ready for review");
+	store.applyProposal(review.token);
+}
 
 const model: ThreatModel = {
 	version: "1.0",
@@ -54,7 +62,10 @@ function script(...responses: StreamEvent[][]): void {
 			handlers: StreamConversationHandlers,
 			signal?: AbortSignal,
 		) => {
-			const events = responses[index] ?? [{ type: "message_stop", stopReason: "end_turn" }];
+			const events = responses[index] ?? [
+				{ type: "message_start", model: "m" },
+				{ type: "message_stop", stopReason: "end_turn" },
+			];
 			index += 1;
 			for (const event of events) {
 				if (signal?.aborted) {
@@ -119,7 +130,7 @@ describe("submitTurn against a tool-capable model", () => {
 		// Nothing committed while the call is pending — the review gate holds.
 		expect(useModelStore.getState().model?.elements.some((e) => e.name === "Cache")).toBe(false);
 
-		useAiTurnStore.getState().approveCall("c1");
+		applyReviewedProposal();
 		await flush();
 
 		const turn = useAiTurnStore.getState().turn;
@@ -132,7 +143,7 @@ describe("submitTurn against a tool-capable model", () => {
 		expect(useModelStore.getState().model?.elements.some((e) => e.name === "Cache")).toBe(false);
 	});
 
-	it("advertises all sixteen tools, read tools included, to the provider", async () => {
+	it("advertises all 28 tools, read tools included, to the provider", async () => {
 		script([
 			{ type: "message_start", model: "m" },
 			{ type: "text_delta", text: "hi" },
@@ -144,7 +155,7 @@ describe("submitTurn against a tool-capable model", () => {
 
 		const request: ConversationRequest = streamConversationMock.mock.calls[0][0];
 		const advertised = request.tools.map((tool) => tool.name);
-		expect(advertised).toHaveLength(16);
+		expect(advertised).toHaveLength(28);
 		for (const readTool of [
 			"get_document_summary",
 			"get_entity",
@@ -153,6 +164,150 @@ describe("submitTurn against a tool-capable model", () => {
 		]) {
 			expect(advertised).toContain(readTool);
 		}
+		expect(advertised).toContain("reparent_group");
+	});
+
+	it("keeps the system prompt bounded and reads an element before and after an approved edit", async () => {
+		const large: ThreatModel = {
+			...model,
+			metadata: { ...model.metadata, description: "private document details ".repeat(5_000) },
+			elements: Array.from({ length: 2_000 }, (_, i) => ({
+				...model.elements[0],
+				id: `large-node-${i}`,
+				name: `Existing service ${i}`,
+				position: { x: i, y: 20 },
+			})),
+		};
+		const id = "large-node-517";
+		useModelStore.getState().setModel(large, null);
+		const read = (callId: string): StreamEvent[] => [
+			{ type: "message_start", model: "m" },
+			{
+				type: "tool_call_complete",
+				id: callId,
+				name: "get_entity",
+				input: { kind: "elements", id },
+			},
+			{ type: "message_stop", stopReason: "tool_use" },
+		];
+		script(
+			read("before"),
+			[
+				{ type: "message_start", model: "m" },
+				{
+					type: "tool_call_complete",
+					id: "edit",
+					name: "update_element",
+					input: { action: "update_element", id, updates: { name: "Renamed service" } },
+				},
+				{ type: "message_stop", stopReason: "tool_use" },
+			],
+			read("after"),
+			[
+				{ type: "message_start", model: "m" },
+				{ type: "message_stop", stopReason: "end_turn" },
+			],
+		);
+
+		await useAiTurnStore
+			.getState()
+			.submitTurn(`Read and rename ${id}, then verify the edit`, large);
+		await flush();
+		expect(useAiTurnStore.getState().turn?.phase).toBe("awaiting_approval");
+		expect(useModelStore.getState().model?.elements[517].name).toBe("Existing service 517");
+		applyReviewedProposal();
+		await flush();
+
+		expect(useAiTurnStore.getState().turn?.outcome).toBe("completed");
+		const requests = streamConversationMock.mock.calls.map(
+			([request]) => request as ConversationRequest,
+		);
+		expect(requests).toHaveLength(4);
+		const system = requests[0].system;
+		expect(system).toContain(buildSystemPrompt(model, { tools: requests[0].tools }));
+		expect(new TextEncoder().encode(system).length).toBeLessThanOrEqual(5 * 1024);
+		expect(system).toContain("Document read tools are the authoritative source");
+		expect(system).toContain("get_document_summary with layout_offset: 0");
+		for (const name of ["get_document_summary", "search_entities", "get_entity"]) {
+			expect(system).toContain(name);
+		}
+		for (const request of requests) {
+			expect(request.system).toBe(system);
+			for (const documentText of [
+				id,
+				"Existing service",
+				"Renamed service",
+				"private document details",
+			]) {
+				expect(request.system).not.toContain(documentText);
+			}
+		}
+		const resultFor = (request: ConversationRequest, callId: string) =>
+			request.messages
+				.flatMap((message) => message.content)
+				.find((block) => block.type === "tool_result" && block.toolCallId === callId);
+		expect(resultFor(requests[1], "before")).toMatchObject({
+			content: expect.stringContaining('"name":"Existing service 517"'),
+		});
+		expect(resultFor(requests[1], "before")).toMatchObject({
+			content: expect.stringContaining('"position":{"x":517,"y":20}'),
+		});
+		expect(resultFor(requests[3], "after")).toMatchObject({
+			content: expect.stringContaining('"name":"Renamed service"'),
+		});
+	});
+
+	it("reports invalid architecture references and discards the entire draft", async () => {
+		script(
+			[
+				{ type: "message_start", model: "m" },
+				{
+					type: "tool_call_complete",
+					id: "add",
+					name: "add_group",
+					input: { id: "frontend", name: "Frontend" },
+				},
+				{
+					type: "tool_call_complete",
+					id: "invalid",
+					name: "set_element_group",
+					input: { id: "web-app", group: "missing" },
+				},
+				{
+					type: "tool_call_complete",
+					id: "delete",
+					name: "delete_group",
+					input: { id: "frontend" },
+				},
+				{ type: "message_stop", stopReason: "tool_use" },
+			],
+			[
+				{ type: "message_start", model: "m" },
+				{
+					type: "tool_call_complete",
+					id: "fixed",
+					name: "set_element_group",
+					input: { id: "web-app", group: "frontend" },
+				},
+				{ type: "message_stop", stopReason: "tool_use" },
+			],
+			[
+				{ type: "message_start", model: "m" },
+				{ type: "text_delta", text: "Done." },
+				{ type: "message_stop", stopReason: "end_turn" },
+			],
+		);
+		const before = useModelStore.getState().model;
+		await useAiTurnStore.getState().submitTurn("Group the web app", model);
+		await flush();
+		expect(useModelStore.getState().model).toBe(before);
+		const turn = useAiTurnStore.getState();
+		const correction: ConversationRequest = streamConversationMock.mock.calls[1][0];
+		expect(JSON.stringify(correction.messages)).toContain("missing");
+		expect(turn.turn?.proposal).toBeNull();
+		expect(turn.turn?.proposalOutcome).toBe("discarded");
+		expect(useModelStore.getState().model).toBe(before);
+		expect(useHistoryStore.getState().past).toHaveLength(0);
 	});
 });
 
@@ -305,7 +460,7 @@ describe("undoAvailability", () => {
 		);
 		await useAiTurnStore.getState().submitTurn("add a cache", model);
 		await flush();
-		useAiTurnStore.getState().approveCall("c1");
+		applyReviewedProposal();
 		await flush();
 
 		expect(useAiTurnStore.getState().undoAvailability()).toBe("undoable");
@@ -343,7 +498,7 @@ describe("native session ownership", () => {
 		];
 		script(add("Cache"), reply("Cache added"), add("Database"), reply("Database added"));
 		await useAiTurnStore.getState().submitTurn("Add cache", model);
-		useAiTurnStore.getState().approveCall("Cache");
+		applyReviewedProposal();
 		await flush();
 		expect(useAiTurnStore.getState().undoAvailability()).toBe("undoable");
 		useChatStore.getState().newSession();
@@ -353,7 +508,7 @@ describe("native session ownership", () => {
 		if (!restored) throw new Error("The keyboard Undo path must return a snapshot");
 		useModelStore.getState().restoreSnapshot(restored);
 		await useAiTurnStore.getState().submitTurn("Add database", restored);
-		useAiTurnStore.getState().approveCall("Database");
+		applyReviewedProposal();
 		await flush();
 		const secondChatModel = useModelStore.getState().model;
 		useChatStore.getState().switchSession(first);
@@ -384,7 +539,7 @@ describe("native session ownership", () => {
 			reply("Continuing cache review"),
 		);
 		await useAiTurnStore.getState().submitTurn("Review the cache", model);
-		useAiTurnStore.getState().approveCall("c1");
+		applyReviewedProposal();
 		await flush();
 		expect(useChatStore.getState().sessions[0].title).toBe("Review the cache");
 		expect(
@@ -420,8 +575,10 @@ describe("native session ownership", () => {
 			{ type: "message_stop", stopReason: "tool_use" },
 		]);
 		await useAiTurnStore.getState().submitTurn("Add cache", model);
+		const token = useAiTurnStore.getState().turn?.proposal?.token;
+		if (!token) throw new Error("Expected a proposal before switching chats");
 		useChatStore.getState().newSession();
-		useAiTurnStore.getState().approveCall("c1");
+		useAiTurnStore.getState().applyProposal(token);
 		await flush();
 		expect(useModelStore.getState().model?.elements).toHaveLength(1);
 		useChatStore.getState().switchSession(first);
@@ -510,7 +667,7 @@ it("retains separate tool status and Undo for tabs sharing a persisted session i
 		],
 	);
 	await useAiTurnStore.getState().submitTurn("Add Cache", model);
-	useAiTurnStore.getState().approveCall("cache");
+	applyReviewedProposal();
 	await flush();
 	const aTurn = useAiTurnStore.getState().turn;
 	expect(aTurn?.calls[0].status).toBe("succeeded");

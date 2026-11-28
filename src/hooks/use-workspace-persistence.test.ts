@@ -4,6 +4,8 @@ import "fake-indexeddb/auto";
 import { getWorkspaceStorage } from "@/lib/persistence/get-workspace-storage";
 import { IndexeddbWorkspaceStorage } from "@/lib/persistence/indexeddb-workspace-storage";
 import { WORKSPACE_MANIFEST_VERSION, WorkspaceStorageError } from "@/lib/persistence/types";
+import { readThreatModelText } from "@/lib/thf-validation";
+import { serializeThreatModelYaml } from "@/lib/thf-yaml";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useDocumentRegistry } from "@/stores/document-registry";
 import { createDocumentStores, setActiveStores } from "@/stores/document-stores";
@@ -12,6 +14,7 @@ import { useWorkspaceStore } from "@/stores/workspace-store";
 import type { DocumentId } from "@/types/document";
 import type { ThreatModel } from "@/types/threat-model";
 import {
+	clearStoredWorkspace,
 	useWorkspacePersistence,
 	WORKSPACE_AUTOSAVE_DEBOUNCE_MS,
 } from "./use-workspace-persistence";
@@ -76,6 +79,34 @@ async function readStoredBody(id: DocumentId): Promise<string | null> {
 	const storage = await getWorkspaceStorage();
 	return storage.readDocumentBody(id);
 }
+
+it("stores an unedited import under its registry identity without rewriting the YAML", async () => {
+	const yaml = `# Imported document\n${serializeThreatModelYaml(createTestModel("Imported"))}x-extension: keep\n`;
+	const id = useDocumentRegistry.getState().createDocument({
+		model: readThreatModelText(yaml),
+		filePath: "imported.thf",
+		sourceYaml: yaml,
+		pendingLayout: null,
+	});
+	useWorkspaceStore.getState().setPersistenceAvailability(true);
+	renderHook(useWorkspacePersistence);
+	await runDebounce();
+	expect(await readStoredBody(id)).toBe(yaml);
+	expect(useWorkspaceStore.getState().documents).toEqual([
+		expect.objectContaining({ id, title: "Imported" }),
+	]);
+});
+
+it("does not recreate a cleared document from a pending autosave", async () => {
+	const { id } = mountWithDocument();
+	await runDebounce();
+	act(() => useModelStore.getState().updateMetadata({ title: "Queued edit" }));
+	await act(async () => clearStoredWorkspace(id, () => {}));
+	await act(async () => vi.advanceTimersByTimeAsync(WORKSPACE_AUTOSAVE_DEBOUNCE_MS));
+	expect(await readStoredBody(id)).toBeNull();
+	expect(useDocumentRegistry.getState().documents[id]).toBeUndefined();
+	expect(useWorkspaceStore.getState().documents).toEqual([]);
+});
 
 // One IndexedDB factory serves the whole file: the storage factory caches its instance and that
 // instance caches its connection, so swapping the factory per test would strand it. Each test
@@ -278,6 +309,8 @@ describe("seeding and rebinding", () => {
 		useWorkspaceStore.getState().setPersistenceAvailability(true);
 		renderHook(() => useWorkspacePersistence());
 		await act(async () => {
+			useCanvasStore.getState().syncFromModel();
+			useCanvasStore.getState().setViewport({ x: 20, y: 30, zoom: 0.8 }, true);
 			vi.advanceTimersByTime(WORKSPACE_AUTOSAVE_DEBOUNCE_MS * 2);
 		});
 

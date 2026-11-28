@@ -127,9 +127,7 @@ describe("useOnboardingTriggers", () => {
 			expect(startGuideSpy).not.toHaveBeenCalled();
 		});
 
-		it("does not fire while the What's New overlay is visible", () => {
-			// beforeEach clears localStorage, so threatforge-last-seen-version is absent and
-			// isWhatsNewVisible() is true — the exact interaction that caused #111.
+		it("fires on first launch without requiring release notes acknowledgement", () => {
 			const startGuideSpy = spyOnStartGuide();
 
 			renderHook(() => useOnboardingTriggers());
@@ -137,13 +135,11 @@ describe("useOnboardingTriggers", () => {
 				vi.advanceTimersByTime(500);
 			});
 
-			expect(startGuideSpy).not.toHaveBeenCalled();
-			expect(useOnboardingStore.getState().activeGuide).toBeNull();
+			expect(startGuideSpy).toHaveBeenCalledWith("welcome");
+			expect(useOnboardingStore.getState().activeGuide?.id).toBe("welcome");
 		});
 
-		it("does not fire while the What's New overlay is visible after an upgrade", () => {
-			// The prior "storage key is absent" approximation returned false here, so an
-			// upgrading user could get the welcome tooltip stacked on the What's New modal.
+		it("fires for eligible users after an upgrade", () => {
 			localStorage.setItem(WHATS_NEW_STORAGE_KEY, "0.1.0");
 			const startGuideSpy = spyOnStartGuide();
 
@@ -152,8 +148,8 @@ describe("useOnboardingTriggers", () => {
 				vi.advanceTimersByTime(500);
 			});
 
-			expect(startGuideSpy).not.toHaveBeenCalled();
-			expect(useOnboardingStore.getState().activeGuide).toBeNull();
+			expect(startGuideSpy).toHaveBeenCalledWith("welcome");
+			expect(useOnboardingStore.getState().activeGuide?.id).toBe("welcome");
 		});
 
 		it("does not fire when another guide is already active at effect setup", () => {

@@ -4,11 +4,51 @@ import { TIPS } from "@/lib/tips";
 import { expect, test } from "./fixtures";
 import { assertNoSeriousAccessibilityViolations, scanAccessibility } from "./support/accessibility";
 import { installDeterministicClock } from "./support/base";
+import { openDocument } from "./support/interactions";
 import {
 	seedEmptyWorkspace,
 	seedEphemeralWorkspace,
 	seedRealisticWorkspace,
 } from "./support/workspace-fixtures";
+
+test("guided tours contains focus and restores it on Escape", async ({ page }) => {
+	await page.goto("/app");
+	const trigger = page.getByTestId("btn-guide-picker");
+	await trigger.press("Enter");
+	const dialog = page.getByRole("dialog", { name: "Guided Tours" });
+	const first = dialog.getByRole("button", { name: "Close guided tours" });
+	const last = dialog.getByRole("button").last();
+	await expect(first).toBeFocused();
+	await page.keyboard.press("Shift+Tab");
+	await expect(last).toBeFocused();
+	await page.keyboard.press("Tab");
+	await expect(first).toBeFocused();
+	await page.keyboard.press("ControlOrMeta+,");
+	await expect(page.getByTestId("settings-dialog")).toBeHidden();
+	await page.keyboard.press("Escape");
+	await expect(dialog).toBeHidden();
+	await expect(trigger).toBeFocused();
+});
+
+for (const colorScheme of ["light", "dark"] as const) {
+	test.describe(`Delete contrast in ${colorScheme}`, () => {
+		test.use({ colorScheme });
+		test("axe measures the destructive canvas action", async ({ page }) => {
+			await page.goto("/app");
+			await openDocument(page, "tests/fixtures/thf/architecture-canonical-full.thf");
+			await page.locator(".react-flow__node-dfdElement").first().press("Shift+F10");
+			const remove = page.getByRole("menuitem", { name: "Delete", exact: true });
+			await expect(remove).toBeVisible();
+			const scan = await scanAccessibility(page, {
+				include: ['[role="menu"] [data-variant="danger"]'],
+			});
+			expect(
+				[...scan.violations, ...scan.incomplete].filter(({ id }) => id === "color-contrast"),
+			).toEqual([]);
+			expect(scan.passes.find(({ id }) => id === "color-contrast")?.nodes).toHaveLength(1);
+		});
+	});
+}
 
 async function setReduceMotion(page: Page, enabled: boolean): Promise<void> {
 	await page.getByTestId("btn-settings-dialog").click();
@@ -223,31 +263,28 @@ test.describe("Accessibility audit", () => {
 		await page.goto("/app");
 		await expect(page.getByTestId("empty-canvas")).toBeVisible();
 		await setReduceMotion(page, true);
-		await page.addInitScript((tipCount) => {
-			const nativeRandom = Math.random;
-			Math.random = () => {
-				const rawIndex = new URL(window.location.href).searchParams.get("e2eTipIndex");
-				const requestedIndex = rawIndex === null ? -1 : Number(rawIndex);
-				if (!Number.isInteger(requestedIndex) || requestedIndex < 0 || requestedIndex >= tipCount) {
-					return nativeRandom();
-				}
-				return (requestedIndex + 0.5) / tipCount;
-			};
-		}, TIPS.length);
 
 		const tipSelector = '[data-testid="rotating-tip-contrast-target"]';
 		const footerTargetSelector =
 			'[data-testid="empty-canvas"] > footer [data-testid="empty-canvas-contrast-target"]';
+		const emptyCanvas = page.getByTestId("empty-canvas");
+		const tip = page.locator(tipSelector);
+		const footer = emptyCanvas.locator("footer");
+		await expect.poll(() => tip.evaluate((element) => element.style.transition)).toBe("none");
+
+		// The interval test above covers real rotation. Vary only the text here so every copy
+		// gets measured against the same rendered layout without booting a new app for each tip.
+		async function measureTipCopy(copy: string) {
+			await tip.evaluate((element, text) => {
+				element.textContent = text;
+			}, copy);
+		}
 
 		for (const [index, expectedTip] of TIPS.entries()) {
 			await test.step(`tip ${index + 1} of ${TIPS.length}`, async () => {
-				await page.goto(`/app?e2eTipIndex=${index}`);
-				const emptyCanvas = page.getByTestId("empty-canvas");
-				const tip = page.locator(tipSelector);
-				const footer = emptyCanvas.locator("footer");
+				await measureTipCopy(expectedTip);
 				await expect(emptyCanvas).toBeVisible();
 				await expect(tip).toHaveText(expectedTip);
-				await expect.poll(() => tip.evaluate((element) => element.style.transition)).toBe("none");
 
 				const emptyCanvasBox = await emptyCanvas.boundingBox();
 				const tipBox = await tip.boundingBox();
@@ -289,15 +326,10 @@ test.describe("Accessibility audit", () => {
 		}
 
 		const longestTip = TIPS.reduce((longest, tip) => (tip.length > longest.length ? tip : longest));
-		const longestTipIndex = TIPS.indexOf(longestTip);
+		await measureTipCopy(longestTip);
 		for (const height of [800, 851]) {
 			await test.step(`longest tip stays contained at 1280x${height}`, async () => {
 				await page.setViewportSize({ width: 1280, height });
-				await page.goto(`/app?e2eTipIndex=${longestTipIndex}`);
-
-				const emptyCanvas = page.getByTestId("empty-canvas");
-				const tip = page.locator(tipSelector);
-				const footer = emptyCanvas.locator("footer");
 				await expect(tip).toHaveText(longestTip);
 
 				const emptyCanvasBox = await emptyCanvas.boundingBox();
@@ -314,8 +346,6 @@ test.describe("Accessibility audit", () => {
 			});
 		}
 
-		const emptyCanvas = page.getByTestId("empty-canvas");
-		const footer = emptyCanvas.locator("footer");
 		const githubButton = footer.getByRole("button", { name: /GitHub/ });
 		await expect(githubButton).toBeEnabled();
 		// Exercise the real window.open path without making the regression depend on GitHub uptime.
@@ -350,12 +380,18 @@ test.describe("Accessibility audit", () => {
 			name: "Library components",
 			exact: true,
 		});
-		const categoryTabCount = await palette.getByRole("button").count();
+		const category = palette.getByRole("combobox", { name: "Component category" });
 
 		await page.getByTestId("library-search").click();
-		for (let tab = 0; tab <= categoryTabCount; tab++) {
-			await page.keyboard.press("Tab");
-		}
+		await page.keyboard.press("Tab");
+		await expect(category).toBeFocused();
+		await category.selectOption({ label: "Databases" });
+		await expect(componentList.getByRole("heading", { name: "Databases" })).toBeVisible();
+		await expect(componentList.getByTestId("palette-item-sql-database")).toBeVisible();
+		await expect(componentList.getByTestId("palette-item-web-server")).toBeHidden();
+		await category.selectOption({ label: "All categories" });
+		await expect(componentList.getByTestId("palette-item-web-server")).toBeVisible();
+		await page.keyboard.press("Tab");
 		await expect(componentList).toBeFocused();
 
 		const initialScroll = await componentList.evaluate((element) => ({
@@ -369,6 +405,14 @@ test.describe("Accessibility audit", () => {
 		await expect
 			.poll(() => componentList.evaluate((element) => element.scrollTop))
 			.toBeGreaterThan(initialScroll.top);
+
+		await page.keyboard.press("End");
+		const lastItem = componentList.getByTestId(/^palette-item-/).last();
+		await expect(lastItem).toBeInViewport({ ratio: 1 });
+		const lastBounds = await lastItem.boundingBox();
+		const statusBounds = await page.getByTestId("status-bar").boundingBox();
+		if (!lastBounds || !statusBounds) throw new Error("Expected visible library and status bar");
+		expect(lastBounds.y + lastBounds.height).toBeLessThan(statusBounds.y);
 
 		await assertNoSeriousAccessibilityViolations(page);
 	});

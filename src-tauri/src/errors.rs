@@ -3,6 +3,15 @@ use thiserror::Error;
 /// Application-level errors for ThreatForge
 #[derive(Debug, Error)]
 pub enum ThreatForgeError {
+    #[error("The document changed on disk. Reopen it before saving, or save to a new file.")]
+    DocumentConflict,
+
+    #[error("The legacy layout could not be loaded safely. Restore the layout file before saving this diagram.")]
+    LegacyLayoutUnavailable,
+
+    #[error("The selected file is outside the approved location.")]
+    UnapprovedPath,
+
     #[error("Failed to read file '{path}': {source}")]
     FileRead {
         path: String,
@@ -30,9 +39,6 @@ pub enum ThreatForgeError {
         source: serde_json::Error,
     },
 
-    #[error("Failed to serialize JSON: {source}")]
-    JsonSerialize { source: serde_json::Error },
-
     #[error("Unsupported schema version '{version}'. Supported versions: {supported:?}")]
     UnsupportedVersion {
         version: String,
@@ -49,6 +55,12 @@ pub enum ThreatForgeError {
         valid: Vec<String>,
     },
 
+    #[error("Invalid sequence field '{field}': {reason}.")]
+    InvalidSequence { field: String, reason: &'static str },
+
+    #[error("Cannot create a typed sequence view: this 1.0 document already contains the opaque diagrams[].sequence field.")]
+    SequencePromotionConflict,
+
     #[error("Circular group nesting detected at group '{id}'")]
     CircularGroupNesting { id: String },
 
@@ -63,4 +75,19 @@ pub enum ThreatForgeError {
     /// sentence.
     #[error("No API key stored for provider '{provider}'")]
     NoApiKey { provider: String },
+}
+
+impl ThreatForgeError {
+    pub fn user_message(&self) -> String {
+        match self {
+            Self::FileRead { .. } => "Could not read the selected file.".into(),
+            Self::FileWrite { .. } => "Could not save the selected file.".into(),
+            Self::YamlParse { .. } => {
+                "The selected file is not a valid ThreatForge document.".into()
+            }
+            Self::JsonParse { .. } => "The layout file is invalid.".into(),
+            Self::YamlSerialize { .. } => "Could not serialize the document.".into(),
+            _ => self.to_string(),
+        }
+    }
 }

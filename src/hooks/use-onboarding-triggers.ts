@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { unseenChangelogEntries } from "@/lib/whats-new";
 import { useModelStore } from "@/stores/model-store";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 
@@ -7,18 +6,6 @@ const WELCOME_GUIDE_ID = "welcome";
 const WELCOME_DELAY_MS = 500;
 const DFD_BASICS_GUIDE_ID = "dfd-basics";
 const DFD_BASICS_DELAY_MS = 800;
-
-/**
- * Returns true if the What's New overlay is currently showing (blocks guide display).
- *
- * Asks the same shared predicate the overlay uses. The previous local approximation —
- * "the storage key is absent" — missed the upgrade case entirely, so a user carrying a
- * stored version from an older build could get the guide tooltip and the What's New modal
- * at the same time.
- */
-function isWhatsNewVisible(): boolean {
-	return unseenChangelogEntries().length > 0;
-}
 
 function isGuideEligible(guideId: string): boolean {
 	const { activeGuide, completedGuideIds, dismissedGuideIds } = useOnboardingStore.getState();
@@ -40,14 +27,11 @@ export function useOnboardingTriggers() {
 	// Keep this mount effect replayable: StrictMode cleanup cancels the first timer, then replay
 	// schedules its replacement.
 	useEffect(() => {
-		// Don't show the welcome guide if the What's New overlay is visible (first launch)
-		// to avoid two overlapping modals
-		if (isWhatsNewVisible()) return;
 		if (!isGuideEligible(WELCOME_GUIDE_ID)) return;
 
 		// Delay slightly to let the UI render first
 		const timer = setTimeout(() => {
-			if (isWhatsNewVisible()) return;
+			if (useModelStore.getState().model) return;
 			if (!isGuideEligible(WELCOME_GUIDE_ID)) return;
 			useOnboardingStore.getState().startGuide(WELCOME_GUIDE_ID);
 		}, WELCOME_DELAY_MS);

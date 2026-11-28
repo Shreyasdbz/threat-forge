@@ -3,16 +3,18 @@ mod commands;
 mod errors;
 mod file_io;
 mod importers;
+pub mod markdown;
 pub mod mcp;
 mod menu;
 pub mod models;
+mod scene;
 mod stride;
 
 use commands::{
-    analyze_stride, cancel_ai_stream, check_for_update, confirm_quit, create_new_model,
-    delete_api_key, get_api_key_status, import_threat_model, install_update, open_layout,
-    open_threat_model, save_layout, save_threat_model, set_api_key, start_ai_stream,
-    write_text_file,
+    analyze_stride, cancel_ai_stream, check_document_update, check_for_update, confirm_quit,
+    create_new_model, delete_api_key, export_diagram, export_html, export_markdown,
+    get_api_key_status, import_threat_model, install_update, open_threat_model, render_diagram,
+    save_threat_model, set_api_key, start_ai_stream, ApprovedDocuments,
 };
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -29,6 +31,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(ApprovedDocuments::default())
         .setup(|app| {
             let menu = menu::build_menu(app)?;
             app.set_menu(menu)?;
@@ -63,10 +66,12 @@ pub fn run() {
             let args: Vec<String> = std::env::args().collect();
             if args.len() > 1 {
                 let path = &args[1];
-                if path.ends_with(".thf") {
+                if let Some(path) = std::path::absolute(path)
+                    .ok()
+                    .and_then(|path| app.state::<ApprovedDocuments>().approve(&path).ok())
+                {
                     let main_window = app.get_webview_window("main");
                     if let Some(window) = main_window {
-                        let path = path.clone();
                         // Emit after a short delay to ensure the frontend is ready
                         std::thread::spawn(move || {
                             std::thread::sleep(std::time::Duration::from_millis(500));
@@ -81,16 +86,18 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             create_new_model,
             open_threat_model,
+            check_document_update,
+            render_diagram,
+            export_diagram,
             save_threat_model,
-            open_layout,
-            save_layout,
             analyze_stride,
             set_api_key,
             get_api_key_status,
             delete_api_key,
             start_ai_stream,
             cancel_ai_stream,
-            write_text_file,
+            export_html,
+            export_markdown,
             import_threat_model,
             check_for_update,
             install_update,

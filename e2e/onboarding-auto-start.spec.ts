@@ -1,6 +1,5 @@
 import type { Page } from "@playwright/test";
-import { createModel, dismissWhatsNew } from "./fixtures";
-import { APP_VERSION } from "./support/app-version";
+import { createModel } from "./fixtures";
 import { expect, failureAwareTest as test } from "./support/base";
 
 async function readOnboardingState(page: Page): Promise<unknown> {
@@ -16,12 +15,8 @@ test.describe("Onboarding guide auto-start (real browser, #141)", () => {
 	test("welcome guide auto-starts when eligible under StrictMode and can be dismissed", async ({
 		page,
 	}) => {
-		// Suppressing What's New makes welcome eligible; onboarding itself stays unseeded.
-		await page.addInitScript((version: string) => {
-			localStorage.setItem("threatforge-last-seen-version", version);
-		}, APP_VERSION);
-
 		await page.goto("/app");
+		await expect(page.getByTestId("whats-new-overlay")).toBeHidden();
 
 		expect(await page.evaluate(() => localStorage.getItem("threatforge-onboarding"))).toBeNull();
 
@@ -44,7 +39,8 @@ test.describe("Onboarding guide auto-start (real browser, #141)", () => {
 		page,
 	}) => {
 		await page.goto("/app");
-		await dismissWhatsNew(page);
+		await expect(page.getByRole("button", { name: "What's New" })).toBeVisible();
+		await expect(page.getByTestId("whats-new-overlay")).toBeHidden();
 		await createModel(page);
 
 		const tooltip = page.getByTestId("guide-tooltip");
@@ -61,5 +57,26 @@ test.describe("Onboarding guide auto-start (real browser, #141)", () => {
 				dismissedGuideIds: expect.arrayContaining(["dfd-basics"]),
 			}),
 		);
+	});
+
+	test("an upgrade does not block the launcher and release notes remain available", async ({
+		page,
+	}) => {
+		await page.addInitScript(() => localStorage.setItem("threatforge-last-seen-version", "0.1.0"));
+		await page.goto("/app");
+		await expect(page.getByTestId("btn-empty-new")).toBeEnabled();
+		const notes = page.getByTestId("whats-new-overlay");
+		await expect(notes).toBeHidden();
+		const trigger = page.getByRole("button", { name: "What's New" });
+		await trigger.click();
+		await expect(notes).toBeVisible();
+		await notes.getByRole("button", { name: "Got it" }).click();
+		await expect(notes).toBeHidden();
+		await expect(trigger).toBeFocused();
+		await trigger.click();
+		await expect(notes).toBeVisible();
+		await page.keyboard.press("Escape");
+		await expect(notes).toBeHidden();
+		await createModel(page);
 	});
 });

@@ -1,7 +1,10 @@
-import { useReactFlow } from "@xyflow/react";
+import { type ReactFlowInstance, useReactFlow } from "@xyflow/react";
 import { Search, ShieldAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 import { IconRenderer } from "@/components/icons/icon-renderer";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
+import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH, nodeToRect } from "@/lib/canvas-utils";
 import {
 	listCategories,
 	listComponents,
@@ -9,7 +12,6 @@ import {
 	searchComponents,
 } from "@/lib/registry/registry";
 import type { ComponentCategory, ComponentEntry } from "@/lib/registry/types";
-import { cn } from "@/lib/utils";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import { useCanvasStore } from "@/stores/canvas-store";
 
@@ -57,16 +59,26 @@ export function ComponentPalette() {
 	}, [searchQuery, activeCategory]);
 
 	const categories = listCategories();
+	const groups = useMemo(() => {
+		const byCategory = new Map<ComponentCategory, ComponentEntry[]>();
+		for (const component of filteredComponents) {
+			const items = byCategory.get(component.category) ?? [];
+			items.push(component);
+			byCategory.set(component.category, items);
+		}
+		return listCategories().flatMap(({ id, label }) => {
+			const items = byCategory.get(id);
+			return items ? [{ id, label, items }] : [];
+		});
+	}, [filteredComponents]);
 
 	return (
-		<div data-testid="component-palette" className="flex h-full flex-col">
+		<div data-testid="component-palette" className="flex min-h-0 flex-col md:h-full">
 			{/* Generic section */}
-			<div className="border-b border-border px-3 py-2">
-				<h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-					Generic
-				</h2>
+			<div className="shrink-0 px-4 pt-4 pb-2">
+				<h2 className="text-editor-footnote text-editor-secondary-label">Generic</h2>
 			</div>
-			<div className="border-b border-border p-2">
+			<div className="shrink-0 px-2 pb-2">
 				<div className="flex flex-col gap-1">
 					{GENERIC_ITEMS.map((item) => (
 						<GenericPaletteItem
@@ -80,53 +92,58 @@ export function ComponentPalette() {
 			</div>
 
 			{/* Library section */}
-			<div className="px-3 py-2">
-				<h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-					Library
-				</h2>
+			<div className="shrink-0 px-4 pt-4 pb-2">
+				<h2 className="text-editor-footnote text-editor-secondary-label">Library</h2>
 			</div>
 
 			{/* Search */}
-			<div className="px-2 pb-2">
+			<div className="shrink-0 px-4 pb-2">
 				<div className="relative">
-					<Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-					<input
+					<Search
+						aria-hidden="true"
+						className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+					/>
+					<Input
 						data-testid="library-search"
 						type="text"
+						aria-label="Search components"
 						placeholder="Search components..."
 						value={searchQuery}
 						onChange={(e) => {
 							setSearchQuery(e.target.value);
 							if (e.target.value) setActiveCategory(ALL_CATEGORIES);
 						}}
-						className="w-full rounded-md border border-border bg-background py-1.5 pl-7 pr-2 text-xs text-foreground placeholder:text-muted-foreground focus:border-tf-signal focus:outline-none"
+						className="h-9 border-editor-outline bg-editor-surface pl-9 pr-3 text-editor-body md:text-editor-body"
 					/>
 				</div>
 			</div>
 
-			{/* Category tabs */}
 			{!searchQuery && (
-				<div className="flex gap-0.5 overflow-x-auto px-2 pb-2 scrollbar-none">
-					<CategoryTab
-						label="All"
-						active={activeCategory === ALL_CATEGORIES}
-						onClick={() => setActiveCategory(ALL_CATEGORIES)}
-					/>
-					{categories.map((cat) => (
-						<CategoryTab
-							key={cat.id}
-							label={cat.label}
-							active={activeCategory === cat.id}
-							onClick={() => setActiveCategory(cat.id)}
-						/>
-					))}
+				<div className="shrink-0 px-4 pb-2">
+					<NativeSelect
+						aria-label="Component category"
+						value={activeCategory}
+						onChange={(event) =>
+							setActiveCategory(
+								categories.find(({ id }) => id === event.target.value)?.id ?? ALL_CATEGORIES,
+							)
+						}
+						className="w-full"
+					>
+						<option value={ALL_CATEGORIES}>All categories</option>
+						{categories.map(({ id, label }) => (
+							<option key={id} value={id}>
+								{label}
+							</option>
+						))}
+					</NativeSelect>
 				</div>
 			)}
 
 			{/* Component list */}
 			<section
 				aria-label="Library components"
-				className="flex-1 overflow-y-auto p-2"
+				className="h-32 min-h-0 overflow-y-auto px-3 pb-4 md:h-auto md:flex-1"
 				// biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region must be focusable for keyboard access
 				tabIndex={0}
 				onKeyDown={(event) => {
@@ -138,12 +155,19 @@ export function ComponentPalette() {
 					}
 				}}
 			>
-				<div className="flex flex-col gap-0.5">
-					{filteredComponents.map((comp) => (
-						<LibraryPaletteItem key={comp.id} component={comp} />
+				<div className="flex flex-col gap-3">
+					{groups.map(({ id, label, items }) => (
+						<div key={id}>
+							<h3 className="px-2 pb-1 pt-2 text-editor-footnote text-editor-secondary-label">
+								{label}
+							</h3>
+							{items.map((component) => (
+								<LibraryPaletteItem key={component.id} component={component} />
+							))}
+						</div>
 					))}
 					{filteredComponents.length === 0 && (
-						<p className="px-2 py-4 text-center text-xs text-muted-foreground">
+						<p className="px-2 py-4 text-center text-editor-caption text-muted-foreground">
 							No matching components
 						</p>
 					)}
@@ -153,35 +177,8 @@ export function ComponentPalette() {
 	);
 }
 
-function CategoryTab({
-	label,
-	active,
-	onClick,
-}: {
-	label: string;
-	active: boolean;
-	onClick: () => void;
-}) {
-	return (
-		<button
-			type="button"
-			className={cn(
-				"shrink-0 rounded-md px-2 py-1 text-[10px] font-medium transition-colors",
-				active
-					? "bg-accent text-accent-foreground"
-					: "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground",
-			)}
-			onClick={onClick}
-		>
-			{label}
-		</button>
-	);
-}
-
 /** Get the center of the visible canvas area in flow coordinates */
-function getCanvasCenter(
-	screenToFlowPosition: (pos: { x: number; y: number }) => { x: number; y: number },
-) {
+function getCanvasCenter(screenToFlowPosition: ReactFlowInstance["screenToFlowPosition"]) {
 	const canvasEl = document.querySelector(".react-flow");
 	if (!canvasEl) return { x: 200, y: 200 };
 	const rect = canvasEl.getBoundingClientRect();
@@ -189,6 +186,47 @@ function getCanvasCenter(
 		x: rect.left + rect.width / 2,
 		y: rect.top + rect.height / 2,
 	});
+}
+
+function getComponentPosition({
+	screenToFlowPosition,
+	getInternalNode,
+}: Pick<ReactFlowInstance, "screenToFlowPosition" | "getInternalNode">) {
+	const { nodes } = useCanvasStore.getState();
+	const { x, y: centerY } = getCanvasCenter(screenToFlowPosition);
+	const gap = 32;
+	const blocked = nodes
+		.filter((node) => node.type !== "architectureGroup")
+		.flatMap((node) => {
+			const rect = nodeToRect({
+				...node,
+				position: getInternalNode(node.id)?.internals.positionAbsolute ?? node.position,
+			});
+			const bottom = rect.y + rect.height;
+			const right = rect.x + rect.width;
+			if (node.data.isBoundary) {
+				if (x < rect.x || x > right) return [];
+				return [
+					{
+						start:
+							x + DEFAULT_NODE_WIDTH > right
+								? rect.y
+								: Math.max(rect.y, bottom - DEFAULT_NODE_HEIGHT),
+						end: bottom + gap,
+					},
+				];
+			}
+			return x < right + gap && x + DEFAULT_NODE_WIDTH + gap > rect.x
+				? [{ start: rect.y - DEFAULT_NODE_HEIGHT - gap, end: bottom + gap }]
+				: [];
+		})
+		.sort((a, b) => a.start - b.start);
+	let y = centerY;
+	for (const { start, end } of blocked) {
+		if (y < start) break;
+		y = Math.max(y, end);
+	}
+	return { x, y };
 }
 
 /** Create a styled drag ghost image and attach it to the drag event */
@@ -213,22 +251,23 @@ function GenericPaletteItem({
 	type: string;
 	description: string;
 }) {
-	const { screenToFlowPosition } = useReactFlow();
+	const flow = useReactFlow();
 	const icon = type === "trust_boundary" ? undefined : resolveElementIcon({ type });
 
 	const handleDoubleClick = () => {
-		const position = getCanvasCenter(screenToFlowPosition);
 		if (type === "trust_boundary") {
-			useCanvasStore.getState().addTrustBoundary("New Boundary", position);
+			useCanvasStore
+				.getState()
+				.addTrustBoundary("New Boundary", getCanvasCenter(flow.screenToFlowPosition));
 		} else {
-			useCanvasStore.getState().addElement(type, position);
+			useCanvasStore.getState().addElement(type, getComponentPosition(flow));
 		}
 	};
 
 	return (
 		<div
 			data-testid={`palette-item-${type.replace(/_/g, "-")}`}
-			className="flex cursor-grab items-center gap-3 rounded-md border border-transparent px-2 py-2 transition-colors hover:border-border hover:bg-accent"
+			className="flex min-h-9 cursor-grab items-center gap-2 rounded-editor-control px-2 py-1 transition-colors duration-120 ease-editor hover:bg-editor-hover"
 			draggable
 			onDoubleClick={handleDoubleClick}
 			onDragStart={(e) => {
@@ -247,7 +286,7 @@ function GenericPaletteItem({
 				const canvas = document.querySelector(".react-flow");
 				if (!canvas?.contains(target)) return;
 
-				const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+				const position = flow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
 
 				if (draggedType === "trust_boundary") {
 					useCanvasStore.getState().addTrustBoundary("New Boundary", position);
@@ -256,28 +295,27 @@ function GenericPaletteItem({
 				}
 			}}
 		>
-			<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-secondary">
+			<div className="grid size-6 shrink-0 place-items-center">
 				{icon ? (
 					<IconRenderer icon={icon} className="h-4 w-4 text-muted-foreground" />
 				) : (
 					<ShieldAlert className="h-4 w-4 text-muted-foreground" />
 				)}
 			</div>
-			<div className="min-w-0">
-				<p className="text-sm font-medium leading-tight">{label}</p>
-				<p className="text-xs text-muted-foreground truncate">{description}</p>
-			</div>
+			<p title={description} className="min-w-0 truncate text-editor-body">
+				{label}
+			</p>
 		</div>
 	);
 }
 
 /** Library items: specific typed components. */
 function LibraryPaletteItem({ component }: { component: ComponentEntry }) {
-	const { screenToFlowPosition } = useReactFlow();
+	const flow = useReactFlow();
 	const icon = resolveElementIcon({ type: component.id });
 
 	const handleDoubleClick = () => {
-		const position = getCanvasCenter(screenToFlowPosition);
+		const position = getComponentPosition(flow);
 		useCanvasStore
 			.getState()
 			.addElement(component.id, position, { icon: component.iconId, name: component.label });
@@ -286,7 +324,7 @@ function LibraryPaletteItem({ component }: { component: ComponentEntry }) {
 	return (
 		<div
 			data-testid={`palette-item-${component.id.replace(/_/g, "-")}`}
-			className="flex cursor-grab items-center gap-2.5 rounded-md border border-transparent px-2 py-1.5 transition-colors hover:border-border hover:bg-accent"
+			className="flex min-h-9 cursor-grab items-center gap-2 rounded-editor-control px-2 py-1 transition-colors duration-120 ease-editor hover:bg-editor-hover"
 			draggable
 			onDoubleClick={handleDoubleClick}
 			onDragStart={(e) => {
@@ -308,16 +346,16 @@ function LibraryPaletteItem({ component }: { component: ComponentEntry }) {
 				const canvas = document.querySelector(".react-flow");
 				if (!canvas?.contains(target)) return;
 
-				const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+				const position = flow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
 				useCanvasStore
 					.getState()
 					.addElement(draggedType, position, { icon: component.iconId, name: component.label });
 			}}
 		>
-			<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-secondary">
-				<IconRenderer icon={icon} className="h-3.5 w-3.5 text-muted-foreground" />
+			<div className="grid size-6 shrink-0 place-items-center">
+				<IconRenderer icon={icon} className="size-4 text-muted-foreground" />
 			</div>
-			<p className="min-w-0 text-xs font-medium leading-tight truncate">{component.label}</p>
+			<p className="min-w-0 truncate text-editor-body">{component.label}</p>
 		</div>
 	);
 }

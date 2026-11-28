@@ -24,6 +24,21 @@ function bigCall(id: string): ProtocolMessage {
 }
 
 describe("budgetMessages", () => {
+	it("charges the system prompt only once against the window before retaining history", () => {
+		const past = userText("Past");
+		const latest = assistantText("Next");
+		const limits = { maxInputTokens: 20, reserveOutputTokens: 3, system: "s".repeat(32) };
+		expect(budgetMessages([past, latest], limits)).toEqual({ ok: true, messages: [latest] });
+		expect(budgetMessages([past, latest], { ...limits, maxInputTokens: 25 })).toEqual({
+			ok: true,
+			messages: [past, latest],
+		});
+		expect(budgetMessages([latest], { ...limits, maxInputTokens: 19 })).toMatchObject({
+			ok: false,
+			error: { code: "context_overflow" },
+		});
+	});
+
 	it("returns the whole history when it fits", () => {
 		const messages = [userText("Hi"), assistantText("Hello, how can I help?")];
 		const result = budgetMessages(messages, { maxInputTokens: 10_000, reserveOutputTokens: 1000 });

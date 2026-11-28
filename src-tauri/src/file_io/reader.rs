@@ -1,41 +1,31 @@
 use crate::errors::ThreatForgeError;
-use crate::models::{DiagramLayout, Position, Size, ThreatModel, Viewport};
+use crate::models::{DiagramLayout, Position, Size, ThreatModel};
 use std::collections::HashMap;
 use std::path::Path;
 
 /// Read and parse a `.thf` file
+#[cfg(test)]
 pub fn read_threat_model(path: &Path) -> Result<ThreatModel, ThreatForgeError> {
-    let contents = std::fs::read_to_string(path).map_err(|e| ThreatForgeError::FileRead {
-        path: path.display().to_string(),
-        source: e,
-    })?;
-
-    let model: ThreatModel =
-        serde_yaml::from_str(&contents).map_err(|e| ThreatForgeError::YamlParse {
-            path: path.display().to_string(),
-            source: e,
-        })?;
-
-    validate_version(&model.version)?;
-    validate_references(&model)?;
-
-    Ok(model)
+    super::read_document(path).map(|snapshot| snapshot.model)
 }
 
-/// Read a diagram layout JSON file
-pub fn read_layout(path: &Path) -> Result<DiagramLayout, ThreatForgeError> {
-    let contents = std::fs::read_to_string(path).map_err(|e| ThreatForgeError::FileRead {
-        path: path.display().to_string(),
-        source: e,
-    })?;
-
-    let layout: DiagramLayout =
-        serde_json::from_str(&contents).map_err(|e| ThreatForgeError::JsonParse {
-            path: path.display().to_string(),
-            source: e,
-        })?;
-
-    Ok(layout)
+pub(crate) fn validate_model(model: &ThreatModel) -> Result<(), ThreatForgeError> {
+    validate_version(&model.version)?;
+    validate_references(model)?;
+    match model.version.as_str() {
+        "1.1" => validate_sequences(model),
+        _ if model
+            .diagrams
+            .iter()
+            .any(|diagram| diagram.sequence.is_some()) =>
+        {
+            Err(invalid_sequence(
+                "diagrams[].sequence",
+                "requires version 1.1",
+            ))
+        }
+        _ => Ok(()),
+    }
 }
 
 /// Migrate old-format models that use sidecar layout JSON files.
@@ -43,70 +33,100 @@ pub fn read_layout(path: &Path) -> Result<DiagramLayout, ThreatForgeError> {
 /// Detects diagrams with `layout_file: Some(...)` and `viewport: None`,
 /// reads the sidecar JSON, and merges positions into inline model fields.
 /// Failures are non-fatal — missing layout files are silently skipped.
+#[cfg(test)]
 pub fn merge_layout_into_model(model: &mut ThreatModel, model_path: &Path) {
-    let model_dir = match model_path.parent() {
-        Some(dir) => dir,
-        None => return,
-    };
+    let parent = model_path.parent().unwrap().canonicalize().unwrap();
+    let target =
+        super::WriteTarget::from_path(&parent.join(model_path.file_name().unwrap())).unwrap();
+    target.read_layouts(model).merge_into(model);
+}
 
-    for diagram in &mut model.diagrams {
-        // Only migrate if there's a layout_file but no inline viewport yet
-        let layout_file = match (&diagram.layout_file, &diagram.viewport) {
-            (Some(lf), None) => lf.clone(),
-            _ => continue,
-        };
+#[derive(Default, serde::Serialize)]
+pub(crate) struct LegacyLayouts(Vec<(String, String, Option<DiagramLayout>)>);
 
-        let layout_path = model_dir.join(&layout_file);
-        let layout = match read_layout(&layout_path) {
-            Ok(l) => l,
-            Err(_) => continue, // Non-fatal: layout file may not exist
-        };
+impl LegacyLayouts {
+    pub(crate) fn capture(
+        model: &ThreatModel,
+        mut read: impl FnMut(&Path) -> Option<DiagramLayout>,
+    ) -> Self {
+        Self(
+            model
+                .diagrams
+                .iter()
+                .filter_map(|diagram| {
+                    let (Some(layout_file), None) = (&diagram.layout_file, &diagram.viewport)
+                    else {
+                        return None;
+                    };
+                    let layout = read(Path::new(layout_file));
+                    Some((diagram.id.clone(), layout_file.clone(), layout))
+                })
+                .collect(),
+        )
+    }
 
-        // Build lookup from node ID to position data
-        let positions: HashMap<&str, _> = layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 
-        // Merge positions into elements
-        for element in &mut model.elements {
-            if let Some(np) = positions.get(element.id.as_str()) {
-                if element.position.is_none() {
-                    element.position = Some(Position { x: np.x, y: np.y });
-                }
-            }
-        }
+    pub(crate) fn has_unavailable(&self) -> bool {
+        self.0.iter().any(|(_, _, layout)| layout.is_none())
+    }
 
-        // Merge positions and sizes into trust boundaries
-        for boundary in &mut model.trust_boundaries {
-            if let Some(np) = positions.get(boundary.id.as_str()) {
-                if boundary.position.is_none() {
-                    boundary.position = Some(Position { x: np.x, y: np.y });
-                }
-                if boundary.size.is_none() {
-                    if let (Some(w), Some(h)) = (np.width, np.height) {
-                        boundary.size = Some(Size {
-                            width: w,
-                            height: h,
-                        });
+    pub fn merge_into(&self, model: &mut ThreatModel) {
+        for (id, path, layout) in &self.0 {
+            let Some(diagram) = model.diagrams.iter_mut().find(|diagram| {
+                diagram.id == *id
+                    && diagram.layout_file.as_ref() == Some(path)
+                    && diagram.viewport.is_none()
+            }) else {
+                continue;
+            };
+            let Some(layout) = layout else { continue };
+
+            // Build lookup from node ID to position data
+            let positions: HashMap<&str, _> =
+                layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+
+            // Merge positions into elements
+            for element in &mut model.elements {
+                if let Some(np) = positions.get(element.id.as_str()) {
+                    if element.position.is_none() {
+                        element.position = Some(Position { x: np.x, y: np.y });
                     }
                 }
             }
-        }
 
-        // Set diagram viewport from layout
-        diagram.viewport = Some(Viewport {
-            x: layout.viewport.x,
-            y: layout.viewport.y,
-            zoom: layout.viewport.zoom,
-        });
+            // Merge positions and sizes into trust boundaries
+            for boundary in &mut model.trust_boundaries {
+                if let Some(np) = positions.get(boundary.id.as_str()) {
+                    if boundary.position.is_none() {
+                        boundary.position = Some(Position { x: np.x, y: np.y });
+                    }
+                    if boundary.size.is_none() {
+                        if let (Some(w), Some(h)) = (np.width, np.height) {
+                            boundary.size = Some(Size {
+                                width: w,
+                                height: h,
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Set diagram viewport from layout
+            diagram.viewport = Some(layout.viewport.clone());
+        }
     }
 }
 
 /// Validate the schema version is supported
 fn validate_version(version: &str) -> Result<(), ThreatForgeError> {
     match version {
-        "1.0" => Ok(()),
+        "1.0" | "1.1" => Ok(()),
         _ => Err(ThreatForgeError::UnsupportedVersion {
             version: version.to_string(),
-            supported: vec!["1.0".to_string()],
+            supported: vec!["1.0".to_string(), "1.1".to_string()],
         }),
     }
 }
@@ -332,9 +352,148 @@ fn validate_references(model: &ThreatModel) -> Result<(), ThreatForgeError> {
     Ok(())
 }
 
+fn validate_sequences(model: &ThreatModel) -> Result<(), ThreatForgeError> {
+    let elements: Vec<_> = model
+        .elements
+        .iter()
+        .map(|element| element.id.as_str())
+        .collect();
+    let flows: HashMap<_, _> = model
+        .data_flows
+        .iter()
+        .map(|flow| (flow.id.as_str(), flow))
+        .collect();
+    for (index, diagram) in model.diagrams.iter().enumerate() {
+        let Some(sequence) = &diagram.sequence else {
+            continue;
+        };
+        let path = format!("diagrams[{}].sequence", diagram.id);
+        if diagram.kind.as_deref() != Some("sequence") {
+            return Err(invalid_sequence(&path, "requires kind: sequence"));
+        }
+        require_sequence_id(&diagram.id, || format!("diagrams[{index}].id"))?;
+        validate_unique(
+            model
+                .diagrams
+                .iter()
+                .filter(|entry| entry.id == diagram.id)
+                .map(|entry| entry.id.as_str()),
+            "diagrams",
+        )?;
+        for (i, participant) in sequence.participants.iter().enumerate() {
+            require_sequence_id(&participant.id, || format!("{path}.participants[{i}].id"))?;
+        }
+        let participant_ids: Vec<_> = sequence
+            .participants
+            .iter()
+            .map(|participant| participant.id.as_str())
+            .collect();
+        validate_unique(
+            participant_ids.iter().copied(),
+            &format!("{path}.participants"),
+        )?;
+        validate_unique(
+            sequence
+                .participants
+                .iter()
+                .map(|participant| participant.element_id.as_str()),
+            &format!("{path}.participants.element_id"),
+        )?;
+        let mut endpoints = HashMap::new();
+        for participant in &sequence.participants {
+            require_sequence_reference(&participant.element_id, &elements, || {
+                format!("{path}.participants[{}].element_id", participant.id)
+            })?;
+            endpoints.insert(participant.id.as_str(), participant.element_id.as_str());
+        }
+        for (i, message) in sequence.messages.iter().enumerate() {
+            require_sequence_id(&message.id, || format!("{path}.messages[{i}].id"))?;
+        }
+        validate_unique(
+            sequence.messages.iter().map(|message| message.id.as_str()),
+            &format!("{path}.messages"),
+        )?;
+        for message in &sequence.messages {
+            let field = format!("{path}.messages[{}]", message.id);
+            require_sequence_reference(&message.from, &participant_ids, || {
+                format!("{field}.from")
+            })?;
+            require_sequence_reference(&message.to, &participant_ids, || format!("{field}.to"))?;
+            if let Some(id) = &message.flow_id {
+                let Some(flow) = flows.get(id.as_str()) else {
+                    return Err(ThreatForgeError::InvalidReference {
+                        field: format!("{field}.flow_id"),
+                        reference: id.clone(),
+                        valid: model
+                            .data_flows
+                            .iter()
+                            .map(|flow| flow.id.clone())
+                            .collect(),
+                    });
+                };
+                if endpoints.get(message.from.as_str()) != Some(&flow.from.as_str())
+                    || endpoints.get(message.to.as_str()) != Some(&flow.to.as_str())
+                {
+                    return Err(invalid_sequence(
+                        &format!("{field}.flow_id"),
+                        "flow endpoints must match message direction",
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn invalid_sequence(field: &str, reason: &'static str) -> ThreatForgeError {
+    ThreatForgeError::InvalidSequence {
+        field: field.into(),
+        reason,
+    }
+}
+
+fn require_sequence_id(id: &str, field: impl FnOnce() -> String) -> Result<(), ThreatForgeError> {
+    if id.trim().is_empty() {
+        return Err(invalid_sequence(&field(), "ID must not be blank"));
+    }
+    Ok(())
+}
+
+fn require_sequence_reference(
+    id: &str,
+    valid: &[&str],
+    field: impl FnOnce() -> String,
+) -> Result<(), ThreatForgeError> {
+    if !valid.contains(&id) {
+        return Err(ThreatForgeError::InvalidReference {
+            field: field(),
+            reference: id.into(),
+            valid: valid.iter().map(|id| (*id).into()).collect(),
+        });
+    }
+    Ok(())
+}
+
+fn validate_unique<'a>(
+    ids: impl IntoIterator<Item = &'a str>,
+    section: &str,
+) -> Result<(), ThreatForgeError> {
+    let mut seen = std::collections::HashSet::new();
+    for id in ids {
+        if !seen.insert(id) {
+            return Err(ThreatForgeError::DuplicateId {
+                id: id.into(),
+                section: section.into(),
+            });
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::Viewport;
     use std::io::Write;
     use tempfile::{NamedTempFile, TempDir};
 

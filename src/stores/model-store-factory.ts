@@ -1,7 +1,13 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { getStrideAdapter } from "@/lib/adapters/get-stride-adapter";
+import {
+	assertSequencePromotionAllowed,
+	ThfValidationError,
+	validateSequences,
+} from "@/lib/thf-validation";
 import type {
 	DataFlow,
+	Diagram,
 	Element,
 	Metadata,
 	Threat,
@@ -15,6 +21,10 @@ export interface ModelState {
 	model: ThreatModel | null;
 	/** The file path of the currently open model */
 	filePath: string | null;
+	fileRevision?: string;
+	sourceYaml?: string;
+	savedModel?: ThreatModel;
+	fileSync?: "updated" | "conflict" | "unavailable" | "layout-unavailable";
 	/** Whether the model has unsaved changes */
 	isDirty: boolean;
 	/** Currently selected element ID */
@@ -27,9 +37,16 @@ export interface ModelState {
 	selectedThreatId: string | null;
 	/** Whether STRIDE analysis is running */
 	isAnalyzing: boolean;
+	selectedSequenceId: string | null;
+	sequenceError: string | null;
 
 	// Actions
-	setModel: (model: ThreatModel, filePath: string | null) => void;
+	setModel: (
+		model: ThreatModel,
+		filePath: string | null,
+		fileRevision?: string,
+		sourceYaml?: string,
+	) => void;
 	clearModel: () => void;
 	markDirty: () => void;
 	markClean: () => void;
@@ -37,9 +54,13 @@ export interface ModelState {
 	setSelectedEdge: (id: string | null) => void;
 	setSelectedBoundary: (id: string | null) => void;
 	setSelectedThreat: (id: string | null) => void;
+	selectSequence: (id: string | null) => void;
+	editSequenceDiagrams: (diagrams: Diagram[]) => boolean;
+	checkSequenceReferences: (proposed: ThreatModel) => boolean;
 
 	// Metadata editing
 	updateMetadata: (updates: Partial<Metadata>) => void;
+	addArchitectureSection: (kind: "layers" | "groups", name: string) => void;
 
 	// Element editing
 	updateElement: (id: string, updates: Partial<Element>) => void;
@@ -116,28 +137,81 @@ export function createModelStore(deps: ModelStoreDeps): StoreApi<ModelState> {
 		selectedBoundaryId: null,
 		selectedThreatId: null,
 		isAnalyzing: false,
+		selectedSequenceId: null,
+		sequenceError: null,
 
-		setModel: (model, filePath) =>
-			set({
+		setModel: (model, filePath, fileRevision, sourceYaml) =>
+			set((state) => ({
 				model,
 				filePath,
+				fileRevision:
+					fileRevision ?? (state.filePath === filePath ? state.fileRevision : undefined),
+				sourceYaml: sourceYaml ?? (state.filePath === filePath ? state.sourceYaml : undefined),
+				savedModel:
+					sourceYaml === undefined
+						? state.filePath === filePath
+							? state.savedModel
+							: undefined
+						: model,
+				fileSync:
+					state.filePath === filePath &&
+					(fileRevision == null || state.fileRevision === fileRevision)
+						? state.fileSync
+						: undefined,
 				isDirty: false,
 				selectedElementId: null,
 				selectedEdgeId: null,
 				selectedBoundaryId: null,
 				selectedThreatId: null,
-			}),
+			})),
 
 		clearModel: () =>
 			set({
 				model: null,
 				filePath: null,
+				fileRevision: undefined,
+				sourceYaml: undefined,
+				savedModel: undefined,
+				fileSync: undefined,
 				isDirty: false,
 				selectedElementId: null,
 				selectedEdgeId: null,
 				selectedBoundaryId: null,
 				selectedThreatId: null,
+				selectedSequenceId: null,
+				sequenceError: null,
 			}),
+
+		selectSequence: (id) => set({ selectedSequenceId: id, sequenceError: null }),
+		editSequenceDiagrams: (diagrams) => {
+			const { model, sourceYaml } = get();
+			if (!model) return false;
+			try {
+				assertSequencePromotionAllowed(model, sourceYaml);
+				const proposed = { ...model, version: "1.1", diagrams };
+				validateSequences(proposed);
+				captureHistory(model);
+				set({ model: proposed, isDirty: true, sequenceError: null });
+				return true;
+			} catch (error) {
+				if (!(error instanceof ThfValidationError)) throw error;
+				set({ sequenceError: error.message });
+				return false;
+			}
+		},
+		checkSequenceReferences: (proposed) => {
+			try {
+				validateSequences(proposed);
+				if (get().sequenceError) set({ sequenceError: null });
+				return true;
+			} catch (error) {
+				if (!(error instanceof ThfValidationError)) throw error;
+				set({
+					sequenceError: `Graph edit refused. ${error.message} Unlink or remove the sequence reference first.`,
+				});
+				return false;
+			}
+		},
 
 		markDirty: () => set({ isDirty: true }),
 		markClean: () => set({ isDirty: false }),
@@ -170,6 +244,19 @@ export function createModelStore(deps: ModelStoreDeps): StoreApi<ModelState> {
 			});
 		},
 
+		addArchitectureSection: (kind, name) => {
+			const { model } = get();
+			const label = name.trim();
+			if (!model || !label) return;
+
+			captureHistory(model);
+			const entry = { id: `${kind}-${crypto.randomUUID()}`, name: label };
+			set({
+				model: { ...model, [kind]: [...(model[kind] ?? []), entry] },
+				isDirty: true,
+			});
+		},
+
 		updateElement: (id, updates) => {
 			const { model } = get();
 			if (!model) return;
@@ -186,10 +273,16 @@ export function createModelStore(deps: ModelStoreDeps): StoreApi<ModelState> {
 			const { model } = get();
 			if (!model) return;
 
-			captureHistoryDebounced(model, `flow:${id}`);
 			const updatedFlows = model.data_flows.map((f) => (f.id === id ? { ...f, ...updates } : f));
+			const proposed = { ...model, data_flows: updatedFlows };
+			if (
+				(updates.from !== undefined || updates.to !== undefined) &&
+				!get().checkSequenceReferences(proposed)
+			)
+				return;
+			captureHistoryDebounced(model, `flow:${id}`);
 			set({
-				model: { ...model, data_flows: updatedFlows },
+				model: proposed,
 				isDirty: true,
 			});
 		},
@@ -256,10 +349,32 @@ export function createModelStore(deps: ModelStoreDeps): StoreApi<ModelState> {
 		},
 
 		restoreSnapshot: (snapshot) => {
+			const {
+				selectedElementId,
+				selectedEdgeId,
+				selectedBoundaryId,
+				selectedThreatId,
+				selectedSequenceId,
+			} = get();
 			resetDebounce();
 			set({
 				model: snapshot,
 				isDirty: true,
+				selectedElementId: snapshot.elements.some(({ id }) => id === selectedElementId)
+					? selectedElementId
+					: null,
+				selectedEdgeId: snapshot.data_flows.some(({ id }) => id === selectedEdgeId)
+					? selectedEdgeId
+					: null,
+				selectedBoundaryId: snapshot.trust_boundaries.some(({ id }) => id === selectedBoundaryId)
+					? selectedBoundaryId
+					: null,
+				selectedThreatId: snapshot.threats.some(({ id }) => id === selectedThreatId)
+					? selectedThreatId
+					: null,
+				selectedSequenceId: snapshot.diagrams.some(({ id }) => id === selectedSequenceId)
+					? selectedSequenceId
+					: null,
 			});
 		},
 

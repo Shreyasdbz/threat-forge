@@ -1,5 +1,5 @@
 /**
- * Mid-turn approval cards for the bounded tool loop.
+ * Tool call results for the bounded tool loop.
  *
  * Each card renders one of the seven call statuses with the affordances from the
  * turn machine's status table. Every piece of model-derived text — the summary,
@@ -13,7 +13,7 @@
 import { AlertCircle, Ban, Check, Loader2, Play, Undo2 } from "lucide-react";
 import { useState } from "react";
 import type { DenialReason } from "@/lib/ai/loop/authorization";
-import type { CallRecord, CallStatus } from "@/lib/ai/loop/turn-machine";
+import type { CallStatus } from "@/lib/ai/loop/turn-machine";
 import { cn } from "@/lib/utils";
 import type { ToolCallPresentation } from "@/types/chat-session";
 
@@ -75,12 +75,10 @@ function deniedLabel(reason: DenialReason | null): string {
 
 export interface ToolCallCardProps {
 	call: ToolCallPresentation;
-	onApprove?: (id: string) => void;
-	onDeny?: (id: string) => void;
 }
 
 /** One tool call, rendered per its status. */
-export function ToolCallCard({ call, onApprove, onDeny }: ToolCallCardProps) {
+export function ToolCallCard({ call }: ToolCallCardProps) {
 	// Creation IDs are provider feedback; the readable summary and chip show the outcome here.
 	const creationApplied =
 		CREATION_TOOLS.has(call.toolName) && (call.status === "succeeded" || call.status === "undone");
@@ -98,7 +96,11 @@ export function ToolCallCard({ call, onApprove, onDeny }: ToolCallCardProps) {
 			<CallIcon status={call.status} />
 			<div className="min-w-0 flex-1">
 				<div className={cn(call.status === "undone" && "line-through opacity-70")}>
-					<ExpandableText text={call.summary} />
+					{call.destructive ? (
+						<span className="whitespace-pre-wrap break-words">{call.summary}</span>
+					) : (
+						<ExpandableText text={call.summary} />
+					)}
 				</div>
 				{call.result !== null &&
 					!creationApplied &&
@@ -114,7 +116,7 @@ export function ToolCallCard({ call, onApprove, onDeny }: ToolCallCardProps) {
 						</div>
 					)}
 			</div>
-			<CallAffordance call={call} onApprove={onApprove} onDeny={onDeny} />
+			<CallAffordance call={call} />
 		</div>
 	);
 }
@@ -139,35 +141,14 @@ function CallIcon({ status }: { status: CallStatus }) {
 	}
 }
 
-/** The buttons or chip a call shows for its status. Exhaustive over the status union. */
-function CallAffordance({ call, onApprove, onDeny }: ToolCallCardProps) {
+function CallAffordance({ call }: ToolCallCardProps) {
 	switch (call.status) {
 		case "pending":
-			if (!onApprove || !onDeny) return <StatusChip label="Awaiting review" tone="muted" />;
-			return (
-				<div className="flex shrink-0 items-center gap-1">
-					<button
-						type="button"
-						onClick={() => onApprove(call.id)}
-						className="rounded-md bg-primary px-2 py-1 font-medium text-primary-foreground hover:bg-primary/90"
-						title={call.destructive ? "Approve this destructive change" : "Approve this change"}
-					>
-						Approve
-					</button>
-					<button
-						type="button"
-						onClick={() => onDeny(call.id)}
-						className="rounded-md px-2 py-1 text-muted-foreground hover:text-destructive"
-						title="Decline this change"
-					>
-						Deny
-					</button>
-				</div>
-			);
+			return <StatusChip label="Awaiting review" tone="muted" />;
 		case "approved":
 			return <StatusChip label="Queued" tone="muted" />;
 		case "running":
-			return <StatusChip label="Applying…" tone="muted" />;
+			return <StatusChip label="Preparing…" tone="muted" />;
 		case "succeeded":
 			return <StatusChip label="Applied" tone="success" />;
 		case "failed":
@@ -179,76 +160,4 @@ function CallAffordance({ call, onApprove, onDeny }: ToolCallCardProps) {
 		default:
 			return assertNever(call.status);
 	}
-}
-
-export interface ToolCallBatchProps {
-	calls: CallRecord[];
-	onApprove: (id: string) => void;
-	onDeny: (id: string) => void;
-	onApproveBatch: (ids: string[]) => void;
-}
-
-/**
- * The batch header plus the list of cards.
- *
- * "Approve all N" grants only the non-destructive pending calls, and names the
- * excluded destructive count so the consequence of the click is unmistakable.
- * One polite live region per turn announces status changes to assistive tech.
- */
-export function ToolCallBatch({ calls, onApprove, onDeny, onApproveBatch }: ToolCallBatchProps) {
-	const pending = calls.filter((c) => c.status === "pending");
-	const batchable = pending.filter((c) => !c.destructive);
-	const destructivePending = pending.length - batchable.length;
-
-	return (
-		<div className="flex flex-col gap-1.5 border-t border-border/30 pt-1.5">
-			<div className="flex items-center justify-between gap-2">
-				<span className="text-[11px] font-medium text-muted-foreground">
-					Suggested changes ({calls.length})
-				</span>
-				{batchable.length > 1 && (
-					<button
-						type="button"
-						onClick={() => onApproveBatch(batchable.map((c) => c.id))}
-						className="flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary hover:bg-primary/20"
-						title={
-							destructivePending > 0
-								? `Approve ${batchable.length} changes; the ${destructivePending} destructive change(s) must be approved individually`
-								: `Approve all ${batchable.length} changes`
-						}
-					>
-						<Play className="h-2.5 w-2.5" />
-						Approve all {batchable.length}
-						{destructivePending > 0 ? ` (excludes ${destructivePending} destructive)` : ""}
-					</button>
-				)}
-			</div>
-
-			{/* One polite live region per turn announces status changes. */}
-			<output aria-live="polite" className="sr-only">
-				{summarizeStatuses(calls)}
-			</output>
-
-			{calls.map((call) => (
-				<ToolCallCard key={call.id} call={call} onApprove={onApprove} onDeny={onDeny} />
-			))}
-		</div>
-	);
-}
-
-/** A short, plain-text announcement of the batch's current state. */
-function summarizeStatuses(calls: CallRecord[]): string {
-	const count = (status: CallStatus) => calls.filter((c) => c.status === status).length;
-	const parts: string[] = [];
-	const pending = count("pending");
-	const applied = count("succeeded");
-	const failed = count("failed");
-	const denied = count("denied");
-	const undone = count("undone");
-	if (pending > 0) parts.push(`${pending} awaiting review`);
-	if (applied > 0) parts.push(`${applied} applied`);
-	if (failed > 0) parts.push(`${failed} failed`);
-	if (denied > 0) parts.push(`${denied} not run`);
-	if (undone > 0) parts.push(`${undone} undone`);
-	return parts.join(", ");
 }

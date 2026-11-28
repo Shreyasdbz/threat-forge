@@ -4,13 +4,18 @@ import { describe, expect, it, vi } from "vitest";
 import type { DfdNodeData } from "@/stores/canvas-store";
 import { DfdElementNode } from "./dfd-element-node";
 
+const renderHandle = vi.hoisted(() => vi.fn());
+
 // `Handle` only needs to render something inert here — this file asserts on the wrapper's
 // ancestry, not on handle visibility (covered by shared-handles.test.tsx).
 vi.mock("@xyflow/react", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@xyflow/react")>();
 	return {
 		...actual,
-		Handle: ({ id }: { id: string }) => <div data-testid={`handle-${id}`} />,
+		Handle: ({ id }: { id: string }) => {
+			renderHandle();
+			return <div data-testid={`handle-${id}`} />;
+		},
 	};
 });
 
@@ -54,4 +59,16 @@ describe("DfdElementNode group ancestor", () => {
 		const handle = screen.getByTestId("handle-top-target");
 		expect(handle.closest(".group")).not.toBeNull();
 	});
+});
+
+it("does not rebuild an element's handles when React Flow measures or moves the wrapper", () => {
+	const props = makeProps("generic");
+	const { rerender } = render(<DfdElementNode {...props} />);
+	const handleRenders = renderHandle.mock.calls.length;
+	const measured = { ...props, width: 208, height: 72, positionAbsoluteX: 50 };
+	rerender(<DfdElementNode {...measured} />);
+	expect(renderHandle).toHaveBeenCalledTimes(handleRenders);
+
+	rerender(<DfdElementNode {...measured} data={{ ...props.data, label: "Updated" }} />);
+	expect(screen.getByText("Updated")).toBeVisible();
 });

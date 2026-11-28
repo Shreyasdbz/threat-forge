@@ -1,6 +1,8 @@
 import type { NodeProps } from "@xyflow/react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { IconRenderer } from "@/components/icons/icon-renderer";
+import { useCanvasDraft } from "@/hooks/use-canvas-draft";
+import { DEFAULT_NODE_WIDTH } from "@/lib/canvas-utils";
 import { resolveComponent, resolveElementIcon } from "@/lib/registry/registry";
 import type { ShapeKind } from "@/lib/registry/types";
 import { cn } from "@/lib/utils";
@@ -28,20 +30,23 @@ function hexToRgba(hex: string, opacity: number): string {
 function shapeClass(shape: ShapeKind): string {
 	switch (shape) {
 		case "database":
-			return "border-y-2";
+			return "rounded-editor-control border-y";
 		case "rect":
-			return "border-2";
+			return "rounded-editor-control border";
 		case "hexagon":
 			return "";
 		default:
 			// rounded
-			return "rounded-2xl border-2";
+			return "rounded-editor-panel border";
 	}
 }
 
-export function DfdElementNode({ id, data, selected }: NodeProps) {
+type ElementNodeProps = Pick<NodeProps, "id" | "data" | "selected">;
+
+function ElementNode({ id, data, selected }: ElementNodeProps) {
 	const nodeData = data as DfdNodeData;
 	const [isEditing, setIsEditing] = useState(false);
+	useCanvasDraft(isEditing);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const threatCount = useThreatCount(id);
 
@@ -89,24 +94,24 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 
 	const isHexagon = shape === "hexagon";
 
-	const hexBorderColor = strokeColor
-		? hexToRgba(strokeColor, strokeOpacity)
-		: selected
-			? "hsl(var(--tf-signal))"
-			: "hsl(var(--border))";
-	const hexFillColor = fillColor ? hexToRgba(fillColor, fillOpacity) : "hsl(var(--card))";
+	const hexBorderColor = selected
+		? "var(--editor-accent)"
+		: strokeColor
+			? hexToRgba(strokeColor, strokeOpacity)
+			: "var(--editor-outline)";
+	const hexFillColor = fillColor ? hexToRgba(fillColor, fillOpacity) : "var(--editor-surface)";
 
 	const innerContent = (
 		<>
 			<NodeHandles />
 
-			<div className="text-center">
+			<div className="min-w-0 text-center">
 				{isEditing ? (
 					<input
 						ref={inputRef}
 						defaultValue={nodeData.label}
 						autoFocus
-						className="w-full bg-transparent text-center text-sm font-medium text-foreground outline-none"
+						className="w-full bg-transparent text-center text-editor-headline text-foreground outline-none"
 						onBlur={(e) => commitLabel(e.target.value)}
 						onKeyDown={(e) => {
 							e.stopPropagation();
@@ -116,26 +121,18 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 					/>
 				) : (
 					<div
-						className="flex items-center justify-center gap-1.5 text-sm font-medium text-foreground cursor-text"
+						className="flex items-center justify-center gap-2 text-editor-headline text-foreground cursor-text"
 						onDoubleClick={() => setIsEditing(true)}
 					>
 						<IconRenderer icon={resolvedIcon} className="h-4 w-4 shrink-0 text-muted-foreground" />
-						<span>{nodeData.label}</span>
+						<span title={nodeData.label} className="truncate">
+							{nodeData.label}
+						</span>
 					</div>
 				)}
-				{nodeData.trustZone && (
-					<div className="mt-0.5 text-[10px] text-muted-foreground">{nodeData.trustZone}</div>
-				)}
-				{nodeData.technologies.length > 0 && (
-					<div className="mt-1 flex flex-wrap justify-center gap-0.5">
-						{nodeData.technologies.map((tech) => (
-							<span
-								key={tech}
-								className="rounded bg-secondary px-1 py-px text-[9px] text-muted-foreground"
-							>
-								{tech}
-							</span>
-						))}
+				{(nodeData.trustZone || nodeData.technologies.length > 0) && (
+					<div className="mt-1 truncate text-editor-caption text-muted-foreground [font-kerning:normal] [font-optical-sizing:auto]">
+						{[nodeData.trustZone, nodeData.technologies.join(" · ")].filter(Boolean).join(" / ")}
 					</div>
 				)}
 			</div>
@@ -150,13 +147,7 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 		return (
 			<div
 				data-testid={`node-${id}`}
-				className="relative"
-				style={{
-					filter:
-						connectedToSelectedEdge && !selected
-							? "drop-shadow(0 0 6px hsl(var(--tf-signal) / 0.3)) drop-shadow(0 4px 3px rgba(0,0,0,0.07))"
-							: "drop-shadow(0 4px 3px rgba(0,0,0,0.07)) drop-shadow(0 2px 2px rgba(0,0,0,0.06))",
-				}}
+				className={cn("relative", nodeData.elementSize && "h-full w-full")}
 			>
 				{/* Hexagonal fill background */}
 				<div
@@ -174,15 +165,17 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 						points="25,0 75,0 100,50 75,100 25,100 0,50"
 						fill="none"
 						stroke={hexBorderColor}
-						strokeWidth="2"
+						strokeWidth="1.25"
 						vectorEffect="non-scaling-stroke"
 					/>
 				</svg>
 				{/* Content — positioned above the fill and stroke layers */}
 				<div
 					className={cn(
-						"group relative flex min-w-[140px] items-center justify-center px-8 py-3 transition-colors",
+						"group relative flex items-center justify-center px-5 py-3 transition-colors",
+						nodeData.elementSize ? "h-full w-full overflow-hidden" : "min-h-[72px]",
 					)}
+					style={nodeData.elementSize ? undefined : { width: DEFAULT_NODE_WIDTH }}
 				>
 					{innerContent}
 				</div>
@@ -194,18 +187,25 @@ export function DfdElementNode({ id, data, selected }: NodeProps) {
 		<div
 			data-testid={`node-${id}`}
 			className={cn(
-				"group relative flex min-w-[140px] items-center justify-center bg-card px-4 py-3 shadow-md transition-colors",
+				"group relative flex items-center justify-center bg-editor-surface px-3 py-2 transition-colors",
+				nodeData.elementSize ? "h-full w-full overflow-hidden" : "min-h-[72px]",
 				shapeClass(shape),
-				!hasCustomColors && (selected ? "border-tf-signal shadow-tf-signal/20" : "border-border"),
-				hasCustomColors && selected && "ring-2 ring-tf-signal ring-offset-1 ring-offset-background",
-				connectedToSelectedEdge && !selected && "ring-2 ring-tf-signal/30",
+				!hasCustomColors && (selected ? "border-editor-accent" : "border-editor-outline"),
+				hasCustomColors && selected && "outline outline-1 outline-editor-accent",
+				connectedToSelectedEdge && !selected && "outline outline-1 outline-editor-accent/50",
 			)}
-			style={hasCustomColors ? customStyle : undefined}
+			style={{ width: nodeData.elementSize ? undefined : DEFAULT_NODE_WIDTH, ...customStyle }}
 		>
 			{innerContent}
 		</div>
 	);
 }
+
+export const DfdElementNode = memo(
+	ElementNode,
+	(previous, next) =>
+		previous.id === next.id && previous.data === next.data && previous.selected === next.selected,
+);
 
 function syncNodeLabel(elementId: string, name: string) {
 	const nodes = useCanvasStore.getState().nodes;

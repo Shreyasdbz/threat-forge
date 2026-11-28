@@ -3,7 +3,7 @@ import { buildLayoutFromModel } from "@/lib/model-layout-utils";
 import type { ThreatModel } from "@/types/threat-model";
 import { useCanvasInstanceStore } from "./canvas-instance-store";
 import { useCanvasStore } from "./canvas-store";
-import { useHistoryStore } from "./history-store";
+import { restoreHistorySnapshot, useHistoryStore } from "./history-store";
 import { useModelStore } from "./model-store";
 
 function createTestModel(): ThreatModel {
@@ -98,6 +98,101 @@ describe("canvas-store", () => {
 		expect(edges[0].target).toBe("data-store-1");
 	});
 
+	it("projects groups after boundaries and avoids generated group ID collisions", () => {
+		const model = createTestModel();
+		model.groups = [{ id: "core", name: "Core", stroke_color: "#059669" }];
+		model.elements[1].id = "architecture-group:core";
+		model.elements[1].group = "core";
+		model.data_flows[0].to = model.elements[1].id;
+		model.trust_boundaries[0].contains[1] = model.elements[1].id;
+
+		useModelStore.getState().setModel(model, null);
+		useCanvasStore.getState().syncFromModel();
+
+		const { nodes, edges } = useCanvasStore.getState();
+		expect(nodes.map(({ id }) => id)).toEqual([
+			"boundary-1",
+			":architecture-group:core",
+			"process-1",
+			"architecture-group:core",
+		]);
+		expect(nodes[1]).toMatchObject({
+			type: "architectureGroup",
+			position: { x: 680, y: 0 },
+			selectable: false,
+			connectable: false,
+			focusable: false,
+			data: { architectureGroupId: "core", groupAccent: "#059669" },
+		});
+		expect(nodes[3]).toMatchObject({ parentId: "boundary-1", extent: "parent" });
+		expect(edges[0].target).toBe("architecture-group:core");
+	});
+
+	it("prefers pending layout over live geometry, and live positions over inline ones", () => {
+		const model = createTestModel();
+		model.elements[1].position = { x: 300, y: 350 };
+		model.trust_boundaries[0].size = { width: 400, height: 300 };
+		useModelStore.getState().setModel(model, null);
+		useCanvasStore.getState().syncFromModel();
+		model.elements[1].position = { x: 400, y: 450 };
+		useCanvasStore.getState().setPendingLayout({
+			diagram_id: "main",
+			viewport: { x: 20, y: 40, zoom: 0.75 },
+			nodes: [
+				{ id: "boundary-1", x: 25, y: 35, width: 500, height: 350 },
+				{ id: "process-1", x: 125, y: 135 },
+			],
+		});
+		useCanvasStore.getState().syncFromModel();
+
+		const { nodes, pendingLayout, viewport } = useCanvasStore.getState();
+		expect(nodes[0]).toMatchObject({
+			position: { x: 25, y: 35 },
+			width: 500,
+			height: 350,
+			style: { width: 500, height: 350, pointerEvents: "none" },
+		});
+		expect(nodes[1].position).toEqual({ x: 125, y: 135 });
+		expect(nodes[2].position).toEqual({ x: 300, y: 350 });
+		expect(pendingLayout).toBeNull();
+		expect(viewport).toEqual({ x: 20, y: 40, zoom: 0.75 });
+	});
+
+	it("retains canvas flow handles and label offsets only when the model omits them", () => {
+		const model = createTestModel();
+		useModelStore.getState().setModel(model, null);
+		useCanvasStore.getState().syncFromModel();
+		const [edge] = useCanvasStore.getState().edges;
+		useCanvasStore.setState({
+			edges: [
+				{
+					...edge,
+					sourceHandle: "right-source",
+					targetHandle: "left-target",
+					data: edge.data && { ...edge.data, labelOffsetX: 0, labelOffsetY: -8 },
+				},
+			],
+		});
+		useCanvasStore.getState().syncFromModel();
+		expect(useCanvasStore.getState().edges[0]).toMatchObject({
+			sourceHandle: "right-source",
+			targetHandle: "left-target",
+			data: { labelOffsetX: 0, labelOffsetY: -8 },
+		});
+
+		Object.assign(model.data_flows[0], {
+			source_handle: "top",
+			target_handle: "bottom",
+			label_offset: { x: 12, y: 0 },
+		});
+		useCanvasStore.getState().syncFromModel();
+		expect(useCanvasStore.getState().edges[0]).toMatchObject({
+			sourceHandle: "top-source",
+			targetHandle: "bottom-target",
+			data: { labelOffsetX: 12, labelOffsetY: 0 },
+		});
+	});
+
 	it("clears nodes and edges when model is null", () => {
 		// First sync with a model
 		useModelStore.getState().setModel(createTestModel(), null);
@@ -110,6 +205,19 @@ describe("canvas-store", () => {
 
 		expect(useCanvasStore.getState().nodes).toHaveLength(0);
 		expect(useCanvasStore.getState().edges).toHaveLength(0);
+	});
+
+	it("projects explicit element dimensions without resizing legacy elements", () => {
+		const model = createTestModel();
+		model.elements[0].size = { width: 200, height: 90 };
+		useModelStore.getState().setModel(model, null);
+		useCanvasStore.getState().syncFromModel();
+
+		const { nodes } = useCanvasStore.getState();
+		const resized = nodes.find((node) => node.id === "process-1");
+		expect(resized).toMatchObject({ width: 200, height: 90, style: { width: 200, height: 90 } });
+		const legacy = nodes.find((node) => node.id === "data-store-1");
+		expect(legacy?.width).toBeUndefined();
 	});
 
 	it("adds a new element to canvas and model", () => {
@@ -227,7 +335,7 @@ describe("canvas-store", () => {
 		expect(model?.data_flows).toHaveLength(2);
 	});
 
-	it("passes source and target handles when provided", () => {
+	it("maps bare handle IDs for rendering while retaining them in the model", () => {
 		useModelStore.getState().setModel(createTestModel(), null);
 		useCanvasStore.getState().syncFromModel();
 
@@ -240,13 +348,15 @@ describe("canvas-store", () => {
 		const { edges } = useCanvasStore.getState();
 		const newEdge = edges.find((e) => e.source === "data-store-1" && e.target === "process-1");
 		expect(newEdge).toBeDefined();
-		expect(newEdge?.sourceHandle).toBe("bottom");
-		expect(newEdge?.targetHandle).toBe("top");
+		expect(newEdge?.sourceHandle).toBe("bottom-source");
+		expect(newEdge?.targetHandle).toBe("top-target");
 
 		// Model store should have the name
 		const model = useModelStore.getState().model;
 		const flow = model?.data_flows.find((f) => f.from === "data-store-1" && f.to === "process-1");
 		expect(flow?.name).toBe("Query Response");
+		expect(flow?.source_handle).toBe("bottom");
+		expect(flow?.target_handle).toBe("top");
 	});
 
 	it("duplicates an element", () => {
@@ -496,6 +606,32 @@ describe("canvas-store", () => {
 		// Position should be restored to pre-drag
 		const restoredNode = useCanvasStore.getState().nodes.find((n) => n.id === "process-1");
 		expect(restoredNode?.position).toEqual({ x: 100, y: 100 });
+	});
+
+	it("keeps the live viewport when undo and redo project historical node positions", () => {
+		const original = createTestModel();
+		original.diagrams = [{ id: "main", name: "Main" }];
+		original.elements[0].position = { x: 100, y: 100 };
+		const moved = structuredClone(original);
+		moved.elements[0].position = { x: 500, y: 500 };
+		useModelStore.getState().setModel(moved, null);
+		useHistoryStore.getState().pushSnapshot(original);
+		const viewport = { x: -305, y: 41, zoom: 0.25 };
+		useCanvasStore.getState().setViewport(viewport);
+		const position = () =>
+			useCanvasStore.getState().nodes.find((node) => node.id === "process-1")?.position;
+
+		const undo = useHistoryStore.getState().undo(moved);
+		if (!undo) throw new Error("Missing undo snapshot");
+		restoreHistorySnapshot(undo);
+		expect(position()).toEqual({ x: 100, y: 100 });
+		expect(useCanvasStore.getState().viewport).toEqual(viewport);
+
+		const redo = useHistoryStore.getState().redo(undo);
+		if (!redo) throw new Error("Missing redo snapshot");
+		restoreHistorySnapshot(redo);
+		expect(position()).toEqual({ x: 500, y: 500 });
+		expect(useCanvasStore.getState().viewport).toEqual(viewport);
 	});
 
 	it("creates element with subtype and icon from opts", () => {

@@ -84,7 +84,9 @@ test.describe("Browser workspace restore across reload", () => {
 		// tab switch, so the persisted active pointer is unambiguously the newest document.
 		await createNamedDocument(page, "Alpha Service");
 		await createNamedDocument(page, "Bravo Service");
-		await expect(page.getByRole("tab")).toHaveCount(2);
+		await expect(
+			page.getByRole("tablist", { name: "Open documents" }).getByRole("tab"),
+		).toHaveCount(2);
 
 		await page.reload();
 
@@ -92,7 +94,7 @@ test.describe("Browser workspace restore across reload", () => {
 		// boot restore hydrated only the active Bravo. Before the #54/#56 rendering seam was closed,
 		// the inactive tab was missing entirely here because the strip rendered only the registry's
 		// hydrated documents — so this count is the assertion that fails on the bug.
-		const tabs = page.getByRole("tab");
+		const tabs = page.getByRole("tablist", { name: "Open documents" }).getByRole("tab");
 		await expect(tabs).toHaveCount(2);
 
 		// Persisted order is creation order [Alpha, Bravo], and the persisted active pointer is the
@@ -127,7 +129,7 @@ test.describe("Browser workspace restore across reload", () => {
 		await createNamedDocument(page, "Alpha Service");
 		await createNamedDocument(page, "Bravo Service");
 
-		const tabs = page.getByRole("tab");
+		const tabs = page.getByRole("tablist", { name: "Open documents" }).getByRole("tab");
 		await tabs.nth(0).click();
 		await expect(tabs.nth(0)).toHaveAttribute("aria-selected", "true");
 		const alphaNode = page.locator("[data-testid^='node-']").first();

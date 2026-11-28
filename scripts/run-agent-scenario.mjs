@@ -115,7 +115,7 @@ export const SCENARIOS = {
 		titles: [
 			"approving a tool call adds the element to the canvas",
 			"stopping while a call is pending leaves the canvas unchanged",
-			"denying a call keeps the canvas unchanged and continues the turn",
+			"rejecting a proposal keeps the canvas unchanged",
 			"undoing the turn removes the applied element in one step",
 		],
 	},

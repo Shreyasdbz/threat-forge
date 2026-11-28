@@ -84,22 +84,12 @@ export function openWorkspaceDb(options: OpenWorkspaceDbOptions = {}): Promise<I
 	} = options;
 
 	return new Promise<IDBDatabase>((resolve, reject) => {
-		const factory = globalThis.indexedDB;
-		if (!factory) {
-			reject(
-				new WorkspaceStorageError(
-					"unavailable",
-					"Local storage is unavailable, so this workspace cannot be saved.",
-				),
-			);
-			return;
-		}
-
 		let request: IDBOpenDBRequest;
 		try {
+			const factory = globalThis.indexedDB;
+			if (!factory) throw mapOpenError(undefined);
 			request = factory.open(name, version);
 		} catch (error) {
-			// Some private-mode browsers throw synchronously from `open()`.
 			reject(mapOpenError(error));
 			return;
 		}

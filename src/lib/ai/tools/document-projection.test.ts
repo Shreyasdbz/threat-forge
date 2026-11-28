@@ -36,7 +36,6 @@ function richModel(overrides: Partial<ThreatModel> = {}): ThreatModel {
 				technologies: ["react", "vite"],
 				tags: ["frontend"],
 				stores: ["session"],
-				// Layout fields that must never be projected.
 				position: { x: 10, y: 20 },
 				fill_color: "#fff",
 				stroke_color: "#000",
@@ -71,7 +70,15 @@ function richModel(overrides: Partial<ThreatModel> = {}): ThreatModel {
 				authenticated: false,
 			},
 		],
-		trust_boundaries: [{ id: "tb1", name: "Internal", contains: ["web-app", "db"] }],
+		trust_boundaries: [
+			{
+				id: "tb1",
+				name: "Internal",
+				contains: ["web-app", "db"],
+				position: { x: 1, y: 2 },
+				size: { width: 400, height: 200 },
+			},
+		],
 		relationships: [{ id: "r1", type: "depends_on", from: "web-app", to: "db" }],
 		threats: [
 			{
@@ -126,10 +133,15 @@ describe("full projection derived reference lists", () => {
 		expect(full?.threat_ids).toEqual(["t1"]);
 	});
 
-	it("excludes every layout/style field from the full element projection", () => {
+	it("keeps saved placement geometry but excludes styles from full reads", () => {
 		const full = getFullEntity(richModel(), "elements", "web-app");
+		expect(full?.position).toEqual({ x: 10, y: 20 });
+		expect(getFullEntity(richModel(), "elements", "db")).not.toHaveProperty("position");
+		expect(getFullEntity(richModel(), "trust_boundaries", "tb1")).toMatchObject({
+			position: { x: 1, y: 2 },
+			size: { width: 400, height: 200 },
+		});
 		for (const forbidden of [
-			"position",
 			"fill_color",
 			"stroke_color",
 			"fill_opacity",

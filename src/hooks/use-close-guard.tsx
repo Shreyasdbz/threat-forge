@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { documentDisplayTitle } from "@/lib/document-display-title";
 import { isTauri } from "@/lib/platform";
 import { useDocumentRegistry } from "@/stores/document-registry";
@@ -232,15 +232,22 @@ function CloseSummaryModal({
 	onCancel: () => void;
 	onConfirm: () => void;
 }) {
+	const dialog = useRef<HTMLDialogElement>(null);
+
+	useEffect(() => {
+		dialog.current?.showModal();
+	}, []);
+
 	return (
-		<div
-			role="dialog"
-			aria-modal="true"
+		<dialog
+			ref={dialog}
 			aria-labelledby="close-guard-title"
 			data-testid="close-guard-modal"
-			className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+			className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-md rounded-lg border border-border bg-card p-4 shadow-2xl backdrop:bg-black/50"
+			onKeyDown={(event) => event.stopPropagation()}
+			onClose={onCancel}
 		>
-			<div className="w-full max-w-md rounded-lg border border-border bg-card p-4 shadow-2xl">
+			<div>
 				<h2 id="close-guard-title" className="text-sm font-semibold text-foreground">
 					Unsaved changes
 				</h2>
@@ -259,20 +266,26 @@ function CloseSummaryModal({
 				<div className="mt-4 flex justify-end gap-2">
 					<button
 						type="button"
-						onClick={onCancel}
+						onClick={() => {
+							dialog.current?.close();
+							onCancel();
+						}}
 						className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent"
 					>
 						Cancel
 					</button>
 					<button
 						type="button"
-						onClick={onConfirm}
+						onClick={() => {
+							dialog.current?.close();
+							onConfirm();
+						}}
 						className="rounded-md bg-destructive px-3 py-1.5 text-sm text-destructive-foreground hover:bg-destructive/90"
 					>
 						{confirmLabel}
 					</button>
 				</div>
 			</div>
-		</div>
+		</dialog>
 	);
 }

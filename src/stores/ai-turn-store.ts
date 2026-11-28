@@ -28,9 +28,9 @@ interface AiTurnState {
 	turnStartIndex: number;
 	getToolCallPresentation: (message: ProtocolMessage) => readonly ToolCallPresentation[];
 	submitTurn: (text: string, model: ThreatModel) => Promise<void>;
-	approveCall: (id: string) => void;
-	approveBatch: (ids: readonly string[]) => void;
-	denyCall: (id: string) => void;
+	selectProposal: (token: symbol, ids: readonly string[]) => void;
+	applyProposal: (token: symbol) => void;
+	rejectProposal: (token: symbol) => void;
 	/** Cancel the live turn. Idempotent when idle or already settled. */
 	cancelActiveTurn: () => void;
 	undoTurn: () => void;
@@ -99,6 +99,7 @@ function isLive(phase: TurnState["phase"] | undefined): boolean {
 	return (
 		phase === "requesting" ||
 		phase === "streaming" ||
+		phase === "preparing_review" ||
 		phase === "awaiting_approval" ||
 		phase === "executing"
 	);
@@ -120,6 +121,10 @@ export const useAiTurnStore = create<AiTurnState>((set) => ({
 
 		const provider = useChatStore.getState().provider;
 		const { documentId, activeSessionId, messages } = useChatStore.getState();
+		const ownsDocument = () => {
+			const chat = useChatStore.getState();
+			return chat.documentId === documentId && chat.activeSessionId === activeSessionId;
+		};
 		const baseMessages = activeSessionId ? messages : conversationHistory;
 		const settings = useSettingsStore.getState().settings;
 		const configuredModel =
@@ -139,14 +144,10 @@ export const useAiTurnStore = create<AiTurnState>((set) => ({
 				await streamConversation(request, transport, { onEvent }, signal);
 			},
 			getDocument: () => useModelStore.getState().model,
+			ownsDocument,
 			onState: (turn) => {
 				if (activeRunner !== runner) return;
-				if (
-					activeSessionId &&
-					(useChatStore.getState().documentId !== documentId ||
-						useChatStore.getState().activeSessionId !== activeSessionId)
-				)
-					return;
+				if (!ownsDocument()) return;
 				if (turn.phase === "settled") retainToolPresentation(turn, baseMessages.length);
 				set({ turn, turnStartIndex: baseMessages.length });
 				if (activeSessionId)
@@ -179,14 +180,14 @@ export const useAiTurnStore = create<AiTurnState>((set) => ({
 		});
 	},
 
-	approveCall: (id) => {
-		void activeRunner?.approveCall(id);
+	selectProposal: (token, ids) => {
+		void activeRunner?.selectProposal(token, ids);
 	},
-	approveBatch: (ids) => {
-		void activeRunner?.approveBatch(ids);
+	applyProposal: (token) => {
+		activeRunner?.applyProposal(token);
 	},
-	denyCall: (id) => {
-		void activeRunner?.denyCall(id);
+	rejectProposal: (token) => {
+		activeRunner?.rejectProposal(token);
 	},
 
 	cancelActiveTurn: () => {
@@ -234,6 +235,12 @@ useChatStore.subscribe((chat, previous) => {
 });
 
 registerDocumentTurnDisposer((documentId) => {
+	if (useChatStore.getState().documentId === documentId) {
+		if (isLive(activeRunner?.getState().phase)) activeRunner?.cancel();
+		activeRunner = null;
+		conversationHistory = [];
+		useAiTurnStore.setState({ turn: null, turnStartIndex: 0 });
+	}
 	for (const [id, entry] of sessionRunners) {
 		if (entry.documentId === documentId) sessionRunners.delete(id);
 	}

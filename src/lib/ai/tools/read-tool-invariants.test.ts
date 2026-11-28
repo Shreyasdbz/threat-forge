@@ -43,6 +43,7 @@ function richModel(): ThreatModel {
 				technologies: ["react", "vite"],
 				tags: ["frontend"],
 				stores: ["session"],
+				position: { x: 20, y: 30 },
 			},
 			{
 				id: "db",
@@ -64,7 +65,15 @@ function richModel(): ThreatModel {
 				authenticated: true,
 			},
 		],
-		trust_boundaries: [{ id: "tb1", name: "Internal", contains: ["web", "db"] }],
+		trust_boundaries: [
+			{
+				id: "tb1",
+				name: "Internal",
+				contains: ["web", "db"],
+				position: { x: 40, y: 50 },
+				size: { width: 400, height: 300 },
+			},
+		],
 		relationships: [{ id: "r1", type: "depends_on", from: "web", to: "db" }],
 		threats: [
 			{
@@ -92,7 +101,10 @@ function richModel(): ThreatModel {
 /** At least one valid input per read tool, covering every kind for search_entities. */
 const READ_TOOL_INPUTS: { tool: string; raw: unknown }[] = [
 	{ tool: "get_document_summary", raw: {} },
+	{ tool: "get_document_summary", raw: { description_offset: 0 } },
+	{ tool: "get_document_summary", raw: { layout_offset: 0 } },
 	{ tool: "get_entity", raw: { kind: "elements", id: "web" } },
+	{ tool: "get_entity", raw: { kind: "trust_boundaries", id: "tb1" } },
 	{ tool: "get_entity", raw: { kind: "threats", id: "t1" } },
 	{ tool: "search_entities", raw: { kind: "elements" } },
 	{ tool: "search_entities", raw: { kind: "data_flows" } },
@@ -204,12 +216,20 @@ describe("read tool output-key allowlist", () => {
 		"entity",
 		"page",
 		"results",
+		"anchor_bounds",
+		"min_x",
+		"min_y",
+		"max_x",
+		"max_y",
+		"unpositioned_count",
+		"unresolved_count",
 		// metadata
 		"title",
 		"author",
 		"created",
 		"modified",
 		"description",
+		"description_next_offset",
 		"threat_analysis_enabled",
 		// counts / breakdowns
 		"elements",
@@ -233,6 +253,14 @@ describe("read tool output-key allowlist", () => {
 		"stopped_by",
 		// entity/catalog fields
 		"id",
+		"boundary_id",
+		"position",
+		"canvas_position",
+		"size",
+		"x",
+		"y",
+		"width",
+		"height",
 		"name",
 		"type",
 		"trust_zone",

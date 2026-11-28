@@ -64,6 +64,7 @@ let currentAbortController: AbortController | null = null;
 interface PersistedChatMessage {
 	role: ProtocolRole;
 	content: string;
+	origin?: ProtocolMessage["origin"];
 }
 
 interface PersistedChatSession {
@@ -122,6 +123,7 @@ function saveSessionsToStorage(key: string, sessions: ChatSession[]): void {
 				.map((message) => ({
 					role: message.role,
 					content: flattenText(message),
+					...(message.origin ? { origin: message.origin } : {}),
 				}))
 				.filter((message) => message.content.length > 0),
 		}));

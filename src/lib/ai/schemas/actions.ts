@@ -138,7 +138,7 @@ const elementUpdateShape = {
 	stroke_opacity: z.number().optional(),
 	font_size: z.number().optional(),
 	font_weight: z.string().optional(),
-} satisfies OptionalSchemaFor<Omit<Element, "id">>;
+} satisfies OptionalSchemaFor<Omit<Element, "id" | "size">>;
 
 const dataFlowUpdateShape = {
 	flow_number: z.number().optional(),

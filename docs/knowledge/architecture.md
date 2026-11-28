@@ -72,7 +72,7 @@ compatibility boundary — is documented in
 | **ADR-006** | Inline layout data | Positions stored inline on each element in the `.thf` file; single-file portability | Slightly larger diffs when repositioning; but eliminates sidecar file complexity |
 | **ADR-007** | AES-256-GCM encrypted file storage for desktop API keys | Cross-platform app-managed encryption without OS-specific keychain integration | The encryption key is app-managed and co-located, so it does not protect against same-user local compromise |
 | **ADR-008** | Tailwind + shadcn/ui | Lightweight, customizable, excellent dark mode, growing Tauri adoption | More manual composition than MUI |
-| **ADR-009** | Additive schema growth keeps `version: "1.0"` | Additive optional fields break nothing, so bumping would make every already-shipped build refuse to open every new file; `validate_version` stays exact-match and fail-closed. Full argument in [`file-format.md`](file-format.md#schema-versioning-policy) | An older desktop build that opens and saves a newer document silently discards the sections it does not know |
+| **ADR-009** | Additive schema growth keeps the document's existing version | Additive optional fields break nothing. A new version is gated to new semantics that older builds cannot safely edit; validation stays exact-match and fail-closed. See [`file-format.md`](file-format.md#schema-versioning-policy). | Older readers cannot edit documents that opt into new semantics |
 | **ADR-010** | Per-document state lives in swapped store bundles, not copied checkpoints | Each open document owns real model/canvas/history store instances; activation repoints the store facades at that document's bundle. Nothing is copied on switch, so no field can be forgotten and leak across documents, and every future document field is per-document by construction. Full rationale in [`docs/plans/53-document-registry.md`](../plans/53-document-registry.md) | `activateDocument` has no production caller until the tab UI (`#54`) renders more than one document at a time |
 | **ADR-011** | One undo entry per AI turn, not per accepted call or batch | A multi-iteration tool turn can apply many mutations; a per-call rule would evict more than half of the 20-entry history for a single turn. One lazily-pushed snapshot per turn means a single `Cmd+Z` reverts the whole turn. Full rationale in [`ai-tool-loop.md`](ai-tool-loop.md) and [`docs/plans/62-bounded-tool-loop.md`](../plans/62-bounded-tool-loop.md) | Call 3 of 5 cannot be undone individually; the turn is the atomic unit of undo |
 | **ADR-012** | Icon artwork ships as validated path data with lockfile-pinned provenance | A typed registry (`src/lib/registry/`) is the single source of truth for the component taxonomy and icon catalogue. No SVG is parsed at runtime; `.thf`/AI strings only select a bundled glyph, and an unknown value renders an inert fallback. Bundled geometry is constrained path data derived from a pinned upstream source and rendered as React-set attributes. Full rationale in [`docs/knowledge/component-registry.md`](component-registry.md) | Every icon ID requires a manifest line; bundled-path artwork also requires a byte-identical source fixture, and a new attribution or trademark set requires `NOTICE` updates. Permanent IDs mean the registry only ever grows |
@@ -229,10 +229,10 @@ authoritative for content:
 |-------|---------|-------|-------|
 | `documents` | `id` | `{ id, currentRevisionId, updatedAt }` — pointer only, no body | — |
 | `revisions` | `revisionId` (`${id}#${seq}`) | `{ revisionId, documentId, thf, seq, createdAt }` | `by_document` on `[documentId, seq]` |
-| `meta` | `key` | schema markers and migration bookkeeping | — |
+| `meta` | `key` | schema markers, migration bookkeeping, and cleared document IDs | — |
 
-Bodies are the exact text of `serializeThreatModelYaml`, so every stored revision is itself a
-portable `.thf` file. Retention is a bounded ring of `MAX_REVISIONS_PER_DOCUMENT` full snapshots,
+Bodies are text: an unedited import retains its source YAML and subsequent edits use
+`serializeThreatModelYaml`. Retention is a bounded ring of `MAX_REVISIONS_PER_DOCUMENT` full snapshots,
 never deltas. No `.thf` schema change is involved and a `DocumentId` never enters a `.thf`.
 
 **Crash safety.** `writeDocumentBody` puts the new revision, flips `documents.currentRevisionId`,
@@ -242,8 +242,8 @@ ordered migrations inside the single `versionchange` transaction; one that throw
 and leaves the database at its prior version. The database is never deleted to clear an error.
 
 **Restore without blocking first paint.** `useWorkspaceRestore` runs after mount: it reconciles the
-manifest against `listDocuments()` (manifest entries with no record are dropped; records with no
-manifest entry become `recoverableDocumentIds`), then reads **only** the active document's body (or
+manifest against `listDocuments()` (manifest entries with no record move to recovery; records with
+no manifest entry become `recoverableDocumentIds`), then reads **only** the active document's body (or
 the first viable manifest entry when the pointer is missing) and calls `hydrateDocument`. Restore
 uses the lightweight YAML parser because these are app-authored, potentially in-progress models,
 but still applies ADR-009's exact schema-version gate so an older cached build cannot silently
@@ -269,10 +269,12 @@ record after a real autosave cycle.
 
 ### Handoff seams
 
-- **`#55` (recovery and export):** stored revisions are export-ready `.thf` text. The states to
-  render are `DocumentPersistenceState.status` (`error` / `corrupt`), `errorKind`,
-  `unavailableReason`, and `recoverableDocumentIds`. `#56` never deletes; `deleteDocument` exists
-  for a user-confirmed `#55` action.
+- **`#55` (recovery and export):** open **Workspace recovery** from the status bar to inspect
+  stored or missing documents. Standalone downloads are validated `.thf` text; the versioned JSON
+  recovery bundle also includes readable revision history and flags unavailable content. Imported
+  files retain their workspace ID across reload without adding it to the YAML. Clearing a
+  document or the workspace requires explicit confirmation, never happens automatically after
+  a read failure, and does not touch the key store or settings.
 - **`#54` (tab UX):** render tabs from the manifest (`documents`, `order`, `activeDocumentId`) and
   call `hydrateDocumentById(id)` when the user activates an un-hydrated tab.
 - **`#63` (AI conversation persistence):** chat content is not stored here. Reuse `DocumentId` as
@@ -359,12 +361,19 @@ npm run ci:docker:build  # Docker lint + test + Tauri build
 |-------|---------|
 | API Key Storage | Desktop: AES-256-GCM encrypted file in app data directory. Browser: AES-GCM ciphertext in a dedicated IndexedDB database, wrapped by a non-extractable `CryptoKey`. Two residuals are specific to the browser and do not apply to desktop: script on the origin can use the key exactly as the app does (stated in the UI, mitigated by the CSP), and `extractable: false` is an API-level restriction rather than encryption at rest, so read access to the browser profile recovers the wrapping material and the ciphertext together. Only the desktop build keeps the key outside the browser profile. |
 | AI API Calls | Direct from user's machine with user's key; HTTPS only. Provider decoding, request validation, and error redaction are shared and typed — see [`ai-protocol.md`](ai-protocol.md) |
-| File Integrity | Explicit version checks and typed deserialization; unknown fields remain tolerated for forward compatibility |
+| File Integrity | Desktop and MCP share validation and an atomic writer that preserves unknown fields and refuses stale revisions under a cross-process advisory lock |
 | Auto-Update | Tauri updater can verify signed update metadata once signing is provisioned; rollout and end-to-end verification remain roadmap gates |
 | Supply Chain | Dependabot plus lockfile, dependency-review, and GitHub CodeQL default-setup checks |
 | CSP | Strict Content Security Policy; no inline scripts, no remote code |
-| Native File I/O | Rust commands handle reads and writes; export writes restrict extensions, while path confinement remains an active security review surface |
+| Native File I/O | Rust-owned file dialogs authorize specific document paths; import and export use paths returned by their dialogs; legacy sidecars are confined to the document directory |
 | Input Validation | React escapes rendered content by default; LLM output remains untrusted |
 | AI Tool Authorization | Every model-requested mutation is validated, reviewed, and executed only under a single-use grant bound to one call id, tool, canonical input digest, and iteration; the bounded loop is cancellable and undoable. No self-authorization from model output, tool results, or document content — see [`ai-tool-loop.md`](ai-tool-loop.md) |
+
+Desktop checks the exact byte revisions of open, native-dialog-approved `.thf` files.
+Clean tabs reload valid external changes in place; the status bar reports the reload.
+The indicator reports disk changes, not who made them. Dirty tabs keep their edits
+and pause file autosave on conflicts. Use **Save As** to preserve those edits in a
+different file, or confirm **Reload disk version** to discard them. An unreadable
+or invalid file does not replace the open document. Browser tabs do not watch disk.
 
 See [SECURITY.md](../../SECURITY.md) for the full security policy and vulnerability reporting.

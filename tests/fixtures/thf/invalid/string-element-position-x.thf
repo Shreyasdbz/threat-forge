@@ -1,0 +1,11 @@
+version: "1.0"
+metadata:
+  title: "String Element X"
+  author: "Tester"
+  created: 2026-01-04
+  modified: 2026-01-04
+elements:
+  - id: app
+    type: process
+    name: "Application"
+    position: { x: "200", y: 100 }

@@ -2,8 +2,9 @@ import { useModelStore } from "@/stores/model-store";
 
 export function ThreatBadge({ count }: { count: number }) {
 	return (
-		<div className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-tf-ember px-1 text-[9px] font-bold text-white">
+		<div className="absolute right-1 top-1 rounded-full bg-editor-hover px-1.5 text-editor-caption2 tabular-nums text-muted-foreground">
 			{count}
+			<span className="sr-only">{count === 1 ? " threat" : " threats"}</span>
 		</div>
 	);
 }

@@ -32,28 +32,33 @@ test.describe("Canvas Connection Handles", () => {
 	}) => {
 		await addPaletteItem(page, "palette-item-web-server");
 		await addPaletteItem(page, "palette-item-sql-database");
+		await page.locator(".react-flow__controls-zoomout").click();
+		await page.locator(".react-flow__controls-zoomout").click();
 
 		const nodes = page.locator("[data-testid^='node-']");
 		const sourceNode = nodes.first();
 		const targetNode = nodes.nth(1);
 
-		// Both palette double-clicks drop their node at the canvas center, so the two nodes
-		// land stacked on top of each other. Drag the second one clear of the first via
-		// ReactFlow's own node-drag gesture so the connection-drag gesture below cannot land
-		// on it by coincidence — that would make the "unhovered" premise false.
+		// Move the second node away from the subsequent pointer path so it cannot
+		// be hovered accidentally during the connection gesture.
 		const targetBoxBefore = await targetNode.boundingBox();
-		if (!targetBoxBefore) throw new Error("target node has no bounding box");
+		const sourceBox = await sourceNode.boundingBox();
+		if (!targetBoxBefore || !sourceBox) throw new Error("nodes have no bounding boxes");
 		await page.mouse.move(
 			targetBoxBefore.x + targetBoxBefore.width / 2,
 			targetBoxBefore.y + targetBoxBefore.height / 2,
 		);
 		await page.mouse.down();
-		await page.mouse.move(targetBoxBefore.x + 400, targetBoxBefore.y + 250, { steps: 10 });
+		await page.mouse.move(
+			sourceBox.x + sourceBox.width + 48 + targetBoxBefore.width / 2,
+			sourceBox.y + 80 + targetBoxBefore.height / 2,
+			{ steps: 10 },
+		);
 		await page.mouse.up();
 
 		const targetBoxAfter = await targetNode.boundingBox();
 		if (!targetBoxAfter) throw new Error("target node has no bounding box after drag");
-		expect(targetBoxAfter.x).toBeGreaterThan(targetBoxBefore.x + 200);
+		expect(targetBoxAfter.x).toBeGreaterThan(sourceBox.x + sourceBox.width);
 
 		// A handle on the node the drag starts from.
 		const sourceHandle = sourceNode.locator(".react-flow__handle").first();
@@ -61,6 +66,7 @@ test.describe("Canvas Connection Handles", () => {
 		// visibility is driven by the global `isConnecting` state, not by that node's own hover.
 		const otherHandle = targetNode.locator(".react-flow__handle").nth(3);
 
+		await page.mouse.move(0, 0);
 		await expect(otherHandle).toHaveCSS("opacity", "0");
 
 		const box = await sourceHandle.boundingBox();

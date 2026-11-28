@@ -1,0 +1,45 @@
+version: "1.0"
+metadata:
+  title: Checkout Café
+  author: Example
+  created: 2026-01-01
+  modified: 2026-01-01
+  description: Checkout on the web
+elements:
+  - id: web-app
+    type: process
+    name: Storefront
+    trust_zone: public
+  - id: orders
+    type: data_store
+    name: Orders
+    trust_zone: internal
+    description: Stores fulfilled orders
+data_flows:
+  - id: write-order
+    from: web-app
+    to: orders
+    name: Write order
+    protocol: PostgreSQL/TLS
+    data: ['Name, email', 'Order `record`']
+    authenticated: true
+  - id: read-order
+    from: orders
+    to: web-app
+    name: Read order
+    authenticated: false
+threats:
+  - id: replay
+    title: Replay a write
+    category: Tampering
+    severity: high
+    flow: write-order
+    mitigation:
+      status: mitigated
+      description: Enforce idempotency keys
+  - id: leak
+    title: Read another customer’s order
+    category: Information Disclosure
+    severity: medium
+    element: web-app
+    description: A response could include an unrelated order

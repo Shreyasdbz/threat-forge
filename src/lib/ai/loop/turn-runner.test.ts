@@ -5,6 +5,7 @@ import type { StreamEvent } from "@/lib/ai/protocol/events";
 import { assertToolPairing } from "@/lib/ai/protocol/messages";
 import { GRAPH_ACTION_TOOLS } from "@/lib/ai/tools/graph-action-tools";
 import { createAiToolRegistry } from "@/lib/ai/tools/tool-registry";
+import { serializeThreatModelYaml } from "@/lib/thf-yaml";
 import { useHistoryStore } from "@/stores/history-store";
 import { useModelStore } from "@/stores/model-store";
 import type { ThreatModel } from "@/types/threat-model";
@@ -92,8 +93,172 @@ beforeEach(() => {
 	useHistoryStore.getState().clear();
 });
 
+describe("whole-turn review", () => {
+	const add: StreamEvent = {
+		type: "tool_call_complete",
+		id: "create",
+		name: "add_element",
+		input: { action: "add_element", element: { type: "process", name: "Cache" } },
+	};
+	const start: StreamEvent = { type: "message_start", model: "m" };
+	const toolUse: StreamEvent = { type: "message_stop", stopReason: "tool_use" };
+	const end: StreamEvent = { type: "message_stop", stopReason: "end_turn" };
+
+	it("reviews valid mutations after the provider recovers from a failed lookup", async () => {
+		const { stream, requests } = scriptedStream([
+			[
+				start,
+				{
+					type: "tool_call_complete",
+					id: "lookup",
+					name: "get_entity",
+					input: { kind: "elements", id: "not-found" },
+				},
+				toolUse,
+			],
+			[start, add, toolUse],
+			[start, end],
+		]);
+		const runner = createTurnRunner({ stream, getDocument });
+		const baseline = getDocument();
+		await runner.submit(config(createAiToolRegistry()));
+		expect(requests[1].messages.flatMap(({ content }) => content)).toContainEqual(
+			expect.objectContaining({
+				toolCallId: "lookup",
+				isError: true,
+				content: expect.stringContaining("call search_entities"),
+			}),
+		);
+		expect(getDocument()).toBe(baseline);
+		const review = runner.getState().proposal;
+		if (!review) throw new Error("Missing review after lookup failure");
+		expect(review.operations.map(({ id }) => id)).toEqual(["create"]);
+		runner.applyProposal(review.token);
+		expect(getDocument()?.elements.some(({ name }) => name === "Cache")).toBe(true);
+	});
+
+	it("never assigns a saved ID to a replacement after an unsaved deletion", async () => {
+		const original = { ...baseModel.elements[0], id: "comp-1", future: "only for the original" };
+		const saved = { ...baseModel, elements: [original] };
+		useModelStore
+			.getState()
+			.setModel(saved, "/workspace/project.thf", "revision", serializeThreatModelYaml(saved));
+		useModelStore.getState().restoreSnapshot({ ...saved, elements: [] });
+		const { stream } = scriptedStream([
+			[start, add, toolUse],
+			[start, end],
+		]);
+		const runner = createTurnRunner({ stream, getDocument });
+		await runner.submit(config(createAiToolRegistry()));
+		expect(getDocument()?.elements).toEqual([]);
+		const review = runner.getState().proposal;
+		if (!review) throw new Error("Missing review");
+		expect(review.changes).toEqual([expect.objectContaining({ id: "comp-2", kind: "added" })]);
+		runner.applyProposal(review.token);
+		expect(getDocument()?.elements.map(({ id }) => id)).toEqual(["comp-2"]);
+	});
+
+	it("stages a dependent call using a generated ID, then commits the reviewed result once", async () => {
+		const baseline = getDocument();
+		const { stream, requests } = scriptedStream([
+			[start, add, toolUse],
+			[
+				start,
+				{
+					type: "tool_call_complete",
+					id: "connect",
+					name: "add_data_flow",
+					input: { action: "add_data_flow", data_flow: { from: "web-app", to: "comp-1" } },
+				},
+				{
+					type: "tool_call_complete",
+					id: "find",
+					name: "search_entities",
+					input: { kind: "elements" },
+				},
+				toolUse,
+			],
+			[start, end],
+		]);
+		const runner = createTurnRunner({ stream, getDocument });
+		await runner.submit(config(createAiToolRegistry()));
+		const review = runner.getState().proposal;
+		if (!review) throw new Error("No proposal ready to review");
+		expect(requests[1].messages.flatMap(({ content }) => content)).toContainEqual(
+			expect.objectContaining({
+				type: "tool_result",
+				content: JSON.stringify({ action: "add_element", id: "comp-1", status: "staged" }),
+			}),
+		);
+		expect(review.changes.map(({ id }) => id)).toEqual(["comp-1", "flow-1"]);
+		const read = requests[2].messages
+			.flatMap(({ content }) => content)
+			.find((block) => block.type === "tool_result" && block.toolCallId === "find");
+		expect(read).toMatchObject({ content: expect.stringContaining('"id":"comp-1"') });
+		expect(getDocument()).toBe(baseline);
+		expect(useHistoryStore.getState().past).toHaveLength(0);
+
+		runner.applyProposal(review.token);
+		const applied = getDocument();
+		expect(applied?.elements.map(({ id }) => id)).toEqual(["web-app", "comp-1"]);
+		expect(applied?.data_flows).toMatchObject([{ id: "flow-1", from: "web-app", to: "comp-1" }]);
+		expect(runner.getState().proposalOutcome).toBe("applied");
+		runner.applyProposal(review.token);
+		expect(getDocument()).toBe(applied);
+		expect(useHistoryStore.getState().past).toHaveLength(1);
+		runner.undo();
+		expect(getDocument()).toEqual(baseline);
+	});
+
+	it.each(["rejected", "stale", "cancelled", "discarded"] as const)(
+		"leaves both the live model and history alone when the proposal is %s",
+		async (outcome) => {
+			const invalid: StreamEvent = {
+				type: "tool_call_complete",
+				id: "broken",
+				name: "delete_element",
+				input: { action: "delete_element", id: "missing" },
+			};
+			const { stream } = scriptedStream(
+				outcome === "discarded"
+					? [
+							[start, add, toolUse],
+							[start, invalid, toolUse],
+							[start, end],
+						]
+					: [
+							[start, add, toolUse],
+							[start, end],
+						],
+			);
+			const runner = createTurnRunner({ stream, getDocument });
+			await runner.submit(config(createAiToolRegistry()));
+			const review = runner.getState().proposal;
+			if (outcome !== "discarded" && !review) throw new Error("No proposal ready to review");
+			if (outcome === "stale") {
+				const current = getDocument();
+				if (!current) throw new Error("No live document");
+				useModelStore
+					.getState()
+					.setModel({ ...current, metadata: { ...current.metadata, title: "Edited" } }, null);
+			}
+			const baseline = getDocument();
+			if (outcome === "cancelled") runner.cancel();
+			else if (review && outcome === "rejected") runner.rejectProposal(review.token);
+			else if (review && outcome === "stale") runner.applyProposal(review.token);
+			expect(runner.getState().proposalOutcome).toBe(
+				outcome === "cancelled" ? "discarded" : outcome,
+			);
+			expect(runner.getState().proposal).toBeNull();
+			expect(getDocument()).toBe(baseline);
+			expect(useHistoryStore.getState().past).toHaveLength(0);
+			assertToolPairing(runner.getState().messages);
+		},
+	);
+});
+
 describe("the corrective feedback channel", () => {
-	it("returns a committed element ID to the next iteration for an approved connection", async () => {
+	it("uses the provider-visible staged ID for a dependent connection", async () => {
 		const requests: ConversationRequest[] = [];
 		const preTurn = useModelStore.getState().model;
 		const runner = createTurnRunner({
@@ -121,7 +286,7 @@ describe("the corrective feedback channel", () => {
 						typeof created.id !== "string"
 					)
 						throw new Error("Creation returned no usable ID");
-					expect(getDocument()?.elements.some((element) => element.id === created.id)).toBe(true);
+					expect(getDocument()?.elements.some((element) => element.id === created.id)).toBe(false);
 					onEvent({
 						type: "tool_call_complete",
 						id: "connect",
@@ -137,10 +302,11 @@ describe("the corrective feedback channel", () => {
 		});
 		await runner.submit(config(createAiToolRegistry()));
 		expect(getDocument()).toBe(preTurn);
-		await runner.approveCall("create");
 		expect(runner.getState().phase).toBe("awaiting_approval");
 		expect(getDocument()?.data_flows).toHaveLength(0);
-		await runner.approveCall("connect");
+		const review = runner.getState().proposal;
+		if (!review) throw new Error("Missing review");
+		runner.applyProposal(review.token);
 		expect(runner.getState().outcome).toBe("completed");
 		const document = getDocument();
 		expect(document?.data_flows).toHaveLength(1);
@@ -189,6 +355,23 @@ describe("the corrective feedback channel", () => {
 });
 
 describe("a read-only turn", () => {
+	it("uses the native snapshot without parsing opaque extensions in its source YAML", async () => {
+		const sourceYaml = `${serializeThreatModelYaml(baseModel)}x-future: !MyExtension tagged\n`;
+		useModelStore.getState().setModel(baseModel, "/workspace/opaque.thf", "revision", sourceYaml);
+		const { stream, requests } = scriptedStream([
+			[
+				{ type: "message_start", model: "m" },
+				{ type: "text_delta", text: "I can read this document." },
+				{ type: "message_stop", stopReason: "end_turn" },
+			],
+		]);
+		const runner = createTurnRunner({ stream, getDocument });
+		await runner.submit(config(createAiToolRegistry()));
+		expect(requests).toHaveLength(1);
+		expect(runner.getState().outcome).toBe("completed");
+		expect(runner.getState().proposalOutcome).toBeUndefined();
+	});
+
 	it("auto-grants a read call, never pauses for approval, and pushes no undo entry", async () => {
 		const registry = createAiToolRegistry();
 		const { stream, requests } = scriptedStream([
@@ -239,6 +422,46 @@ describe("a read-only turn", () => {
 });
 
 describe("a tool-incapable turn", () => {
+	it("reviews fenced actions and threats together and applies them with one undo", async () => {
+		const baseline = getDocument();
+		const { stream } = scriptedStream([
+			[
+				{ type: "message_start", model: "m" },
+				{
+					type: "text_delta",
+					text: [
+						"```actions",
+						'[{"action":"add_element","element":{"type":"process","name":"Cache"}}]',
+						"```",
+						"```threats",
+						"- title: Spoofed identity",
+						"  category: Spoofing",
+						"  severity: high",
+						"  description: Unverified caller identity.",
+						"```",
+					].join("\n"),
+				},
+				{ type: "message_stop", stopReason: "end_turn" },
+			],
+		]);
+		const runner = createTurnRunner({ stream, getDocument });
+		await runner.submit(config(createToolRegistry([])));
+		expect(getDocument()).toBe(baseline);
+		const review = runner.getState().proposal;
+		if (!review) throw new Error("Missing fenced proposal");
+		expect(review.operations).toHaveLength(2);
+		expect(review.changes).toEqual([
+			expect.objectContaining({ kind: "added", label: "Cache" }),
+			expect.objectContaining({ kind: "added", label: "Spoofed identity" }),
+		]);
+		runner.applyProposal(review.token);
+		expect(getDocument()?.elements.some(({ name }) => name === "Cache")).toBe(true);
+		expect(getDocument()?.threats.map(({ title }) => title)).toEqual(["Spoofed identity"]);
+		expect(useHistoryStore.getState().past).toHaveLength(1);
+		runner.undo();
+		expect(getDocument()).toEqual(baseline);
+	});
+
 	it("issues a request with an empty tool list when the tool set is empty", async () => {
 		const emptyRegistry = createToolRegistry([]);
 		const { stream, requests } = scriptedStream([
@@ -259,6 +482,7 @@ describe("a tool-incapable turn", () => {
 describe("cancellation mid-execution", () => {
 	it("discards an in-flight tool outcome and leaves the document unchanged", async () => {
 		let resolveRun: (outcome: ToolOutcome) => void = () => {};
+		const started = vi.fn();
 		const runGate = new Promise<ToolOutcome>((resolve) => {
 			resolveRun = resolve;
 		});
@@ -269,9 +493,12 @@ describe("cancellation mid-execution", () => {
 			effect: "mutate",
 			destructive: false,
 			summarize: (i) => `Add ${i.name}`,
-			execute: () => runGate,
+			execute: () => {
+				started();
+				return runGate;
+			},
 		});
-		const registry = createToolRegistry([slowTool]);
+		const registry = createToolRegistry([{ ...slowTool, stageable: true }]);
 		const { stream, requests } = scriptedStream([
 			[
 				{ type: "message_start", model: "m" },
@@ -282,11 +509,8 @@ describe("cancellation mid-execution", () => {
 		const runner = createTurnRunner({ stream, getDocument });
 		const documentBefore = useModelStore.getState().model;
 
-		await runner.submit(config(registry));
-		expect(runner.getState().phase).toBe("awaiting_approval");
-
-		// Approve, which begins running the slow tool; do not await yet.
-		const executing = runner.approveCall("c1");
+		const executing = runner.submit(config(registry));
+		await vi.waitFor(() => expect(started).toHaveBeenCalledOnce());
 		// Cancel while the tool is mid-run, then let the run resolve.
 		runner.cancel();
 		resolveRun({
@@ -305,7 +529,7 @@ describe("cancellation mid-execution", () => {
 });
 
 describe("a mid-turn context overflow", () => {
-	it("settles failed but keeps the committed call, which one undo reverts", async () => {
+	it("settles failed and discards all staged changes", async () => {
 		const registry = createToolRegistry(GRAPH_ACTION_TOOLS);
 		const { stream } = scriptedStream([
 			[
@@ -332,15 +556,10 @@ describe("a mid-turn context overflow", () => {
 		const preTurn = useModelStore.getState().model;
 
 		await runner.submit(config(registry));
-		// Iteration 1 pauses for approval; approve and let it commit, then iteration 2 overflows.
-		await runner.approveCall("c1");
 
 		expect(runner.getState().outcome).toBe("failed");
-		// The committed element survived the failure.
-		expect(useModelStore.getState().model?.elements.some((e) => e.name === "Cache")).toBe(true);
-
-		// One undo reverts the whole turn back to the pre-turn document.
-		runner.undo();
+		expect(runner.getState().proposalOutcome).toBe("discarded");
+		expect(useHistoryStore.getState().past).toHaveLength(0);
 		expect(useModelStore.getState().model).toEqual(preTurn);
 	});
 });

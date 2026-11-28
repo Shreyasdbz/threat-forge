@@ -1,77 +1,80 @@
-import { cn } from "@/lib/utils";
+import { useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useModelStore } from "@/stores/model-store";
 import { useUiStore } from "@/stores/ui-store";
 import { AiChatTab } from "./ai-chat-tab";
+import { ArchitectureTab } from "./architecture-tab";
 import { PropertiesTab } from "./properties-tab";
 import { ThreatsTab } from "./threats-tab";
 
+const tabs = [
+	{ id: "properties", label: "Properties", Panel: PropertiesTab },
+	{ id: "architecture", label: "Architecture", Panel: ArchitectureTab },
+	{ id: "threats", label: "Threats", Panel: ThreatsTab },
+	{ id: "ai", label: "AI", Panel: AiChatTab },
+] as const;
+
 export function RightPanel() {
-	const tab = useUiStore((s) => s.rightPanelTab);
+	const selected = useUiStore((s) => s.rightPanelTab);
 	const setTab = useUiStore((s) => s.setRightPanelTab);
-	const model = useModelStore((s) => s.model);
-
+	const threatCount = useModelStore((s) => s.model?.threats.length ?? 0);
+	const [focusInTabs, setFocusInTabs] = useState(false);
 	return (
-		<div data-testid="right-panel" className="flex h-full flex-col">
-			{/* Tab bar */}
-			<div className="flex border-b border-border">
-				<TabButton
-					testId="tab-properties"
-					active={tab === "properties"}
-					onClick={() => setTab("properties")}
-				>
-					Properties
-				</TabButton>
-				<TabButton
-					testId="tab-threats"
-					active={tab === "threats"}
-					onClick={() => setTab("threats")}
-				>
-					Threats
-					{model && model.threats.length > 0 && (
-						<span className="ml-1.5 rounded-full bg-secondary px-1.5 text-xs">
-							{model.threats.length}
-						</span>
-					)}
-				</TabButton>
-				<TabButton testId="tab-ai" active={tab === "ai"} onClick={() => setTab("ai")}>
-					AI
-				</TabButton>
-			</div>
-
-			{/* Tab content */}
-			<div className="flex-1 overflow-y-auto p-3">
-				{tab === "properties" && <PropertiesTab />}
-				{tab === "threats" && <ThreatsTab />}
-				{tab === "ai" && <AiChatTab />}
-			</div>
-		</div>
-	);
-}
-
-function TabButton({
-	testId,
-	active,
-	onClick,
-	children,
-}: {
-	testId?: string;
-	active: boolean;
-	onClick: () => void;
-	children: React.ReactNode;
-}) {
-	return (
-		<button
-			type="button"
-			data-testid={testId}
-			onClick={onClick}
-			className={cn(
-				"flex-1 px-3 py-2 text-xs font-medium transition-colors",
-				active
-					? "border-b-2 border-primary text-foreground"
-					: "text-muted-foreground hover:text-foreground",
-			)}
+		<Tabs
+			data-testid="right-panel"
+			value={selected}
+			onValueChange={(value) => {
+				const tab = tabs.find(({ id }) => id === value);
+				if (tab) setTab(tab.id);
+			}}
+			className="flex h-full min-h-0 flex-col gap-0"
 		>
-			{children}
-		</button>
+			<TooltipProvider delay={300}>
+				<TabsList
+					variant="line"
+					aria-label="Inspector"
+					onFocus={() => setFocusInTabs(true)}
+					onBlur={(event) => {
+						if (!event.currentTarget.contains(event.relatedTarget)) setFocusInTabs(false);
+					}}
+					className="grid w-full shrink-0 grid-cols-4 border-b border-editor-separator p-0 group-data-horizontal/tabs:h-editor-row"
+				>
+					{tabs.map(({ id, label }) => {
+						const count = id === "threats" ? threatCount : 0;
+						return (
+							<Tooltip key={id}>
+								<TooltipTrigger
+									render={
+										<TabsTrigger
+											value={id}
+											{...(!focusInTabs && { tabIndex: id === selected ? 0 : -1 })}
+											data-testid={`tab-${id}`}
+											aria-label={label}
+											aria-description={count ? `${count} identified` : undefined}
+											className="h-full min-w-0 px-0 text-editor-footnote group-data-horizontal/tabs:after:bottom-0 data-active:text-editor-accent"
+										/>
+									}
+								>
+									{label}
+								</TooltipTrigger>
+								<TooltipContent side="bottom" className="rounded-none font-editor">
+									{label}
+								</TooltipContent>
+							</Tooltip>
+						);
+					})}
+				</TabsList>
+			</TooltipProvider>
+			{tabs.map(({ id, Panel }) => (
+				<TabsContent
+					key={id}
+					value={id}
+					className="min-h-0 flex-1 overflow-y-auto p-3 text-editor-body focus-visible:-outline-offset-2"
+				>
+					{id === selected && <Panel />}
+				</TabsContent>
+			))}
+		</Tabs>
 	);
 }

@@ -1,31 +1,26 @@
-import { Download, FileCode, Globe, Monitor, Shield, Sparkles } from "lucide-react";
+import { Download, FileCode, Globe } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PageShell } from "./shared/page-shell";
 
 const FEATURES = [
 	{
-		icon: Shield,
-		title: "STRIDE, minus the workshop",
+		title: "Review threats with STRIDE",
 		description:
-			"All six categories, checked against every element and flow they apply to. It won't find the clever bug in your auth logic. It will find the twelve boring ones you were going to skip.",
+			"Check components and data flows against all six categories, then record mitigations.",
 	},
 	{
-		icon: FileCode,
-		title: "It's a file. That's the whole trick.",
+		title: "Keep the model in version control",
 		description:
-			"A .thf is YAML. Open it in vim, diff it on GitHub, grep it. There's no export step to get something reviewable — the file already is one.",
+			"Open the .thf YAML file in a text editor or review the changes in a pull request.",
 	},
 	{
-		icon: Sparkles,
-		title: "AI that edits, not advises",
+		title: "Review AI edits before applying",
 		description:
-			"Bring your own key. It edits elements, flows, and threats directly instead of telling you what to type. Every change is schema-checked, then waits for your approval — which is about the trust a language model has earned.",
+			"Bring your own key to propose changes to elements, flows, and threats. Review the validated changes before applying them.",
 	},
 	{
-		icon: Monitor,
-		title: "Runs anywhere, weighs nothing",
-		description:
-			"A few megabytes on most platforms. macOS, Windows, Linux, or the browser if you'd rather not install anything. Same file either way.",
+		title: "Open the same file on desktop or web",
+		description: "Use the browser editor or install Threat Forge on macOS, Windows, or Linux.",
 	},
 ] as const;
 
@@ -76,64 +71,75 @@ export function LandingPage() {
 
 function HeroSection() {
 	return (
-		<section className="px-6 py-24 text-center" data-testid="hero">
-			<div className="mx-auto max-w-4xl">
-				<div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border/50 bg-secondary/50 px-4 py-1.5 text-xs text-muted-foreground">
-					<span className="inline-block h-1.5 w-1.5 rounded-full bg-tf-signal" />
-					Open source &middot; Apache 2.0
+		<section className="px-6 py-12 md:py-20" data-testid="hero">
+			<div className="mx-auto grid max-w-6xl items-center gap-8 lg:grid-cols-2">
+				<div>
+					<h1 className="max-w-lg text-[2rem]/10 font-semibold tracking-tight text-balance sm:text-[2.25rem]/11">
+						Draw your architecture. Review its threats.
+					</h1>
+					<p className="mt-4 max-w-md text-sm/6 text-muted-foreground">
+						Connect components, run STRIDE, and save the architecture as a portable .thf file. No
+						account required.
+					</p>
+					<div className="mt-6 flex flex-wrap gap-2">
+						<Link
+							to="/app"
+							className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-tf-signal px-6 py-3 text-sm font-medium text-tf-zero transition-opacity hover:opacity-90 sm:w-auto"
+						>
+							<Globe className="h-4 w-4" />
+							Try it in the browser
+						</Link>
+						<Link
+							to="/downloads"
+							className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary sm:w-auto"
+						>
+							<Download className="h-4 w-4" />
+							Download
+						</Link>
+					</div>
 				</div>
-				<h1 className="text-3xl font-bold tracking-tight text-balance text-foreground sm:text-4xl lg:text-5xl">
-					Threat modeling for people who <br className="hidden sm:inline" />
-					<span className="text-tf-signal-ink">hate threat modeling tools</span>
-				</h1>
-				<p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-					You know the drill. Install something Windows-only, drag boxes around for an afternoon,
-					export a report, never open it again. This is boxes and arrows too — it just saves to
-					YAML, opens in your editor, and turns up in code review like everything else you own.
-				</p>
-				<div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-					<Link
-						to="/app"
-						className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-tf-signal px-6 py-3 text-sm font-medium text-tf-zero transition-opacity hover:opacity-90 sm:w-auto"
-					>
-						<Globe className="h-4 w-4" />
-						Try it in the browser
-					</Link>
-					<Link
-						to="/downloads"
-						className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary sm:w-auto"
-					>
-						<Download className="h-4 w-4" />
-						Download
-					</Link>
-				</div>
+				<CloudServicePreview />
 			</div>
 		</section>
 	);
 }
 
+function CloudServicePreview() {
+	return (
+		<figure className="border border-border bg-card text-card-foreground">
+			<figcaption className="border-b border-border px-4 py-3 text-sm font-semibold">
+				Cloud Service{" "}
+				<span className="ml-2 text-xs font-medium text-muted-foreground">Architecture starter</span>
+			</figcaption>
+			<img
+				src="/cloud-service-preview.svg"
+				width={1036}
+				height={484}
+				className="block h-auto w-full bg-white"
+				alt="Orders Browser sends requests to the Orders API, which reads and writes orders in the Orders Database."
+			/>
+			<p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
+				In the editor: open Cloud Service, then select Threats → Run STRIDE Analysis.
+			</p>
+		</figure>
+	);
+}
+
 function FeaturesSection() {
 	return (
-		<section className="border-t border-border/50 px-6 py-20">
+		<section className="border-t border-border/50 px-6 py-12">
 			<div className="mx-auto max-w-6xl">
-				<h2 className="text-center text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-					What it actually does
+				<h2 className="text-xl font-semibold tracking-tight text-foreground">
+					From diagram to review
 				</h2>
-				<p className="mx-auto mt-3 max-w-2xl text-center text-muted-foreground">
-					Threat modeling tools come in two flavors: free, but locked to one OS or a file format
-					nobody reads by choice — or excellent, and priced for banks. This is the one in between.
-				</p>
-				<div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+				<ul className="mt-4 divide-y divide-border">
 					{FEATURES.map((feature) => (
-						<div key={feature.title} className="rounded-lg border border-border/50 bg-card p-6">
-							<feature.icon className="h-8 w-8 text-tf-signal-ink" />
-							<h3 className="mt-4 text-sm font-semibold text-foreground">{feature.title}</h3>
-							<p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-								{feature.description}
-							</p>
-						</div>
+						<li key={feature.title} className="grid gap-1 py-3 sm:grid-cols-[16rem_1fr] sm:gap-4">
+							<h3 className="text-sm font-semibold text-foreground">{feature.title}</h3>
+							<p className="text-sm leading-relaxed text-muted-foreground">{feature.description}</p>
+						</li>
 					))}
-				</div>
+				</ul>
 			</div>
 		</section>
 	);
@@ -209,11 +215,10 @@ function CtaSection() {
 		<section className="border-t border-border/50 px-6 py-24 text-center">
 			<div className="mx-auto max-w-2xl">
 				<h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-					That&apos;s the pitch
+					Open the editor
 				</h2>
 				<p className="mt-4 text-muted-foreground">
-					Free, open source, no account. Your models stay on your machine unless you point it at an
-					AI provider yourself. If you hate it, you&apos;re out ten minutes.
+					Free and open source. Your models stay on your machine unless you connect an AI provider.
 				</p>
 				<div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
 					<Link

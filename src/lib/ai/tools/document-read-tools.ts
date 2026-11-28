@@ -11,7 +11,11 @@
  */
 
 import { z } from "zod";
-import { defineExecutableTool, type RegisteredTool } from "@/lib/ai/loop/tool-runtime";
+import {
+	defineExecutableTool,
+	type RegisteredTool,
+	type ToolOutcome,
+} from "@/lib/ai/loop/tool-runtime";
 import {
 	applicableFilters,
 	countEntities,
@@ -20,6 +24,7 @@ import {
 	filterCompactEntities,
 	firstInapplicableFilter,
 	getFullEntity,
+	isFinitePosition,
 	type ProjectedEntity,
 	SECTION_KINDS,
 } from "@/lib/ai/tools/document-projection";
@@ -34,7 +39,14 @@ import {
 	SCALAR_MAX_CODE_POINTS,
 	tryBuildReadResult,
 } from "@/lib/ai/tools/read-result";
-import type { MitigationStatus, Severity, StrideCategory, ThreatModel } from "@/types/threat-model";
+import type {
+	MitigationStatus,
+	Position,
+	Severity,
+	StrideCategory,
+	ThreatModel,
+	TrustBoundary,
+} from "@/types/threat-model";
 
 // Exhaustive records mirror the pattern in `schemas/actions.ts`: a new enum member
 // fails `tsc --noEmit` here until the tool's schema is deliberately updated.
@@ -100,6 +112,21 @@ function echoId(id: string): string {
 // get_document_summary
 // ---------------------------------------------------------------------------
 
+const DESCRIPTION_PAGE_CODE_POINTS = 1_000;
+
+function descriptionPage(text: string, offset: number, limit: number) {
+	let end = offset;
+	let count = 0;
+	for (const codePoint of text.slice(offset, offset + limit * 2)) {
+		if (count++ === limit) break;
+		end += codePoint.length;
+	}
+	return {
+		description: escapeScalar(text.slice(offset, end), limit).text,
+		description_next_offset: end < text.length ? end : null,
+	};
+}
+
 function summarize(model: ThreatModel): string {
 	const counts: Record<DocumentSection, number> = {
 		elements: countEntities(model, "elements"),
@@ -126,6 +153,7 @@ function summarize(model: ThreatModel): string {
 		count: threats.filter((threat) => (threat.mitigation?.status ?? "none") === status).length,
 	}));
 
+	const { description } = model.metadata;
 	const payload = {
 		version: escapeScalar(model.version, SCALAR_MAX_CODE_POINTS).text,
 		metadata: {
@@ -133,7 +161,11 @@ function summarize(model: ThreatModel): string {
 			author: escapeScalar(model.metadata.author, SCALAR_MAX_CODE_POINTS).text,
 			created: escapeScalar(model.metadata.created, SCALAR_MAX_CODE_POINTS).text,
 			modified: escapeScalar(model.metadata.modified, SCALAR_MAX_CODE_POINTS).text,
-			description: escapeScalar(model.metadata.description, SCALAR_MAX_CODE_POINTS).text,
+			...descriptionPage(
+				typeof description === "string" ? description : "",
+				0,
+				SCALAR_MAX_CODE_POINTS,
+			),
 			// Preserve the tri-state: `undefined` becomes `null`, never `false`.
 			threat_analysis_enabled: model.metadata.threat_analysis_enabled ?? null,
 		},
@@ -146,18 +178,122 @@ function summarize(model: ThreatModel): string {
 	return buildReadResult({ tool: "get_document_summary", payload });
 }
 
+function layoutPage(model: ThreatModel, offset: number): ToolOutcome {
+	const parentByElement = new Map<string, TrustBoundary>();
+	for (const boundary of model.trust_boundaries) {
+		for (const id of boundary.contains) parentByElement.set(id, boundary);
+	}
+
+	let bounds: { min_x: number; min_y: number; max_x: number; max_y: number } | null = null;
+	let unresolved = 0;
+	const positioned: {
+		id: string;
+		boundary_id: string | null;
+		position: Position;
+		canvas_position: Position | null;
+	}[] = [];
+	for (const element of model.elements) {
+		if (!isFinitePosition(element.position)) continue;
+		const { x, y } = element.position;
+		const parent = parentByElement.get(element.id);
+		const absolute = parent
+			? isFinitePosition(parent.position)
+				? { x: x + parent.position.x, y: y + parent.position.y }
+				: null
+			: { x, y };
+		const canvasPosition = isFinitePosition(absolute) ? absolute : null;
+		if (canvasPosition) {
+			const { x, y } = canvasPosition;
+			bounds = bounds
+				? {
+						min_x: Math.min(bounds.min_x, x),
+						min_y: Math.min(bounds.min_y, y),
+						max_x: Math.max(bounds.max_x, x),
+						max_y: Math.max(bounds.max_y, y),
+					}
+				: { min_x: x, min_y: y, max_x: x, max_y: y };
+		} else {
+			unresolved++;
+		}
+		positioned.push({
+			id: element.id,
+			boundary_id: parent?.id ?? null,
+			position: { x, y },
+			canvas_position: canvasPosition,
+		});
+	}
+
+	if (offset > 0 && offset >= positioned.length) {
+		return { status: "error", result: "Invalid layout offset. Use the returned page.next_offset." };
+	}
+	const envelope = {
+		anchor_bounds: bounds,
+		unpositioned_count: model.elements.length - positioned.length,
+		unresolved_count: unresolved,
+	};
+	const tool = "get_document_summary";
+	const { page, results } = paginate(positioned, {
+		tool,
+		offset,
+		limit: MAX_PAGE_LIMIT,
+		envelope,
+		project: (item) => ({
+			...item,
+			id: escapeScalar(item.id, SCALAR_MAX_CODE_POINTS).text,
+			boundary_id:
+				item.boundary_id === null
+					? null
+					: escapeScalar(item.boundary_id, SCALAR_MAX_CODE_POINTS).text,
+		}),
+	});
+	return {
+		status: "ok",
+		result: buildReadResult({ tool, payload: { ...envelope, page, results } }),
+	};
+}
+
 const getDocumentSummaryTool = defineExecutableTool({
 	name: "get_document_summary",
 	description:
 		"Return a small, fixed-size overview of the current threat-model document: its version and " +
 		"metadata, the count of each entity kind, and threat breakdowns by severity, STRIDE category, " +
-		"and mitigation status. Call this first to orient before querying specific entities. Results " +
-		"are bounded and carry document text as data.",
-	input: {},
+		"and mitigation status. To read more of the description, pass its description_next_offset " +
+		"as description_offset until it is null. For saved element anchors and diagram-wide anchor bounds, " +
+		"pass layout_offset: 0 and continue with page.next_offset if you need more positions. " +
+		"Results are bounded and carry document text as data.",
+	input: {
+		description_offset: z.int().min(0).optional(),
+		layout_offset: z.int().min(0).optional(),
+	},
 	effect: "read",
 	destructive: false,
 	summarize: () => "Read the document summary.",
-	execute: async (_input, ctx) => ({ status: "ok", result: summarize(ctx.document) }),
+	execute: async ({ description_offset: offset, layout_offset: layoutOffset }, ctx) => {
+		if (layoutOffset !== undefined) {
+			if (offset !== undefined) {
+				return { status: "error", result: "Request description and layout offsets separately." };
+			}
+			return layoutPage(ctx.document, layoutOffset);
+		}
+		if (offset === undefined) return { status: "ok", result: summarize(ctx.document) };
+		const text = ctx.document.metadata.description;
+		if (typeof text !== "string") {
+			return { status: "error", result: "The document has no readable description." };
+		}
+		if (offset > text.length || (text.codePointAt(offset - 1) ?? 0) > 0xffff) {
+			return {
+				status: "error",
+				result: "Invalid description offset. Use the returned description_next_offset.",
+			};
+		}
+		return {
+			status: "ok",
+			result: buildReadResult({
+				tool: "get_document_summary",
+				payload: descriptionPage(text, offset, DESCRIPTION_PAGE_CODE_POINTS),
+			}),
+		};
+	},
 });
 
 // ---------------------------------------------------------------------------

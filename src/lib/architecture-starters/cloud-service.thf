@@ -1,0 +1,79 @@
+version: "1.0"
+metadata:
+  title: Cloud Service
+  author: ""
+  created: 2026-01-01
+  modified: 2026-01-01
+  description: A browser calls a regional API backed by a transactional database.
+layers:
+  - id: entry
+    name: Client
+  - id: backend
+    name: Regional service
+groups:
+  - id: subsystem
+    name: Regional service
+    description: Deploy API and storage together
+    position: { x: 324, y: 32 }
+    size: { width: 620, height: 336 }
+elements:
+  - id: entrypoint
+    type: web_browser
+    name: Orders Browser
+    trust_zone: external
+    layer: entry
+    description: Browser request entry point
+    position: { x: 36, y: 120 }
+  - id: processor
+    type: api_gateway
+    name: Orders API
+    trust_zone: internal
+    layer: backend
+    group: subsystem
+    description: Browser request processing
+    position: { x: 360, y: 120 }
+  - id: destination
+    type: sql_database
+    name: Orders Database
+    trust_zone: restricted
+    layer: backend
+    group: subsystem
+    position: { x: 684, y: 120 }
+    description: Order records destination
+  - id: note
+    type: text
+    name: "TLS on both application hops"
+    position: { x: 360, y: 300 }
+    trust_zone: ""
+    description: ""
+data_flows:
+  - id: request
+    name: Load storefront
+    data: [Browser request]
+    flow_number: 1
+    from: entrypoint
+    to: processor
+    protocol: HTTPS
+    authenticated: false
+    source_handle: right-source
+    target_handle: left-target
+  - id: exchange
+    name: Read and write orders
+    data: [Order records]
+    flow_number: 2
+    from: processor
+    to: destination
+    protocol: PostgreSQL / TLS
+    authenticated: true
+    source_handle: right-source
+    target_handle: left-target
+relationships:
+  - id: dependency
+    type: depends_on
+    from: processor
+    to: destination
+    name: Database schema
+diagrams:
+  - id: architecture
+    name: Cloud deployment
+    kind: architecture

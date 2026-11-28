@@ -29,23 +29,31 @@ tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-updater = "2"
 rmcp = { version = "2.2", features = ["server", "transport-io"] }
+resvg = { version = "0.47", default-features = false, features = ["text"] }
+read-fonts = "0.47"
+skera = "0.10"
+base64 = "0.22"
+cap-fs-ext = "4"
+cap-std = "4"
 schemars = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
+unsafe-libyaml = "0.2"
 quick-xml = "0.41"
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"], default-features = false }
 aes-gcm = "0.11"
+sha2 = "0.10"
+tempfile = "3"
 rand = "0.10"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
 futures = "0.3"
 
 [dev-dependencies]
-tempfile = "3"
 # Build canned HTTP responses so the provider error path can be tested at the
 # call site rather than only through its helper. Already in the tree via reqwest.
 http = "1"

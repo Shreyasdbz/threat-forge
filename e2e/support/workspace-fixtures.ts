@@ -246,8 +246,12 @@ export async function seedStaleManifestWorkspace(
 		};
 
 		await page.reload();
-		await expect(page.getByRole("tab")).toHaveCount(1);
-		await expect(page.getByRole("tab").first()).toHaveAttribute("aria-selected", "true");
+		await expect(
+			page.getByRole("tablist", { name: "Open documents" }).getByRole("tab"),
+		).toHaveCount(1);
+		await expect(
+			page.getByRole("tablist", { name: "Open documents" }).getByRole("tab").first(),
+		).toHaveAttribute("aria-selected", "true");
 		return result;
 	});
 }
@@ -256,11 +260,8 @@ export async function seedStaleManifestWorkspace(
  * 9. Corrupt-sole-document workspace (recovery): production creates one real, fully-persisted
  *    document, then only its current IndexedDB revision body is replaced with invalid YAML — the
  *    document pointer, index, meta store/markers, manifest wrapper, and every other revision field
- *    are untouched. Per `use-workspace-restore.ts`'s own doc comment and this plan's direct
- *    empirical confirmation, a corrupt sole document today renders a selected-but-unhydrated tab
- *    and an empty canvas with **no** error text — the "Recovery needed" text this store state
- *    could in principle drive is `#55`'s unbuilt UI, not a regression this fixture is silently
- *    covering up (D9).
+ *    are untouched. The corrupt sole document renders a selected-but-unhydrated tab and an
+ *    empty canvas; inspect the stored record in the workspace recovery screen.
  */
 export async function seedCorruptSoleDocumentWorkspace(page: Page): Promise<void> {
 	await test.step(`seed:corrupt-sole-document@v${WORKSPACE_FIXTURE_VERSION}`, async () => {
@@ -331,8 +332,12 @@ export async function seedCorruptSoleDocumentWorkspace(page: Page): Promise<void
 		);
 
 		await page.reload();
-		await expect(page.getByRole("tab")).toHaveCount(1);
-		await expect(page.getByRole("tab").first()).toHaveAttribute("aria-selected", "true");
+		await expect(
+			page.getByRole("tablist", { name: "Open documents" }).getByRole("tab"),
+		).toHaveCount(1);
+		await expect(
+			page.getByRole("tablist", { name: "Open documents" }).getByRole("tab").first(),
+		).toHaveAttribute("aria-selected", "true");
 		await expect(page.getByTestId("empty-canvas")).toBeVisible();
 	});
 }

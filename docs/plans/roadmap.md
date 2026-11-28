@@ -4,6 +4,9 @@ This document defines product direction, sequencing, and completion gates. Live 
 priority, effort, and ownership belong in the
 [Threat Forge GitHub Project](https://github.com/orgs/exit-zero-labs/projects/2).
 
+See the [AI-first rebuild plan](ai-first-rebuild.md) for the implementation chunks
+that connect the document engine, editor, and local MCP.
+
 ## Product Direction
 
 ThreatForge will evolve from a focused threat-modeling application into a local-first,

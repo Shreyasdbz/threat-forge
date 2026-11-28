@@ -103,9 +103,38 @@ more tool calls together with every later message whose `tool_result` blocks
 answer them; groups are indivisible. This is the invariant a naive tail slice
 breaks: cutting through a group produces a history where a `tool_result` has no
 matching `tool_call`, which both providers reject. If the newest group alone
-exceeds the window, budgeting returns a typed `context_overflow` error rather than
+exceeds the window left after reserving output and charging the composed system
+prompt once, budgeting returns a typed `context_overflow` error rather than
 an unpairable history. `capMessageHistory` applies the same group-atomic rule when
 the chat store persists a session, so a saved session can never be unpairable.
+
+Inline document context is capped at 4,096 UTF-8 bytes after escaping, and at four
+items each for elements, flows, boundaries, and threats. It keeps metadata first,
+then samples positions evenly across each section in document order (including the
+first and last entries), rather than sorting by a document field. A scalar is
+limited to 128 Unicode code points and a nested list to its first four values;
+only whole rendered lines that fit are included. Whenever a limit omits content,
+the prompt explicitly warns that omission is not evidence of absence.
+
+When all three document read tools are offered, the system prompt contains no
+inline document data. `get_document_summary`, `search_entities`, and `get_entity`
+read the current document, including approved changes from earlier iterations
+of the turn. They are authoritative; refresh a read after an edit instead of
+relying on its earlier result. The summary returns a description preview with
+`description_next_offset`. Pass that as `description_offset` until the next
+offset is null to read the rest. Each page preserves code-point boundaries,
+escapes the document markers, and strips unsafe controls as other reads do.
+`get_document_summary` with `layout_offset: 0` returns document-wide saved
+element anchor bounds and a byte-capped page of up to 50 positions. Continue
+with `page.next_offset` for more positions. Positions inside a trust boundary
+remain boundary-relative in `position`; `canvas_position` and the bounds use
+absolute coordinates when the saved positions and their sums are finite.
+Elements without finite saved positions and unresolved canvas positions are
+counted separately. These are anchors,
+not node extents, and do not include transient canvas state.
+`get_entity` includes saved element and boundary positions and boundary size
+where present. Only turns without the complete read suite use a bounded,
+explicitly labeled turn-start snapshot.
 
 Tokens are **estimated** (characters ÷ 4 plus a fixed per-message overhead), not
 counted. The estimate is deliberately dependency-free and conservative; a request

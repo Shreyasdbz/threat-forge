@@ -1,7 +1,8 @@
 import { readThreatModelText } from "@/lib/thf-validation";
 import { serializeThreatModelYaml } from "@/lib/thf-yaml";
-import type { DiagramLayout, ThreatModel } from "@/types/threat-model";
-import type { FileAdapter } from "./file-adapter";
+import { loadThreatModelWasm } from "@/lib/threat-model-wasm";
+import type { ThreatModel } from "@/types/threat-model";
+import type { FileAdapter, OpenedDocument } from "./file-adapter";
 
 function todayString(): string {
 	return new Date().toISOString().split("T")[0];
@@ -39,7 +40,7 @@ export class BrowserFileAdapter implements FileAdapter {
 		};
 	}
 
-	async openThreatModel(): Promise<{ model: ThreatModel; path: string | null } | null> {
+	async openThreatModel(): Promise<OpenedDocument | null> {
 		const file = await pickFile(".thf,.yaml,.yml");
 		if (!file) return null;
 
@@ -47,12 +48,26 @@ export class BrowserFileAdapter implements FileAdapter {
 		// Apply the same version, duplicate-ID, and reference checks as the desktop reader
 		// (`read_threat_model`). A malformed document throws a user-safe `ThfValidationError`,
 		// which `openModel` surfaces (`src/hooks/use-file-operations.ts`).
-		return { model: readThreatModelText(text), path: file.name };
+		return { model: readThreatModelText(text), path: file.name, sourceYaml: text };
 	}
 
 	async importThreatModel(): Promise<{ model: ThreatModel } | null> {
-		window.alert("Import is only available in the desktop app.");
-		return null;
+		const file = await pickFile(".tm7");
+		if (!file) return null;
+		if (!file.name.toLowerCase().endsWith(".tm7")) throw new Error("Choose a .tm7 file.");
+		if (file.size > 16 * 1024 * 1024) throw new Error("Choose a .tm7 file under 16 MiB.");
+		const text = await file.text();
+		try {
+			if (text.includes("<!DOCTYPE")) throw new Error();
+			const xml = new DOMParser().parseFromString(text, "application/xml");
+			if (xml.documentElement.localName !== "ThreatModel" || xml.querySelector("parsererror")) {
+				throw new Error();
+			}
+			const wasm = await loadThreatModelWasm();
+			return { model: readThreatModelText(wasm.import_tm7(text)) };
+		} catch {
+			throw new Error("Could not import the selected .tm7 file.");
+		}
 	}
 
 	async saveThreatModel(model: ThreatModel, _path: string | null): Promise<string | null> {
@@ -62,18 +77,19 @@ export class BrowserFileAdapter implements FileAdapter {
 		return filename;
 	}
 
-	async openLayout(_modelPath: string, _layoutFile: string): Promise<DiagramLayout | null> {
-		// Browser version doesn't persist layout
-		return null;
-	}
-
-	async saveLayout(_modelPath: string, _layoutFile: string, _layout: DiagramLayout): Promise<void> {
-		// Browser version doesn't persist layout
-	}
-
 	async exportAsHtml(htmlContent: string, defaultName: string): Promise<string | null> {
 		const blob = new Blob([htmlContent], { type: "text/html" });
 		downloadBlob(blob, `${defaultName}.html`);
+		return defaultName;
+	}
+
+	async exportAsMarkdown(model: ThreatModel, defaultName: string): Promise<string | null> {
+		const wasm = await loadThreatModelWasm();
+		const markdown = wasm.render_markdown(JSON.stringify(model));
+		downloadBlob(
+			new Blob([markdown], { type: "text/markdown;charset=utf-8" }),
+			`${defaultName}.md`,
+		);
 		return defaultName;
 	}
 
@@ -99,7 +115,7 @@ function pickFile(accept: string): Promise<File | null> {
 	});
 }
 
-function downloadBlob(blob: Blob, filename: string): void {
+export function downloadBlob(blob: Blob, filename: string): void {
 	const url = URL.createObjectURL(blob);
 	const a = document.createElement("a");
 	a.href = url;

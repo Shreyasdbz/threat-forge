@@ -22,7 +22,7 @@ import type { RegisteredTool } from "./tool-runtime";
 import type { CallRecord, TurnState } from "./turn-machine";
 
 /** How an approval was obtained. `auto` is the static read-only policy only. */
-export type GrantScope = "call" | "batch" | "auto";
+export type GrantScope = "call" | "batch" | "auto" | "stage";
 
 /**
  * A single-use authorization bound to one call.
@@ -171,7 +171,8 @@ export function authorizeStart(state: TurnState, callId: string): AuthorizeStart
 	if (call === undefined) return { ok: false, violation: "no_grant" };
 
 	// The tool must be in the turn's frozen tool set by exact name.
-	if (state.toolSet.get(call.toolName) === undefined) {
+	const tool = state.toolSet.get(call.toolName);
+	if (tool === undefined) {
 		return { ok: false, violation: "unknown_tool" };
 	}
 
@@ -182,8 +183,12 @@ export function authorizeStart(state: TurnState, callId: string): AuthorizeStart
 	}
 
 	const grant = state.grants.find((g) => g.callId === callId);
-	if (grant === undefined) return { ok: false, violation: "no_grant" };
-	if (grant.inputDigest !== call.inputDigest) return { ok: false, violation: "digest_mismatch" };
+	if (!grant || (grant.scope === "stage" && tool.stageable !== true)) {
+		return { ok: false, violation: "no_grant" };
+	}
+	if (grant.toolName !== call.toolName || grant.inputDigest !== call.inputDigest) {
+		return { ok: false, violation: "digest_mismatch" };
+	}
 	if (grant.iteration !== state.iteration) return { ok: false, violation: "foreign_iteration" };
 	// Single-use: once a call has left `approved` its grant has already been spent.
 	if (call.status !== "approved") return { ok: false, violation: "grant_already_consumed" };

@@ -132,6 +132,7 @@ test.describe("Chat interactions", () => {
 		await routeAnthropic(page, [
 			textResponse("First document response."),
 			addElementResponse(),
+			textResponse("Please review the proposed cache."),
 			textResponse("Second document response."),
 		]);
 		await openAiPanelWithModel(page);
@@ -144,7 +145,7 @@ test.describe("Chat interactions", () => {
 		await expect(input).toHaveValue("First document draft");
 		await expect(page.getByTestId("chat-messages")).toContainText("First document response.");
 		await send(page, "Add a cache");
-		await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeVisible();
+		await expect(page.getByRole("button", { name: "Apply proposal", exact: true })).toBeVisible();
 		await createDocument(page);
 		await page.getByTestId("tab-ai").click();
 		await expect(page.getByTestId("right-panel")).toContainText("Explore your threat model");
@@ -153,7 +154,7 @@ test.describe("Chat interactions", () => {
 		await switchToTab(page, { index: 0 });
 		await expect(page.getByTestId("chat-messages")).toContainText("First document response.");
 		await expect(page.getByTestId("chat-messages")).not.toContainText("Second document response.");
-		await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeHidden();
+		await expect(page.getByRole("button", { name: "Apply proposal", exact: true })).toBeHidden();
 		await expect(page.locator(".react-flow__node")).toHaveCount(0);
 	});
 
@@ -186,9 +187,9 @@ test.describe("Chat interactions", () => {
 			await input.fill(
 				"Line one\nLine two\nLine three\nLine four\nLine five\nLine six\nLine seven\nLine eight\nLine nine",
 			);
-			const grownHeight = (await input.boundingBox())?.height ?? 0;
-			expect(grownHeight).toBeGreaterThan(initialHeight);
-			expect(grownHeight).toBeLessThanOrEqual(160);
+			const inputHeight = async () => (await input.boundingBox())?.height ?? 0;
+			await expect.poll(inputHeight).toBeGreaterThan(initialHeight);
+			expect(await inputHeight()).toBeLessThanOrEqual(160);
 			await input.press("Shift+Enter");
 			await expect(input).toHaveValue(/Line nine\n/);
 			await input.press("Enter");

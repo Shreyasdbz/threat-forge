@@ -1,9 +1,12 @@
 import { useEffect } from "react";
-import { buildLayoutFromModel } from "@/lib/model-layout-utils";
+import { requestGraphDeletion } from "@/lib/request-graph-deletion";
+import { showingSequence } from "@/lib/sequence-views";
+import { isTextEditing } from "@/lib/text-editing";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useClipboardStore } from "@/stores/clipboard-store";
-import { useHistoryStore } from "@/stores/history-store";
+import { getActiveStores } from "@/stores/document-stores";
+import { restoreHistorySnapshot, useHistoryStore } from "@/stores/history-store";
 import { useModelStore } from "@/stores/model-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useUiStore } from "@/stores/ui-store";
@@ -15,7 +18,14 @@ export function useKeyboardShortcuts() {
 
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
+			if (
+				e.defaultPrevented ||
+				(e.target instanceof Element && e.target.closest('[role="dialog"][aria-modal="true"]'))
+			)
+				return;
 			const mod = e.metaKey || e.ctrlKey;
+			const { visible, draft } = getActiveStores().interview.getState();
+			const graphHidden = visible || showingSequence(useModelStore.getState());
 
 			// Non-modifier shortcuts (only when not focused in an input)
 			const active = document.activeElement;
@@ -34,8 +44,9 @@ export function useKeyboardShortcuts() {
 						return;
 					case "Delete":
 					case "Backspace":
+						if (graphHidden) return;
 						e.preventDefault();
-						useCanvasStore.getState().deleteSelected();
+						void requestGraphDeletion();
 						return;
 					case "1":
 						e.preventDefault();
@@ -59,6 +70,15 @@ export function useKeyboardShortcuts() {
 						} else if (useSettingsStore.getState().settingsDialogOpen) {
 							useSettingsStore.getState().closeSettingsDialog();
 						} else {
+							useCanvasStore.setState((state) => ({
+								nodes: state.nodes.map((node) =>
+									node.selected ? { ...node, selected: false } : node,
+								),
+								edges: state.edges.map((edge) =>
+									edge.selected ? { ...edge, selected: false } : edge,
+								),
+								passiveUpdate: state.passiveUpdate + 1,
+							}));
 							useModelStore.getState().setSelectedElement(null);
 							useModelStore.getState().setSelectedThreat(null);
 						}
@@ -76,6 +96,13 @@ export function useKeyboardShortcuts() {
 					case "ArrowDown":
 					case "ArrowLeft":
 					case "ArrowRight": {
+						if (
+							graphHidden ||
+							e.defaultPrevented ||
+							(active !== document.body && !active?.closest(".react-flow"))
+						) {
+							return;
+						}
 						e.preventDefault();
 						const gridSize = 16;
 						const dx = e.key === "ArrowRight" ? gridSize : e.key === "ArrowLeft" ? -gridSize : 0;
@@ -119,42 +146,31 @@ export function useKeyboardShortcuts() {
 					}
 					break;
 				case "z": {
+					if (isTextEditing(active)) break;
 					e.preventDefault();
+					if (visible && draft) break;
 					const currentModel = useModelStore.getState().model;
 					if (!currentModel) break;
 					if (e.shiftKey) {
 						// Redo (Cmd+Shift+Z)
 						const snapshot = useHistoryStore.getState().redo(currentModel);
-						if (snapshot) {
-							const layout = buildLayoutFromModel(snapshot);
-							if (layout) useCanvasStore.getState().setPendingLayout(layout);
-							useModelStore.getState().restoreSnapshot(snapshot);
-							useCanvasStore.getState().syncFromModel();
-						}
+						if (snapshot) restoreHistorySnapshot(snapshot);
 					} else {
 						// Undo (Cmd+Z)
 						const snapshot = useHistoryStore.getState().undo(currentModel);
-						if (snapshot) {
-							const layout = buildLayoutFromModel(snapshot);
-							if (layout) useCanvasStore.getState().setPendingLayout(layout);
-							useModelStore.getState().restoreSnapshot(snapshot);
-							useCanvasStore.getState().syncFromModel();
-						}
+						if (snapshot) restoreHistorySnapshot(snapshot);
 					}
 					break;
 				}
 				case "y": {
+					if (isTextEditing(active)) break;
 					// Redo alternative (Cmd+Y)
 					e.preventDefault();
+					if (visible && draft) break;
 					const currentModel = useModelStore.getState().model;
 					if (!currentModel) break;
 					const snapshot = useHistoryStore.getState().redo(currentModel);
-					if (snapshot) {
-						const layout = buildLayoutFromModel(snapshot);
-						if (layout) useCanvasStore.getState().setPendingLayout(layout);
-						useModelStore.getState().restoreSnapshot(snapshot);
-						useCanvasStore.getState().syncFromModel();
-					}
+					if (snapshot) restoreHistorySnapshot(snapshot);
 					break;
 				}
 				case "b":
@@ -213,25 +229,25 @@ export function useKeyboardShortcuts() {
 					useSettingsStore.getState().openSettingsDialog();
 					break;
 				case "a":
-					if (!isInputFocused) {
+					if (!isInputFocused && !graphHidden) {
 						e.preventDefault();
 						useClipboardStore.getState().selectAll();
 					}
 					break;
 				case "c":
-					if (!isInputFocused) {
+					if (!isInputFocused && !graphHidden) {
 						e.preventDefault();
 						useClipboardStore.getState().copySelected();
 					}
 					break;
 				case "x":
-					if (!isInputFocused) {
+					if (!isInputFocused && !graphHidden) {
 						e.preventDefault();
 						useClipboardStore.getState().cutSelected();
 					}
 					break;
 				case "v":
-					if (!isInputFocused) {
+					if (!isInputFocused && !graphHidden) {
 						e.preventDefault();
 						useClipboardStore.getState().paste();
 					}

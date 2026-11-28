@@ -16,6 +16,7 @@
 import type { ProtocolError } from "@/lib/ai/protocol/errors";
 import type { StreamEvent } from "@/lib/ai/protocol/events";
 import type { ContentBlock, ProtocolMessage, ToolResultBlock } from "@/lib/ai/protocol/messages";
+import type { ThreatModel } from "@/types/threat-model";
 import {
 	type ApprovalGrant,
 	authorizeStart,
@@ -42,18 +43,21 @@ import {
 	type ToolOutcome,
 	type ToolRegistry,
 } from "./tool-runtime";
+import type { ProposalReview } from "./turn-proposal";
 
 /** Where a turn is in its lifecycle. */
 export type TurnPhase =
 	| "idle"
 	| "requesting"
 	| "streaming"
+	| "preparing_review"
 	| "awaiting_approval"
 	| "executing"
 	| "settled";
 
 /** How a settled turn ended. */
 export type TurnOutcome = "completed" | "cancelled" | "bounded" | "failed";
+export type ProposalOutcome = "applied" | "rejected" | "stale" | "discarded" | "unchanged";
 
 /**
  * The seven call statuses. `denied` is the seventh the issue body does not list:
@@ -129,6 +133,9 @@ export interface TurnState {
 	readonly notice: string | null;
 	/** User-safe failure, set only for a `failed` turn. */
 	readonly error: ProtocolError | null;
+	readonly proposal?: ProposalReview | null;
+	readonly proposalOutcome?: ProposalOutcome;
+	readonly updatingProposal?: boolean;
 }
 
 /** A user or runner command, distinct from a stream event by its `type` literal. */
@@ -144,6 +151,7 @@ export type TurnCommand =
 	| { type: "approveCall"; callId: string }
 	| { type: "approveBatch"; callIds: readonly string[] }
 	| { type: "denyCall"; callId: string }
+	| { type: "stageMutations" }
 	| { type: "startCall"; callId: string }
 	| { type: "callSettled"; callId: string; outcome: ToolOutcome }
 	/** The runner's per-iteration progression signal; carries the clock the reducer must not read itself. */
@@ -178,7 +186,11 @@ export function createIdleTurnState(): TurnState {
 }
 
 /** The total, pure transition function. */
-export function reduceTurn(state: TurnState, input: TurnInput): TurnState {
+export function reduceTurn(
+	state: TurnState,
+	input: TurnInput,
+	reviewDocument?: ThreatModel | null,
+): TurnState {
 	if (state.phase === "settled") {
 		// A settled turn is terminal. The one exception is `undoTurn`, which flips
 		// this turn's applied calls to `undone`; every other late input is dropped
@@ -199,7 +211,7 @@ export function reduceTurn(state: TurnState, input: TurnInput): TurnState {
 			// Progress only: no call record is created and no JSON is parsed here.
 			return state;
 		case "tool_call_complete":
-			return onToolCallComplete(state, input);
+			return onToolCallComplete(state, input, reviewDocument);
 		case "usage":
 			// Token usage is not surfaced (token display is a non-goal); accept and ignore it.
 			return state;
@@ -216,6 +228,8 @@ export function reduceTurn(state: TurnState, input: TurnInput): TurnState {
 			return onApproveBatch(state, input.callIds);
 		case "denyCall":
 			return onDenyCall(state, input.callId);
+		case "stageMutations":
+			return onStageMutations(state);
 		case "startCall":
 			return onStartCall(state, input.callId);
 		case "callSettled":
@@ -277,6 +291,7 @@ function onTextDelta(state: TurnState, text: string): TurnState {
 function onToolCallComplete(
 	state: TurnState,
 	event: Extract<StreamEvent, { type: "tool_call_complete" }>,
+	reviewDocument: ThreatModel | null | undefined,
 ): TurnState {
 	if (state.phase !== "streaming") return state;
 
@@ -335,7 +350,7 @@ function onToolCallComplete(
 		);
 	}
 
-	const prepared = tool.prepare(event.input);
+	const prepared = tool.prepare(event.input, reviewDocument);
 	if (!prepared.ok) {
 		const text = prepared.issues.join("; ");
 		const record: CallRecord = {
@@ -485,6 +500,26 @@ function onStartCall(state: TurnState, callId: string): TurnState {
 		return recordViolation(state, auth.violation, callId, `startCall refused: ${auth.violation}`);
 	}
 	return { ...state, calls: updateCall(state.calls, callId, { status: "running" }) };
+}
+
+function onStageMutations(state: TurnState): TurnState {
+	if (state.phase !== "awaiting_approval") return state;
+	const grants = [...state.grants];
+	const calls = state.calls.map((call): CallRecord => {
+		if (call.iteration !== state.iteration || call.status !== "pending") return call;
+		const tool = state.toolSet.get(call.toolName);
+		if (tool?.effect !== "mutate" || tool.stageable !== true) {
+			return {
+				...call,
+				status: "failed",
+				isError: true,
+				result: "This tool cannot stage a document change.",
+			};
+		}
+		grants.push({ ...grantForCall(call, state.iteration), scope: "stage" });
+		return { ...call, status: "approved" };
+	});
+	return { ...state, calls, grants, phase: "executing" };
 }
 
 function onCallSettled(state: TurnState, callId: string, outcome: ToolOutcome): TurnState {

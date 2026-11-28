@@ -185,6 +185,14 @@ describe("generateHtmlReport", () => {
 		expect(html).toContain("&lt;script&gt;");
 	});
 
+	it("renders unknown element types without inserting them into HTML attributes", () => {
+		const model = makeModel();
+		model.elements[0].type = 'unknown" data-untrusted="value';
+		const html = generateHtmlReport(model);
+		expect(html).toContain('class="dg-element dg-el-process"');
+		expect(html).not.toContain("data-untrusted");
+	});
+
 	it("handles empty model gracefully", () => {
 		const html = generateHtmlReport(
 			makeModel({

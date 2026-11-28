@@ -3,19 +3,16 @@ import {
 	Download,
 	ExternalLink,
 	Globe,
-	LifeBuoy,
 	Lightbulb,
 	Loader2,
 	Mail,
-	Paintbrush,
 	RotateCcw,
-	Settings,
-	Sliders,
-	Sparkles,
 	X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { GithubIcon } from "@/components/icons/github-icon";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { openExternalUrl } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { type SettingsTab, useSettingsStore } from "@/stores/settings-store";
@@ -27,74 +24,71 @@ import { ThemePicker } from "./theme-picker";
 const SECTIONS: {
 	id: SettingsTab;
 	label: string;
-	icon: React.ReactNode;
 }[] = [
-	{
-		id: "general",
-		label: "General",
-		icon: <Sliders className="h-3.5 w-3.5" />,
-	},
-	{
-		id: "appearance",
-		label: "Appearance",
-		icon: <Paintbrush className="h-3.5 w-3.5" />,
-	},
-	{ id: "ai", label: "AI", icon: <Sparkles className="h-3.5 w-3.5" /> },
-	{
-		id: "updates",
-		label: "Updates",
-		icon: <Download className="h-3.5 w-3.5" />,
-	},
-	{
-		id: "support",
-		label: "Support",
-		icon: <LifeBuoy className="h-3.5 w-3.5" />,
-	},
+	{ id: "general", label: "General" },
+	{ id: "appearance", label: "Appearance" },
+	{ id: "ai", label: "AI" },
+	{ id: "updates", label: "Updates" },
+	{ id: "support", label: "Support" },
 ];
 
 export function SettingsDialog() {
 	const closeSettingsDialog = useSettingsStore((s) => s.closeSettingsDialog);
 	const initialTab = useSettingsStore((s) => s.settingsDialogInitialTab);
 	const [section, setSection] = useState<SettingsTab>(initialTab ?? "general");
+	const dialog = useRef<HTMLDialogElement>(null);
+
+	useEffect(() => {
+		dialog.current?.showModal();
+	}, []);
+
+	function close() {
+		dialog.current?.close();
+		closeSettingsDialog();
+	}
 
 	function handleKeyDown(e: React.KeyboardEvent) {
+		e.stopPropagation();
 		if (e.key === "Escape") {
-			closeSettingsDialog();
+			e.preventDefault();
+			close();
 		}
 	}
 
 	return (
-		// biome-ignore lint/a11y/useKeyWithClickEvents: overlay click to close is a convenience
-		<div
-			className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+		<dialog
+			ref={dialog}
+			aria-labelledby="settings-title"
+			data-testid="settings-dialog"
+			onClose={closeSettingsDialog}
+			className="fixed inset-0 m-auto h-[560px] max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-editor-dialog border border-editor-separator bg-editor-raised p-0 text-foreground shadow-editor-dialog backdrop:bg-black/50"
 			onClick={(e) => {
-				if (e.target === e.currentTarget) closeSettingsDialog();
+				if (e.target === e.currentTarget) close();
 			}}
+			onKeyDown={handleKeyDown}
 		>
-			<div
-				data-testid="settings-dialog"
-				className="flex h-[560px] w-full max-w-2xl rounded-lg border border-border bg-background shadow-lg"
-				onKeyDown={handleKeyDown}
-			>
+			<div className="flex h-full flex-col sm:flex-row">
 				{/* Sidebar nav */}
-				<nav className="flex w-44 shrink-0 flex-col border-r border-border p-2">
-					<div className="mb-3 flex items-center gap-2 px-2 pt-1">
-						<Settings className="h-4 w-4 text-muted-foreground" />
-						<h2 className="text-sm font-medium">Settings</h2>
-					</div>
+				<nav
+					aria-label="Settings sections"
+					className="flex shrink-0 flex-wrap border-b border-editor-line p-2 sm:w-40 sm:flex-col sm:border-r sm:border-b-0 sm:p-4"
+				>
+					<h2 id="settings-title" className="px-2 py-1 text-editor-title2">
+						Settings
+					</h2>
 					{SECTIONS.map((s) => (
 						<button
 							key={s.id}
 							type="button"
 							onClick={() => setSection(s.id)}
 							className={cn(
-								"flex items-center gap-2 rounded px-2 py-1.5 text-sm transition-colors",
+								"flex min-h-editor-control items-center rounded-editor-control px-2 text-editor-body transition-colors",
 								section === s.id
 									? "bg-accent text-foreground"
 									: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
 							)}
+							aria-current={section === s.id ? "true" : undefined}
 						>
-							{s.icon}
 							{s.label}
 						</button>
 					))}
@@ -104,20 +98,18 @@ export function SettingsDialog() {
 				</nav>
 
 				{/* Content */}
-				<div className="flex flex-1 flex-col overflow-hidden">
-					<div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-						<span className="text-sm font-medium">
-							{SECTIONS.find((s) => s.id === section)?.label}
-						</span>
+				<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+					<div className="flex items-center justify-end px-4 pt-2">
 						<button
 							type="button"
-							onClick={closeSettingsDialog}
-							className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+							onClick={close}
+							aria-label="Close settings"
+							className="rounded-editor-control p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
 						>
 							<X className="h-4 w-4" />
 						</button>
 					</div>
-					<div className="flex-1 overflow-y-auto p-4">
+					<div className="flex-1 overflow-y-auto px-6 pb-6">
 						{section === "general" && <GeneralSection />}
 						{section === "appearance" && <AppearanceSection />}
 						{section === "ai" && <AiSettingsContent />}
@@ -126,7 +118,7 @@ export function SettingsDialog() {
 					</div>
 				</div>
 			</div>
-		</div>
+		</dialog>
 	);
 }
 
@@ -136,7 +128,7 @@ function ResetButton() {
 		<button
 			type="button"
 			onClick={resetToDefaults}
-			className="flex items-center gap-1.5 rounded px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+			className="flex items-center gap-1.5 rounded px-2 py-1.5 text-editor-caption text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
 		>
 			<RotateCcw className="h-3 w-3" />
 			Reset to defaults
@@ -151,9 +143,10 @@ function GeneralSection() {
 	const updateSetting = useSettingsStore((s) => s.updateSetting);
 
 	return (
-		<div className="space-y-5">
+		<div className="space-y-4">
 			<SettingRow label="Author name" description="Your name for edit tracking in threat models">
 				<TextInput
+					label="Author name"
 					value={settings.authorName}
 					placeholder="e.g. Jane Doe"
 					onChange={(v) => updateSetting("authorName", v)}
@@ -162,25 +155,16 @@ function GeneralSection() {
 
 			<SettingRow label="Author email" description="Your email for edit tracking in threat models">
 				<TextInput
+					label="Author email"
 					value={settings.authorEmail}
 					placeholder="e.g. jane@example.com"
 					onChange={(v) => updateSetting("authorEmail", v)}
 				/>
 			</SettingRow>
 
-			<div className="border-t border-border pt-4" />
-
-			<SettingRow label="Language" description="Interface language (more coming soon)">
-				<select
-					disabled
-					className="rounded border border-border bg-background px-2 py-1.5 text-sm opacity-60"
-				>
-					<option>English</option>
-				</select>
-			</SettingRow>
-
 			<SettingRow label="Autosave" description="Automatically save when changes are made">
 				<ToggleSwitch
+					label="Autosave"
 					checked={settings.autosaveEnabled}
 					onChange={(v) => updateSetting("autosaveEnabled", v)}
 				/>
@@ -192,6 +176,7 @@ function GeneralSection() {
 					description="Seconds to wait after last change before saving"
 				>
 					<NumberInput
+						label="Autosave interval"
 						value={settings.autosaveIntervalSeconds}
 						min={5}
 						max={300}
@@ -205,6 +190,7 @@ function GeneralSection() {
 				description="Ask for confirmation before deleting elements"
 			>
 				<ToggleSwitch
+					label="Confirm before delete"
 					checked={settings.confirmBeforeDelete}
 					onChange={(v) => updateSetting("confirmBeforeDelete", v)}
 				/>
@@ -218,9 +204,10 @@ function AppearanceSection() {
 	const updateSetting = useSettingsStore((s) => s.updateSetting);
 
 	return (
-		<div className="space-y-5">
-			<SettingRow label="Show keytips" description="Display keyboard shortcut badges on controls">
+		<div className="space-y-4">
+			<SettingRow label="Show keytips" description="Include shortcuts in toolbar tooltips">
 				<ToggleSwitch
+					label="Show keytips"
 					checked={settings.keytipsVisible}
 					onChange={(v) => updateSetting("keytipsVisible", v)}
 				/>
@@ -228,6 +215,7 @@ function AppearanceSection() {
 
 			<SettingRow label="Reduce motion" description="Minimize animations throughout the interface">
 				<ToggleSwitch
+					label="Reduce motion"
 					checked={settings.reduceMotion}
 					onChange={(v) => updateSetting("reduceMotion", v)}
 					testId="toggle-reduce-motion"
@@ -247,17 +235,19 @@ function AppearanceSection() {
 			</div>
 
 			{/* Canvas settings (merged from Editor) */}
-			<div className="border-t border-border pt-4" />
-			<div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-				Canvas
-			</div>
+			<div className="text-editor-footnote text-editor-secondary-label">Canvas</div>
 
 			<SettingRow label="Grid snap" description="Snap elements to grid when moving on canvas">
-				<ToggleSwitch checked={settings.gridSnap} onChange={(v) => updateSetting("gridSnap", v)} />
+				<ToggleSwitch
+					label="Grid snap"
+					checked={settings.gridSnap}
+					onChange={(v) => updateSetting("gridSnap", v)}
+				/>
 			</SettingRow>
 
 			<SettingRow label="Grid size" description="Grid cell size in pixels">
 				<NumberInput
+					label="Grid size"
 					value={settings.gridSize}
 					min={4}
 					max={64}
@@ -267,6 +257,7 @@ function AppearanceSection() {
 
 			<SettingRow label="Show minimap" description="Display a minimap overview on the canvas">
 				<ToggleSwitch
+					label="Show minimap"
 					checked={settings.minimapVisible}
 					onChange={(v) => updateSetting("minimapVisible", v)}
 				/>
@@ -285,20 +276,18 @@ function UpdatesSection() {
 	const lastChecked = lastCheckTime ? new Date(lastCheckTime).toLocaleString() : "Never";
 
 	return (
-		<div className="space-y-5">
+		<div className="space-y-4">
 			<div className="flex items-center justify-between gap-4">
 				<div className="min-w-0">
-					<p className="text-sm font-medium text-foreground">Current version</p>
-					<p className="text-xs text-muted-foreground">{__APP_VERSION__ ?? "dev"}</p>
+					<p className="text-editor-footnote text-foreground">Current version</p>
+					<p className="text-editor-caption text-muted-foreground">{__APP_VERSION__ ?? "dev"}</p>
 				</div>
 			</div>
 
-			<div className="border-t border-border pt-4" />
-
 			<div className="flex items-center justify-between gap-4">
 				<div className="min-w-0">
-					<p className="text-sm font-medium text-foreground">Check for updates</p>
-					<p className="text-xs text-muted-foreground">
+					<p className="text-editor-footnote text-foreground">Check for updates</p>
+					<p className="text-editor-caption text-muted-foreground">
 						{checkError ? `Last attempt failed: ${checkError}` : `Last checked: ${lastChecked}`}
 					</p>
 				</div>
@@ -306,7 +295,7 @@ function UpdatesSection() {
 					type="button"
 					disabled={isChecking}
 					onClick={() => void checkForUpdate()}
-					className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+					className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-editor-body text-foreground transition-colors hover:bg-accent disabled:opacity-50"
 				>
 					{isChecking ? (
 						<Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -319,21 +308,23 @@ function UpdatesSection() {
 
 			{updateAvailable && (
 				<div className="rounded border border-primary/30 bg-primary/5 p-3">
-					<p className="text-sm font-medium text-foreground">
+					<p className="text-editor-footnote text-foreground">
 						Update available: v{updateAvailable.version}
 					</p>
 					{updateAvailable.body && (
-						<p className="mt-1 text-xs text-muted-foreground">{updateAvailable.body}</p>
+						<p className="mt-1 text-editor-caption text-muted-foreground">{updateAvailable.body}</p>
 					)}
 				</div>
 			)}
 
 			{!updateAvailable && lastCheckTime && !isChecking && !checkError && (
-				<p className="text-xs text-muted-foreground">You&apos;re running the latest version.</p>
+				<p className="text-editor-caption text-muted-foreground">
+					You&apos;re running the latest version.
+				</p>
 			)}
 
 			<div className="border-t border-border pt-4">
-				<p className="text-xs text-muted-foreground">
+				<p className="text-editor-caption text-muted-foreground">
 					Threat Forge looks for a new version when you open it, at most once a day. Installing one
 					needs a signed release, and releases are not signed yet, so the check has nothing valid to
 					find. New versions are a download from threatforge.dev until that changes.
@@ -349,7 +340,7 @@ function SupportSection() {
 	};
 
 	return (
-		<div className="space-y-5">
+		<div className="space-y-4">
 			<div className="space-y-1">
 				<SupportLink
 					icon={<GithubIcon className="h-4 w-4" />}
@@ -392,10 +383,12 @@ function SupportSection() {
 			</div>
 
 			<div className="border-t border-border pt-4">
-				<p className="text-xs text-muted-foreground">
+				<p className="text-editor-caption text-muted-foreground">
 					Threat Forge is open-source software built by Exit Zero Labs LLC.
 				</p>
-				<p className="mt-1 text-xs text-muted-foreground/70">Version {__APP_VERSION__ ?? "dev"}</p>
+				<p className="mt-1 text-editor-caption text-muted-foreground/70">
+					Version {__APP_VERSION__ ?? "dev"}
+				</p>
 			</div>
 		</div>
 	);
@@ -420,8 +413,8 @@ function SupportLink({
 		>
 			<span className="text-muted-foreground">{icon}</span>
 			<div className="min-w-0 flex-1">
-				<p className="text-sm font-medium text-foreground">{label}</p>
-				<p className="text-xs text-muted-foreground">{description}</p>
+				<p className="text-editor-footnote text-foreground">{label}</p>
+				<p className="text-editor-caption text-muted-foreground">{description}</p>
 			</div>
 			<ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
 		</button>
@@ -440,10 +433,10 @@ function SettingRow({
 	children: React.ReactNode;
 }) {
 	return (
-		<div className="flex items-center justify-between gap-4">
-			<div className="min-w-0">
-				<p className="text-sm font-medium text-foreground">{label}</p>
-				<p className="text-xs text-muted-foreground">{description}</p>
+		<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+			<div className="min-w-0 sm:flex-1">
+				<p className="text-editor-footnote text-foreground">{label}</p>
+				<p className="text-editor-caption text-muted-foreground">{description}</p>
 			</div>
 			{children}
 		</div>
@@ -451,80 +444,85 @@ function SettingRow({
 }
 
 function ToggleSwitch({
+	label,
 	checked,
 	onChange,
 	testId,
 }: {
+	label: string;
 	checked: boolean;
 	onChange: (value: boolean) => void;
 	testId?: string;
 }) {
 	return (
-		<button
-			type="button"
-			role="switch"
-			aria-checked={checked}
-			data-testid={testId}
-			onClick={() => onChange(!checked)}
-			className={cn(
-				"relative h-5 w-9 shrink-0 rounded-full transition-colors",
-				checked ? "bg-primary" : "bg-muted",
-			)}
-		>
-			<span
-				className={cn(
-					"absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-background transition-transform",
-					checked && "translate-x-4",
-				)}
+		<span className="inline-flex items-center gap-3">
+			<span aria-hidden="true" className="w-5 text-right text-editor-caption text-muted-foreground">
+				{checked ? "On" : "Off"}
+			</span>
+			<Switch
+				aria-label={label}
+				checked={checked}
+				data-testid={testId}
+				onCheckedChange={onChange}
 			/>
-		</button>
+		</span>
 	);
 }
 
 function TextInput({
+	label,
 	value,
 	placeholder,
 	onChange,
 }: {
+	label: string;
 	value: string;
 	placeholder?: string;
 	onChange: (value: string) => void;
 }) {
 	return (
-		<input
+		<Input
 			type="text"
+			aria-label={label}
 			value={value}
 			placeholder={placeholder}
 			onChange={(e) => onChange(e.target.value)}
-			className="w-48 rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
+			className="w-48 max-w-full border-editor-outline bg-background text-editor-body md:text-editor-body"
 		/>
 	);
 }
 
 function NumberInput({
+	label,
 	value,
 	min,
 	max,
 	onChange,
 }: {
+	label: string;
 	value: number;
 	min: number;
 	max: number;
 	onChange: (value: number) => void;
 }) {
+	const [draft, setDraft] = useState<string | null>(null);
+
 	return (
-		<input
+		<Input
 			type="number"
-			value={value}
+			aria-label={label}
+			value={draft ?? value}
 			min={min}
 			max={max}
+			onBlur={() => setDraft(null)}
 			onChange={(e) => {
-				const parsed = Number.parseInt(e.target.value, 10);
-				if (!Number.isNaN(parsed) && parsed >= min && parsed <= max) {
+				setDraft(e.target.value);
+				const parsed = e.target.valueAsNumber;
+				if (Number.isInteger(parsed) && parsed >= min && parsed <= max) {
 					onChange(parsed);
 				}
 			}}
-			className="w-20 rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+			className="w-20 border-editor-outline bg-background text-editor-body md:text-editor-body"
 		/>
 	);
 }
@@ -550,7 +548,7 @@ function FontSizeSelector({
 					type="button"
 					onClick={() => onChange(opt.value)}
 					className={cn(
-						"rounded px-2.5 py-1 text-xs transition-colors",
+						"rounded px-2.5 py-1 text-editor-caption transition-colors",
 						value === opt.value
 							? "bg-accent text-accent-foreground"
 							: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",

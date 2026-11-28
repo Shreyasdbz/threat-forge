@@ -57,7 +57,7 @@ test.describe("Chat scroll containment", () => {
 		expect(inputBoxBefore).not.toBeNull();
 
 		await send(page, "add a cache");
-		await page.getByRole("button", { name: "Approve" }).click();
+		await page.getByRole("button", { name: "Apply proposal" }).click();
 		await expect(page.getByTestId("right-panel")).toContainText("Here is what changed.");
 
 		// The panel content must actually exceed its box, or the containment proves nothing.
@@ -119,7 +119,7 @@ test.describe("Chat scroll containment", () => {
 		await openAiPanelWithModel(page);
 
 		await send(page, "add a cache");
-		await page.getByRole("button", { name: "Approve" }).click();
+		await page.getByRole("button", { name: "Apply proposal" }).click();
 		await expect(page.getByTestId("right-panel")).toContainText("Here is what changed.");
 
 		const box = await page.evaluate(() => {

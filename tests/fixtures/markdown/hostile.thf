@@ -1,0 +1,37 @@
+version: "1.0"
+metadata:
+  title: |-
+    ### Forged heading
+    ![beacon](https://example.test/pixel)
+  author: Example
+  created: 2026-01-01
+  modified: 2026-01-01
+  description: |-
+    - [x] fake checklist
+    **not bold** <img src=x> &lt;tag&gt;
+elements:
+  - id: component
+    name: '@reviewers www.example.test user@example.test'
+    type: process
+    trust_zone: '| internal |'
+    description: 'See #321 and other/repo#42'
+data_flows:
+  - id: flow
+    from: component
+    to: component
+    name: '~~flow~~'
+    protocol: 'https://example.test'
+    data: ['[arbitrary](https://example.test)']
+threats:
+  - id: finding
+    title: '``execute``'
+    category: Spoofing
+    severity: low
+    element: component
+    flow: flow
+    description: '$x$ <https://example.test>'
+    mitigation:
+      status: in_progress
+      description: |-
+        > pretend quote
+        [check]: https://example.test

@@ -23,14 +23,14 @@ interface ParsedThreatSuggestion {
  * Extract threat suggestions from AI response text.
  * Looks for fenced code blocks with language tag `threats` containing YAML-like content.
  */
-export function extractThreats(text: string): ParsedThreatSuggestion[] {
+export function extractThreats(text: string, onInvalid?: () => void): ParsedThreatSuggestion[] {
 	const threats: ParsedThreatSuggestion[] = [];
 	const codeBlockRegex = /```threats\n([\s\S]*?)```/g;
 
 	let match = codeBlockRegex.exec(text);
 	while (match !== null) {
 		const block = match[1];
-		const parsed = parseThreatsBlock(block);
+		const parsed = parseThreatsBlock(block, onInvalid);
 		threats.push(...parsed);
 		match = codeBlockRegex.exec(text);
 	}
@@ -42,7 +42,7 @@ export function extractThreats(text: string): ParsedThreatSuggestion[] {
  * Parse a YAML-like threats block into threat suggestions.
  * Uses simple line-based parsing — not a full YAML parser.
  */
-function parseThreatsBlock(block: string): ParsedThreatSuggestion[] {
+function parseThreatsBlock(block: string, onInvalid?: () => void): ParsedThreatSuggestion[] {
 	const threats: ParsedThreatSuggestion[] = [];
 	const lines = block.split("\n");
 
@@ -56,6 +56,7 @@ function parseThreatsBlock(block: string): ParsedThreatSuggestion[] {
 			if (current) {
 				const validated = validateThreat(current);
 				if (validated) threats.push(validated);
+				else onInvalid?.();
 			}
 			current = { title: extractValue(trimmed.slice("- title:".length)) };
 			continue;
@@ -78,7 +79,8 @@ function parseThreatsBlock(block: string): ParsedThreatSuggestion[] {
 	if (current) {
 		const validated = validateThreat(current);
 		if (validated) threats.push(validated);
-	}
+		else onInvalid?.();
+	} else if (block.trim()) onInvalid?.();
 
 	return threats;
 }

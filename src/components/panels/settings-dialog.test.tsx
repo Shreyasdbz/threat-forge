@@ -1,9 +1,31 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useUpdateStore } from "@/stores/update-store";
 import { DEFAULT_USER_SETTINGS } from "@/types/settings";
 import { SettingsDialog } from "./settings-dialog";
+
+beforeAll(() => {
+	Object.defineProperties(HTMLDialogElement.prototype, {
+		showModal: {
+			configurable: true,
+			value(this: HTMLDialogElement) {
+				this.open = true;
+			},
+		},
+		close: {
+			configurable: true,
+			value(this: HTMLDialogElement) {
+				this.open = false;
+			},
+		},
+	});
+});
+
+afterAll(() => {
+	Reflect.deleteProperty(HTMLDialogElement.prototype, "showModal");
+	Reflect.deleteProperty(HTMLDialogElement.prototype, "close");
+});
 
 beforeEach(() => {
 	useSettingsStore.setState({
@@ -43,6 +65,21 @@ describe("SettingsDialog", () => {
 		expect(screen.getByText("Show minimap")).toBeInTheDocument();
 	});
 
+	it("lets users finish typing a valid grid size from an out-of-range prefix", () => {
+		render(<SettingsDialog />);
+		fireEvent.click(screen.getByRole("button", { name: /Appearance/ }));
+		const field = screen.getByRole("spinbutton", { name: "Grid size" });
+
+		fireEvent.change(field, { target: { value: "2" } });
+		expect(field).toHaveValue(2);
+		expect(useSettingsStore.getState().settings.gridSize).toBe(16);
+		fireEvent.change(field, { target: { value: "24" } });
+		expect(useSettingsStore.getState().settings.gridSize).toBe(24);
+		fireEvent.change(field, { target: { value: "99" } });
+		fireEvent.blur(field);
+		expect(field).toHaveValue(24);
+	});
+
 	it("opens at AI tab when initialTab is set", () => {
 		useSettingsStore.setState({ settingsDialogInitialTab: "ai" });
 		render(<SettingsDialog />);
@@ -57,6 +94,7 @@ describe("SettingsDialog", () => {
 		// Autosave is the first switch on the General tab (default: false)
 		const switches = screen.getAllByRole("switch");
 		const autosaveSwitch = switches[0];
+		expect(autosaveSwitch).toHaveAccessibleName("Autosave");
 		expect(autosaveSwitch).toHaveAttribute("aria-checked", "false");
 
 		fireEvent.click(autosaveSwitch);

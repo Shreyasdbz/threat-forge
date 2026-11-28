@@ -20,7 +20,7 @@ version → metadata → layers → groups → elements → data_flows → relat
 
 | Section | Purpose |
 |---------|---------|
-| `version` | Schema version (currently `"1.0"`). Always first field. |
+| `version` | Schema version (`"1.0"` for ordinary documents; `"1.1"` enables typed sequence views). Always first field. |
 | `metadata` | Title, author, dates, description, authoring info |
 | `layers` | Optional architecture layers; display order is array order |
 | `groups` | Optional architecture containers; may nest via `parent` |
@@ -62,6 +62,7 @@ follow this rule.
 Layout data (positions, sizes, colors, viewport) is stored **inline** on each entity:
 
 - `elements[].position` — `{x, y}` canvas position
+- `elements[].size` — optional `{width, height}` layout dimensions; omitted for default sizing
 - `trust_boundaries[].position` — `{x, y}` canvas position
 - `trust_boundaries[].size` — `{width, height}` boundary dimensions
 - `trust_boundaries[].fill_color`, `stroke_color`, `fill_opacity`, `stroke_opacity` — visual styling
@@ -75,8 +76,11 @@ Layout data (positions, sizes, colors, viewport) is stored **inline** on each en
 Current files store layout inline and require no sidecar. Older models may reference
 `.threatforge/layouts/*.json` through `diagrams[].layout_file`. On desktop open, the Rust backend
 reads an available legacy sidecar and merges its positions and viewport into the in-memory model.
-New saves write inline layout and omit `layout_file`. Missing legacy sidecars are tolerated so the
-model remains usable without recovered layout.
+If the sidecar cannot be loaded, you can still open the model, but desktop Save and Save As
+refuse to replace the missing layout with fallback geometry. Restore the sidecar and reopen
+the model before saving. Once loaded, Save writes the layout inline and omits `layout_file`.
+Save As can also write a new file from a snapshot whose layout was loaded, even if the source
+model has changed on disk.
 
 ## Full Example
 
@@ -246,7 +250,7 @@ these values back into the document. Released IDs are permanent — see
 ## Schema Stability Rules
 
 - Never make breaking changes without a version bump and migration path
-- The `version` field is always first under root (currently `"1.0"`)
+- The `version` field is always first under root
 - Schema validation runs on every file load via serde deserialization
 - All element/flow references in threats must point to existing IDs
 - Reject files with duplicate IDs within any section
@@ -257,9 +261,8 @@ This is the detailed argument behind **ADR-009** in
 [`architecture.md`](architecture.md#architecture-decision-records-adrs).
 
 **Decision: additive schema growth does not bump `version`.** Documents that gain new optional
-sections or fields remain `version: "1.0"`. `validate_version`
-(`src-tauri/src/file_io/reader.rs`) keeps its exact-match, fail-closed behavior and is not
-widened.
+sections or fields stay at their existing version. `validate_version`
+(`src-tauri/src/file_io/reader.rs`) accepts only explicitly supported versions and fails closed.
 
 ### The forward rule
 
@@ -271,8 +274,8 @@ widened.
 1. **Additive change is not breaking change.** No field is removed, renamed, retyped, or given new
    semantics, so there is nothing to migrate. `AGENTS.md` requires a bump for *breaking* schema
    changes, and this is not one.
-2. **A bump converts graceful degradation into a hard failure.** `validate_version` matches `"1.0"`
-   exactly and returns `UnsupportedVersion` for anything else. Because serde tolerates unknown
+2. **A blanket bump converts graceful degradation into a hard failure.** Older readers match
+   `"1.0"` exactly and return `UnsupportedVersion` for anything else. Because serde tolerates unknown
    fields, an already-released build opens a document containing sections it has never heard of and
    simply ignores them. Bumping to `"1.1"` would instead make every already-shipped build refuse to
    open **any** file saved by the newer version — including plain threat models carrying no new
@@ -284,30 +287,51 @@ widened.
 
 ### Alternatives considered and rejected
 
-- **Bump to `"1.1"`.** Rejected per (2): it makes downgrade a total failure instead of a partial
-  one, for a change with no breaking element.
+- **Bump every document to `"1.1"`.** Rejected per (2): it makes downgrade a total failure instead
+  of a partial one, even for documents with no new semantics.
 - **Keep `"1.0"` but widen `validate_version` to accept any `1.x`.** Rejected. It cannot help the
   installed base, because already-released builds hard-fail regardless. Going forward it would
   convert a clear refusal into silent data loss the first time a build met an unknown `1.x`
   document. Exact-match is the fail-closed behavior and stays.
 
-### Residual risk: downgrade data loss on the desktop writer
+### Sequence compatibility (#370)
 
-The accepted cost is stated here rather than hidden. If an **older desktop build** opens a document
-containing sections it does not know and saves it, those sections are gone. The desktop writer
-deserializes into Rust structs, which have nowhere to keep unknown data, so `serde_yaml::to_string`
-emits only the fields that build understands. This is not generic preservation and must not be
-described as such.
+In a 1.0 document, an existing `diagrams[].sequence` extension is opaque, even when
+`kind` is `sequence`. Like other unknown YAML fields, the extension's parsed value
+survives saves without interpretation or replacement; formatting and comments follow
+the existing writer behavior. Typed sequence views are available only in 1.1.
+Older editors cannot safely enforce sequence references when editing the shared graph,
+so the version boundary applies only to documents opting into the new semantics.
+Before adding the first typed view to a 1.0 document, check for
+an existing `diagrams[].sequence` key. If present, refuse promotion without changing
+the document and name the conflicting field in the error. Ordinary 1.0 saves must
+leave the version unchanged.
 
-The browser writer behaves differently. `BrowserFileAdapter` dumps the plain object it loaded, so
-unknown sections and keys survive a browser load/save cycle. The asymmetry is real, not a
-guarantee, and it is pinned by tests in both languages:
+In 1.1, a typed view uses `kind: sequence` and a `sequence` mapping. Its
+`participants` list contains local `id` and canonical `element_id`; its `messages`
+list contains local `id`, participant `from` and `to`, `label`, and optional canonical
+`flow_id`. A linked flow must have the same directed endpoints. List order controls
+columns and time. A kind-only diagram does not define a typed sequence.
 
-- `unknown_fields_fixture_parses_and_drops_the_unknown_data` (`src-tauri/src/file_io/fixtures_test.rs`)
-- `carries unknown sections and keys through a load/dump/load cycle` (`src/types/thf-fixtures.test.ts`)
+### Unknown fields and downgrade compatibility
 
-Comments are lost the same way and for the same reason: serde has nowhere to keep them, so any
-comment other than the header ThreatForge itself writes disappears on the first desktop save.
+The native transaction keeps unknown YAML fields on disk alongside the typed Rust model,
+including fields on surviving entities matched by ID. Browser saves dump the plain object
+they loaded. Older native builds that predate the transaction still drop unknown fields
+when saving. Native serialization preserves field values, not comments or YAML formatting.
+
+Native saves compare a SHA-256 revision of the exact file bytes under a sibling
+`.thf.lock` advisory lock, then replace the file atomically. The lock file remains in
+place so competing processes always lock the same file. Do not commit it or delete it
+while a writer is active. A stale editor must reopen the file or save to a different
+file; live merge is not part of the file format contract.
+Save As to a different path carries unknown fields from the editor's source
+snapshot, even if the original file has since changed. If the chosen destination
+already exists, its revision is checked separately and none of its fields are
+included in the copy.
+
+When a native save removes an element or data flow, it also removes threats targeting that
+element or flow, including threats targeting flows cascaded by element removal.
 
 ### Cross-platform read validation parity
 
@@ -341,9 +365,12 @@ Two differences between the platforms are deliberate:
   not exist in the browser, so parity there is class-level with an actionable, path-free,
   secret-free message — the browser message may be more specific.
 - **Shape narrowing is skeleton-depth by design.** The browser verifies the version, the metadata
-  block, and the entry fields the semantic checks read (an `id` per collection entry, flow and
+  block (including that `description` is text or null, defaulting to empty for null or missing), and the entry
+  fields the semantic checks read (an `id` per collection entry, flow and
   relationship endpoints, layer/group membership, group parents, boundary members, threat
-  references). It tolerates unknown fields, matching serde's non-`deny_unknown_fields` behavior, and
+  references). For elements and trust boundaries, a non-null `position` must contain numeric
+  `x` and `y`, and a non-null `size` must contain numeric `width` and `height`. The browser
+  tolerates unknown fields, matching serde's non-`deny_unknown_fields` behavior, and
   does not re-check every optional scalar's type.
 
 Validation runs only at open, mirroring `read_threat_model`: there is no retroactive validation of

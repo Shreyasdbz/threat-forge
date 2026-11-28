@@ -56,6 +56,7 @@ export function buildCommands(deps: {
 	saveModel: () => void;
 	saveModelAs: () => void;
 	hasModel: boolean;
+	recoverWorkspace?: () => void;
 	/** Close the active document (through its dirty guard). */
 	closeDocument: () => void;
 	/** Activate the next / previous open document in tab order. */
@@ -67,6 +68,16 @@ export function buildCommands(deps: {
 	openDocuments: readonly OpenDocumentCommandInfo[];
 }): Command[] {
 	const commands: Command[] = [
+		...(deps.recoverWorkspace
+			? [
+					{
+						id: "file:recovery",
+						label: "Workspace recovery",
+						category: "file" as const,
+						action: deps.recoverWorkspace,
+					},
+				]
+			: []),
 		// File commands
 		{
 			id: "file:new",

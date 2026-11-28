@@ -14,8 +14,16 @@ function renderLandingPage() {
 describe("LandingPage", () => {
 	it("renders the hero headline", () => {
 		renderLandingPage();
-		expect(screen.getByText("Threat modeling for people who")).toBeInTheDocument();
-		expect(screen.getByText("hate threat modeling tools")).toBeInTheDocument();
+		expect(
+			screen.getByRole("heading", {
+				level: 1,
+				name: "Draw your architecture. Review its threats.",
+			}),
+		).toBeInTheDocument();
+		expect(screen.getByRole("img", { name: /Orders API/ })).toHaveAttribute(
+			"src",
+			"/cloud-service-preview.svg",
+		);
 	});
 
 	it("renders hero CTA buttons in correct order (browser first)", () => {
@@ -46,12 +54,12 @@ describe("LandingPage", () => {
 		}
 	});
 
-	it("renders all four feature cards", () => {
+	it("describes all four features", () => {
 		renderLandingPage();
-		expect(screen.getByText("STRIDE, minus the workshop")).toBeInTheDocument();
-		expect(screen.getByText("It's a file. That's the whole trick.")).toBeInTheDocument();
-		expect(screen.getByText("AI that edits, not advises")).toBeInTheDocument();
-		expect(screen.getByText("Runs anywhere, weighs nothing")).toBeInTheDocument();
+		expect(screen.getByText("Review threats with STRIDE")).toBeInTheDocument();
+		expect(screen.getByText("Keep the model in version control")).toBeInTheDocument();
+		expect(screen.getByText("Review AI edits before applying")).toBeInTheDocument();
+		expect(screen.getByText("Open the same file on desktop or web")).toBeInTheDocument();
 	});
 
 	it("renders the YAML showcase section", () => {
@@ -70,7 +78,7 @@ describe("LandingPage", () => {
 
 	it("renders the bottom CTA section", () => {
 		renderLandingPage();
-		expect(screen.getByText("That's the pitch")).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "Open the editor" })).toBeInTheDocument();
 	});
 
 	it("does not link to GitHub in CTAs", () => {

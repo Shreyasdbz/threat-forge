@@ -1,5 +1,8 @@
+import { Button } from "@/components/ui/button";
 import { sanitizeDisplayText } from "@/lib/document-display-title";
+import { hasUnloadedLegacyLayout, RESTORE_LEGACY_LAYOUT } from "@/lib/model-layout-utils";
 import type { DocumentPersistenceState, WorkspaceUnavailableReason } from "@/lib/persistence/types";
+import { isTauri } from "@/lib/platform";
 import { useDocumentRegistry } from "@/stores/document-registry";
 import { useHistoryStore } from "@/stores/history-store";
 import { useKeyResidueStore } from "@/stores/key-residue-store";
@@ -66,6 +69,11 @@ function describeLocalPersistence(
 
 	switch (state?.status) {
 		case "pending":
+			return {
+				text: "Changes pending",
+				detail: "This document has changes queued for local storage.",
+				attention: false,
+			};
 		case "writing":
 			return {
 				text: "Saving locally...",
@@ -98,10 +106,17 @@ function describeLocalPersistence(
 	}
 }
 
-export function StatusBar() {
+export function StatusBar({
+	onReloadExternal,
+	onRecoverWorkspace,
+}: {
+	onReloadExternal?: () => Promise<void>;
+	onRecoverWorkspace?: () => void;
+}) {
 	const model = useModelStore((s) => s.model);
 	const isDirty = useModelStore((s) => s.isDirty);
 	const filePath = useModelStore((s) => s.filePath);
+	const fileSync = useModelStore((s) => s.fileSync);
 	const autosaveEnabled = useSettingsStore((s) => s.settings.autosaveEnabled);
 	const pastLength = useHistoryStore((s) => s.past.length);
 	const futureLength = useHistoryStore((s) => s.future.length);
@@ -127,9 +142,26 @@ export function StatusBar() {
 		persistenceState,
 	);
 	const displayFilePath = filePath ? sanitizeDisplayText(filePath) : null;
+	const missingSidecar = hasUnloadedLegacyLayout(model);
+	const desktopMissingSidecar = isTauri() && missingSidecar;
+	const syncNotice =
+		fileSync === "conflict"
+			? desktopMissingSidecar
+				? "File changed on disk."
+				: "File changed on disk. Use Save As to keep your edits."
+			: fileSync === "layout-unavailable" && !desktopMissingSidecar
+				? "Layout sidecar unavailable on disk. Restore it and reopen, or use Save As to keep the loaded layout."
+				: fileSync === "unavailable"
+					? desktopMissingSidecar
+						? "File unavailable on disk."
+						: "File unavailable on disk. Use Save As to keep a copy."
+					: fileSync === "updated" && !desktopMissingSidecar
+						? "Reloaded external changes"
+						: null;
 
 	function renderSaveStatus() {
 		if (isDirty) {
+			if (desktopMissingSidecar || (fileSync && fileSync !== "updated")) return "Unsaved changes";
 			return autosaveEnabled && filePath ? "Autosave pending..." : "Unsaved changes";
 		}
 		return "Saved";
@@ -138,14 +170,52 @@ export function StatusBar() {
 	return (
 		<footer
 			data-testid="status-bar"
-			className="flex h-6 shrink-0 items-center border-t border-border bg-card px-3 text-xs text-muted-foreground"
+			className="flex min-h-8 shrink-0 flex-wrap items-center border-t border-editor-line bg-editor-surface px-4 py-1 text-editor-caption text-muted-foreground"
 		>
+			{localPersistence?.attention && onRecoverWorkspace && (
+				<div className="mb-1 flex basis-full flex-wrap items-center gap-x-3 border-b border-editor-line pb-1 text-editor-body">
+					<p className="flex-1 text-destructive-foreground">{localPersistence.detail}</p>
+					<Button type="button" variant="outline" onClick={onRecoverWorkspace}>
+						Workspace recovery
+					</Button>
+				</div>
+			)}
 			{model ? (
 				<>
-					<span>{renderSaveStatus()}</span>
+					{!localPersistence && <span data-testid="file-save-status">{renderSaveStatus()}</span>}
+					{missingSidecar && (
+						<>
+							{!localPersistence && <Separator />}
+							<span
+								role="status"
+								title={
+									desktopMissingSidecar
+										? undefined
+										: "Open and save in the desktop app to migrate the layout."
+								}
+							>
+								{desktopMissingSidecar ? RESTORE_LEGACY_LAYOUT : "Layout sidecar not loaded"}
+							</span>
+						</>
+					)}
+					{syncNotice && (
+						<>
+							{!localPersistence && <Separator />}
+							<span role="status">{syncNotice}</span>
+							{fileSync === "conflict" && onReloadExternal && (
+								<button
+									type="button"
+									className="ml-2 font-medium text-foreground underline underline-offset-2"
+									onClick={() => void onReloadExternal()}
+								>
+									Reload disk version
+								</button>
+							)}
+						</>
+					)}
 					{(pastLength > 0 || futureLength > 0) && (
 						<>
-							<Separator />
+							{(!localPersistence || fileSync) && <Separator />}
 							<span className="tabular-nums">
 								Undo: {pastLength} / Redo: {futureLength}
 							</span>
@@ -160,11 +230,17 @@ export function StatusBar() {
 			    about before the user starts working, not after. */}
 			{localPersistence && (
 				<>
-					<Separator />
+					{(!model || missingSidecar || fileSync || pastLength > 0 || futureLength > 0) && (
+						<Separator />
+					)}
 					<span
 						data-testid="local-persistence-status"
 						className={localPersistence.attention ? "text-destructive" : undefined}
-						title={localPersistence.detail}
+						title={
+							model && isDirty && filePath
+								? `${localPersistence.detail} Changes have not been saved to the .thf file.`
+								: localPersistence.detail
+						}
 					>
 						{localPersistence.text}
 					</span>
@@ -177,6 +253,20 @@ export function StatusBar() {
 			<span data-testid="local-persistence-alert" role="status" className="sr-only">
 				{localPersistence?.attention ? localPersistence.detail : ""}
 			</span>
+			{!isTauri() && !localPersistence?.attention && onRecoverWorkspace && (
+				<>
+					<Separator />
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						className="text-editor-caption"
+						onClick={onRecoverWorkspace}
+					>
+						Workspace recovery
+					</Button>
+				</>
+			)}
 
 			{/* A readable clear-text API key is worth knowing about from anywhere in the app: the
 			    user may have deleted the key, been told once that a copy survived, and never
@@ -218,5 +308,5 @@ export function StatusBar() {
 }
 
 function Separator() {
-	return <span className="mx-2 text-border">|</span>;
+	return <span aria-hidden="true" className="mx-3 h-3 w-px shrink-0 bg-editor-line" />;
 }

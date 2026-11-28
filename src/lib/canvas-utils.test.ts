@@ -142,7 +142,7 @@ describe("nodeToRect", () => {
 		const rect = nodeToRect({
 			position: { x: 0, y: 0 },
 		});
-		expect(rect).toEqual({ x: 0, y: 0, width: 140, height: 50 });
+		expect(rect).toEqual({ x: 0, y: 0, width: 208, height: 72 });
 	});
 });
 

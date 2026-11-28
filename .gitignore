@@ -39,6 +39,8 @@ screenshots/
 # Cloudflare Wrangler
 .wrangler/
 
+/scene-wasm/target/
+
 # Local-only scratch (per-developer, never committed)
 *.local.md
 

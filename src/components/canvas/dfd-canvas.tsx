@@ -2,6 +2,7 @@ import {
 	Background,
 	BackgroundVariant,
 	type Connection,
+	ControlButton,
 	Controls,
 	type HandleType,
 	MiniMap,
@@ -12,8 +13,11 @@ import {
 	useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { EyeOff } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Layers3, Map as MapIcon } from "lucide-react";
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { isTauri } from "@/lib/platform";
+import { requestGraphDeletion } from "@/lib/request-graph-deletion";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import type { DfdEdge, DfdNode } from "@/stores/canvas-store";
 import { useCanvasStore } from "@/stores/canvas-store";
@@ -24,11 +28,15 @@ import { useSettingsStore } from "@/stores/settings-store";
 import { useUiStore } from "@/stores/ui-store";
 import { buildEdgeMenuItems, buildNodeMenuItems, CanvasContextMenu } from "./canvas-context-menu";
 import { DataFlowEdge } from "./edges/data-flow-edge";
+import { ArchitectureGroupNode } from "./nodes/architecture-group-node";
 import { DfdElementNode } from "./nodes/dfd-element-node";
 import { TextAnnotationNode } from "./nodes/text-annotation-node";
 import { TrustBoundaryNode } from "./nodes/trust-boundary-node";
 
+const fitOptions = { minZoom: 0 };
+
 const nodeTypes = {
+	architectureGroup: ArchitectureGroupNode,
 	dfdElement: DfdElementNode,
 	textAnnotation: TextAnnotationNode,
 	trustBoundary: TrustBoundaryNode,
@@ -47,10 +55,23 @@ const defaultEdgeOptions = {
 	},
 };
 
+function shouldKeepNativeContextMenu(target: EventTarget) {
+	return (
+		target instanceof Element &&
+		(target.closest("input, textarea, select") != null ||
+			(target instanceof HTMLElement && target.isContentEditable))
+	);
+}
+
 export function DfdCanvas() {
 	const nodes = useCanvasStore((s) => s.nodes);
 	const edges = useCanvasStore((s) => s.edges);
 	const onNodesChange = useCanvasStore((s) => s.onNodesChange);
+	const keyboardEvent = useRef<KeyboardEvent | null>(null);
+	const handleNodesChange = useCallback<typeof onNodesChange>(
+		(changes) => onNodesChange(changes, keyboardEvent.current?.nativeEvent),
+		[onNodesChange],
+	);
 	const onEdgesChange = useCanvasStore((s) => s.onEdgesChange);
 	const setViewport = useCanvasStore((s) => s.setViewport);
 	const addElement = useCanvasStore((s) => s.addElement);
@@ -61,6 +82,8 @@ export function DfdCanvas() {
 	const reconnectEdge = useCanvasStore((s) => s.reconnectEdge);
 	const syncFromModel = useCanvasStore((s) => s.syncFromModel);
 	const model = useModelStore((s) => s.model);
+	const groups = model?.groups ?? [];
+	const layerCount = model?.layers?.length ?? 0;
 	// Which document is active. A change is a tab switch (or a New/Open/Import/template, which now
 	// activate a new tab), and drives the once-per-activation viewport decision below (#54 step 7).
 	const activeDocumentId = useDocumentRegistry((s) => s.activeDocumentId);
@@ -88,7 +111,7 @@ export function DfdCanvas() {
 	// activation (viewport restore/flush on switch) can drive the mounted instance.
 	useEffect(() => {
 		useCanvasInstanceStore.getState().setReactFlowActions({
-			fitView: () => fitViewFn(),
+			fitView: () => fitViewFn(fitOptions),
 			zoomIn: () => zoomInFn(),
 			zoomOut: () => zoomOutFn(),
 			panBy: (delta) => panByFn(delta),
@@ -101,6 +124,7 @@ export function DfdCanvas() {
 	const [contextMenu, setContextMenu] = useState<{
 		x: number;
 		y: number;
+		trigger: Element;
 		nodeId?: string;
 		edgeId?: string;
 	} | null>(null);
@@ -111,14 +135,14 @@ export function DfdCanvas() {
 	// Whether the viewport decision has already run for the current activation. Reset per activation
 	// (below) so it runs once each time a document becomes active, not once per component lifetime.
 	const initialSyncDone = useRef(false);
+	const initializingViewport = useRef(false);
+	const viewportActivation = useRef(0);
 	// The active document this canvas last ran the viewport decision for; a change is a real switch.
 	const lastActivatedIdRef = useRef(activeDocumentId);
+	const lastProjection = useRef<{ model: typeof model; sync: typeof syncFromModel } | null>(null);
 
 	// Sync the canvas from the model on every relevant change (edit, new model, file open, tab
 	// switch) and, once per activation, decide the incoming viewport after the nodes are synced.
-	// `model` and `activeDocumentId` are in deps to re-run on edits and on switches; everything else
-	// is read from store snapshots rather than subscribed.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: model/activeDocumentId trigger re-sync
 	useEffect(() => {
 		// A newly activated document must re-run the viewport decision even if the previous document
 		// had already latched it. This closes the hole (#54 step 7) where importing a model with no
@@ -133,25 +157,34 @@ export function DfdCanvas() {
 		// A pending layout means a file/layout was just loaded — reset so we apply its viewport.
 		if (hadPendingLayout) initialSyncDone.current = false;
 
-		syncFromModel();
+		if (
+			hadPendingLayout ||
+			lastProjection.current?.model !== model ||
+			lastProjection.current?.sync !== syncFromModel
+		) {
+			syncFromModel();
+			lastProjection.current = { model, sync: syncFromModel };
+		}
 
 		// Decide the viewport only once per activation, and only after syncFromModel has populated
 		// this document's nodes — deciding before the sync would act on the outgoing document's
 		// geometry. Property edits re-run this effect with the latch still set and never move the view.
 		if (!initialSyncDone.current) {
 			initialSyncDone.current = true;
+			const activation = ++viewportActivation.current;
 			requestAnimationFrame(() => {
+				if (activation !== viewportActivation.current) return;
 				const { nodes, viewport } = useCanvasStore.getState();
 				const isDefaultViewport = viewport.x === 0 && viewport.y === 0 && viewport.zoom === 1;
-				if (hadPendingLayout || (nodes.length > 0 && !isDefaultViewport)) {
-					// Loaded from a file/layout (apply its stored viewport) or returning to a laid-out
-					// document (restore the viewport flushed when we left it).
-					setReactFlowViewport(viewport);
-				} else {
-					// A fresh new or imported document, or one sitting at the default viewport: frame
-					// its content instead of restoring a meaningless default pan/zoom.
-					fitViewFn();
-				}
+				const hasSavedViewport = useModelStore.getState().model?.diagrams[0]?.viewport;
+				initializingViewport.current = true;
+				const initialMove =
+					(hadPendingLayout && hasSavedViewport) || (nodes.length > 0 && !isDefaultViewport)
+						? setReactFlowViewport(viewport)
+						: fitViewFn(fitOptions);
+				void Promise.resolve(initialMove).finally(() => {
+					if (activation === viewportActivation.current) initializingViewport.current = false;
+				});
 			});
 		}
 	}, [syncFromModel, model, activeDocumentId, setReactFlowViewport, fitViewFn]);
@@ -269,6 +302,7 @@ export function DfdCanvas() {
 	}, []);
 
 	const onNodeClick = useCallback((_event: React.MouseEvent, node: DfdNode) => {
+		if (node.type === "architectureGroup") return;
 		if (node.data.isBoundary) {
 			useModelStore.getState().setSelectedBoundary(node.id);
 		} else {
@@ -294,7 +328,7 @@ export function DfdCanvas() {
 	/** Alt+Drag to duplicate: create ghost at original position, swap positions on drop */
 	const onNodeDragStart = useCallback<OnNodeDrag<DfdNode>>(
 		(event, node) => {
-			if (event.altKey && !node.data.isBoundary) {
+			if (event.altKey && !node.data.isBoundary && node.type !== "architectureGroup") {
 				const model = useModelStore.getState().model;
 				if (!model) return;
 
@@ -380,14 +414,26 @@ export function DfdCanvas() {
 	}, []);
 
 	const onNodeContextMenu = useCallback((event: React.MouseEvent, node: DfdNode) => {
+		if (shouldKeepNativeContextMenu(event.target)) return;
 		event.preventDefault();
-		if (node.data.isBoundary) return;
-		setContextMenu({ x: event.clientX, y: event.clientY, nodeId: node.id });
+		if (node.data.isBoundary || node.type === "architectureGroup") return;
+		setContextMenu({
+			x: event.clientX,
+			y: event.clientY,
+			nodeId: node.id,
+			trigger: event.currentTarget,
+		});
 	}, []);
 
 	const onEdgeContextMenu = useCallback((event: React.MouseEvent, edge: DfdEdge) => {
+		if (shouldKeepNativeContextMenu(event.target)) return;
 		event.preventDefault();
-		setContextMenu({ x: event.clientX, y: event.clientY, edgeId: edge.id });
+		setContextMenu({
+			x: event.clientX,
+			y: event.clientY,
+			edgeId: edge.id,
+			trigger: event.currentTarget,
+		});
 	}, []);
 
 	const contextMenuItems = useMemo(() => {
@@ -400,17 +446,7 @@ export function DfdCanvas() {
 					useUiStore.getState().setRightPanelTab("properties");
 				},
 				onDelete: () => {
-					// Select the node then delete
-					const nodeId = contextMenu.nodeId;
-					if (nodeId) {
-						const nodes = useCanvasStore.getState().nodes;
-						const updated = nodes.map((n) => ({
-							...n,
-							selected: n.id === nodeId,
-						}));
-						useCanvasStore.setState({ nodes: updated });
-						useCanvasStore.getState().deleteSelected();
-					}
+					if (contextMenu.nodeId) void requestGraphDeletion({ nodeId: contextMenu.nodeId });
 				},
 				onDuplicate: () => {
 					if (contextMenu.nodeId) duplicateElement(contextMenu.nodeId);
@@ -429,16 +465,7 @@ export function DfdCanvas() {
 					useUiStore.getState().setRightPanelTab("properties");
 				},
 				onDelete: () => {
-					const edgeId = contextMenu.edgeId;
-					if (edgeId) {
-						const edges = useCanvasStore.getState().edges;
-						const updated = edges.map((e) => ({
-							...e,
-							selected: e.id === edgeId,
-						}));
-						useCanvasStore.setState({ edges: updated });
-						useCanvasStore.getState().deleteSelected();
-					}
+					if (contextMenu.edgeId) void requestGraphDeletion({ edgeId: contextMenu.edgeId });
 				},
 				onReverseDirection: () => {
 					if (contextMenu.edgeId) reverseEdge(contextMenu.edgeId);
@@ -449,31 +476,59 @@ export function DfdCanvas() {
 	}, [contextMenu, duplicateElement, reverseEdge]);
 
 	const minimapVisible = useSettingsStore((s) => s.settings.minimapVisible);
-	const [minimapHovered, setMinimapHovered] = useState(false);
-
-	// Subscribe to effective preset so canvas re-renders when theme changes,
-	// picking up the new CSS variable values for ReactFlow sub-components.
-	const effectivePresetId = useUiStore((s) => s.getEffectivePresetId());
-
-	// Read resolved CSS variable values so ReactFlow prop-based colors update on theme change
-	// biome-ignore lint/correctness/useExhaustiveDependencies: effectivePresetId triggers recalculation when theme changes
-	const canvasColors = useMemo(() => {
-		const style = getComputedStyle(document.documentElement);
-		return {
-			dotColor: style.getPropertyValue("--color-muted-foreground").trim() || "oklch(0.35 0 0)",
-			minimapNodeColor:
-				style.getPropertyValue("--color-muted-foreground").trim() || "oklch(0.4 0 0)",
-			minimapMaskColor:
-				style.getPropertyValue("--color-background").trim() || "oklch(0.1 0 0 / 0.7)",
-		};
-	}, [effectivePresetId]);
+	const gridSnap = useSettingsStore((s) => s.settings.gridSnap);
+	const gridSize = useSettingsStore((s) => s.settings.gridSize);
+	const canvasRef = useRef<HTMLDivElement>(null);
 
 	return (
-		<div className="h-full w-full">
+		<div ref={canvasRef} className="@container/diagram relative h-full w-full">
+			{model && nodes.length === 0 && (
+				<div className="absolute top-6 left-6 z-10 grid justify-items-start gap-2">
+					<h2 className="text-editor-title3">Start the diagram</h2>
+					<Button
+						type="button"
+						className="h-editor-primary rounded-editor-control"
+						onClick={() => {
+							const bounds = canvasRef.current?.getBoundingClientRect();
+							if (!bounds) return;
+							addElement(
+								"process",
+								screenToFlowPosition({
+									x: bounds.left + bounds.width / 2,
+									y: bounds.top + bounds.height / 2,
+								}),
+							);
+						}}
+					>
+						Add a process
+					</Button>
+				</div>
+			)}
+			{(groups.length > 0 || layerCount > 0) && (
+				<button
+					type="button"
+					className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-muted-foreground shadow-sm hover:text-foreground"
+					onClick={() => {
+						const ui = useUiStore.getState();
+						if (!ui.rightPanelOpen) ui.toggleRightPanel();
+						ui.setRightPanelTab("architecture");
+					}}
+				>
+					<Layers3 className="size-3.5 text-primary" aria-hidden="true" />
+					{layerCount} {layerCount === 1 ? "layer" : "layers"} · {groups.length}{" "}
+					{groups.length === 1 ? "group" : "groups"}
+				</button>
+			)}
 			<ReactFlow<DfdNode, DfdEdge>
 				nodes={nodes}
 				edges={edges}
-				onNodesChange={onNodesChange}
+				onNodesChange={handleNodesChange}
+				onKeyDownCapture={(event) => {
+					keyboardEvent.current = event;
+				}}
+				onKeyDown={() => {
+					keyboardEvent.current = null;
+				}}
 				onEdgesChange={onEdgesChange}
 				onConnect={onConnect}
 				onConnectStart={onConnectStart}
@@ -483,7 +538,9 @@ export function DfdCanvas() {
 				onReconnectStart={onReconnectStart}
 				onReconnectEnd={onReconnectEnd}
 				isValidConnection={isValidConnection}
-				onMoveEnd={(_event, viewport) => setViewport(viewport)}
+				onMoveEnd={(event, viewport) =>
+					setViewport(viewport, event === null && initializingViewport.current)
+				}
 				onDragOver={onDragOver}
 				onDrop={onDrop}
 				onPaneClick={onPaneClick}
@@ -496,55 +553,59 @@ export function DfdCanvas() {
 				nodeTypes={nodeTypes}
 				edgeTypes={edgeTypes}
 				defaultEdgeOptions={defaultEdgeOptions}
-				fitView
-				snapToGrid
-				snapGrid={[16, 16]}
+				minZoom={0.01}
+				snapToGrid={gridSnap}
+				snapGrid={[gridSize, gridSize]}
 				multiSelectionKeyCode="Shift"
 				selectionMode={SelectionMode.Partial}
 				deleteKeyCode={null}
 				nodesDraggable={!canvasLocked}
 				nodesConnectable={!canvasLocked}
 				elementsSelectable={!canvasLocked}
-				className="bg-background"
+				className={
+					isTauri() && navigator.platform.startsWith("Linux")
+						? "bg-editor-canvas desktop-linux-canvas"
+						: "bg-editor-canvas"
+				}
 				proOptions={{ hideAttribution: true }}
 			>
 				<Background
 					variant={BackgroundVariant.Dots}
-					gap={16}
+					gap={20}
 					size={1}
-					color={canvasColors.dotColor}
+					color="var(--editor-canvas-dot)"
 				/>
-				<Controls className="!bg-card !border-border !shadow-md [&>button]:!bg-card [&>button]:!border-border [&>button]:!text-foreground [&>button:hover]:!bg-accent" />
+				<Controls
+					fitViewOptions={fitOptions}
+					orientation="horizontal"
+					className="m-4! overflow-hidden rounded-editor-control! border! border-editor-outline! bg-editor-surface! shadow-none! [&>button]:size-7! [&>button]:border-editor-line! [&>button]:bg-editor-surface! [&>button]:text-editor-secondary-label! [&>button:focus-visible]:-outline-offset-2! [&>button:hover]:bg-editor-hover!"
+				>
+					<ControlButton
+						aria-label="Show minimap"
+						title={minimapVisible ? "Hide minimap" : "Show minimap"}
+						aria-pressed={minimapVisible}
+						onClick={() =>
+							useSettingsStore.getState().updateSetting("minimapVisible", !minimapVisible)
+						}
+					>
+						<MapIcon className="size-4" aria-hidden="true" />
+					</ControlButton>
+				</Controls>
 				{minimapVisible && (
 					<MiniMap
-						className="!bg-card !border !border-border !rounded-md !shadow-sm"
-						nodeColor={canvasColors.minimapNodeColor}
-						maskColor={canvasColors.minimapMaskColor}
-						style={{ width: 160, height: 120 }}
+						className="mb-14! rounded-editor-control! border! border-editor-line! bg-editor-surface! shadow-none! @min-[20rem]/diagram:mb-4!"
+						nodeColor={(node) =>
+							node.data.isBoundary || node.type === "architectureGroup"
+								? "transparent"
+								: "color-mix(in srgb, var(--editor-surface), var(--editor-label) 24%)"
+						}
+						nodeStrokeColor="var(--editor-outline)"
+						nodeStrokeWidth={1}
+						maskColor="color-mix(in srgb, var(--color-background) 24%, transparent)"
+						maskStrokeColor="var(--color-muted-foreground)"
+						maskStrokeWidth={1}
+						style={{ width: 112, height: 80 }}
 					/>
-				)}
-				{/* Minimap hide button — overlaid in bottom-right corner */}
-				{minimapVisible && (
-					<div
-						className="absolute bottom-1 right-1 z-10"
-						style={{ pointerEvents: "none" }}
-						onMouseEnter={() => setMinimapHovered(true)}
-						onMouseLeave={() => setMinimapHovered(false)}
-					>
-						<div style={{ width: 160, height: 120, position: "relative", pointerEvents: "auto" }}>
-							{minimapHovered && (
-								<button
-									type="button"
-									className="absolute right-1 top-1 z-20 rounded bg-card/80 p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-									style={{ pointerEvents: "auto" }}
-									title="Hide minimap"
-									onClick={() => useSettingsStore.getState().updateSetting("minimapVisible", false)}
-								>
-									<EyeOff className="h-3.5 w-3.5" />
-								</button>
-							)}
-						</div>
-					</div>
 				)}
 			</ReactFlow>
 			{contextMenu && contextMenuItems.length > 0 && (
@@ -552,6 +613,7 @@ export function DfdCanvas() {
 					x={contextMenu.x}
 					y={contextMenu.y}
 					items={contextMenuItems}
+					trigger={contextMenu.trigger}
 					onClose={() => setContextMenu(null)}
 				/>
 			)}

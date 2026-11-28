@@ -2,9 +2,13 @@ import {
 	binaryTag,
 	CORE_SCHEMA,
 	type DumpOptions,
+	defineScalarTag,
 	dump,
+	floatCoreTag,
+	intCoreTag,
 	load,
 	mergeTag,
+	NOT_RESOLVED,
 	omapTag,
 	pairsTag,
 	Schema,
@@ -31,49 +35,52 @@ const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** A calendar date followed by a time of day, e.g. `2026-03-15T00:00:00.000Z`. */
 const DATE_WITH_TIME = /^(\d{4}-\d{2}-\d{2})[T ]/;
 
+const LEADING_ZERO_INTEGER = /^[+-]?0[0-9]+$/;
+const thfIntegerTag = {
+	...intCoreTag,
+	resolve(source: string, _isExplicit: boolean, tagName: string) {
+		if (LEADING_ZERO_INTEGER.test(source)) return NOT_RESOLVED;
+		return intCoreTag.resolve(source, true, tagName);
+	},
+};
+const thfFloatTag = {
+	...floatCoreTag,
+	resolve(source: string, isExplicit: boolean, tagName: string) {
+		if (!isExplicit && LEADING_ZERO_INTEGER.test(source)) return NOT_RESOLVED;
+		return floatCoreTag.resolve(source, isExplicit, tagName);
+	},
+};
+
+const legacyScalarTags = YAML11_SCHEMA.implicitScalarTags.filter(
+	(tag) => tag.tagName !== TIMESTAMP_TAG,
+);
+const legacyTextTag = defineScalarTag("tag:threatforge.dev,2026:legacy-text", {
+	implicit: true,
+	resolve(source, isExplicit) {
+		return !isExplicit &&
+			legacyScalarTags.some((tag) => tag.resolve(source, false, tag.tagName) !== NOT_RESOLVED)
+			? source
+			: NOT_RESOLVED;
+	},
+});
+
 /**
- * Read schema: js-yaml's core (YAML 1.2) scalar resolution plus the non-scalar YAML 1.1
- * extensions the pre-upgrade schema carried — merge keys and `!!binary`/`!!omap`/`!!pairs`/`!!set`.
- *
- * js-yaml 5 split its single `DEFAULT_SCHEMA` into a conservative load default (`CORE_SCHEMA`)
- * and a defensive dump default (`YAML11_SCHEMA` + int/float fallback). The core resolver reads
- * `2026-03-15` and bare `y`/`no`/`on` as the strings the desktop writer intends, never a `Date`
- * or a boolean, so a desktop document opened and saved in the browser still reopens on the
- * desktop. The five explicit extension tags are re-added so a file using them resolves exactly
- * as it did before the upgrade; a plain `.thf` never uses them, but dropping them would be a
- * silent read-path behavior change.
- *
- * The timestamp type is deliberately absent: it is the one tag whose presence would coerce a
- * calendar date, so it stays out of both the read and the write schema.
+ * One schema for reading and writing. The numeric resolvers match serde_yaml's handling of
+ * base-prefixed integers and leading-zero decimal strings. The last resolver keeps YAML 1.1
+ * ambiguities such as bare `y` and `on` as text on read while making the dumper quote them.
+ * Timestamps stay plain strings so desktop calendar dates round-trip.
  */
 export const THF_YAML_SCHEMA = new Schema([
 	...CORE_SCHEMA.tags,
+	thfIntegerTag,
+	thfFloatTag,
 	mergeTag,
 	binaryTag,
 	omapTag,
 	pairsTag,
 	setTag,
+	legacyTextTag,
 ]);
-
-/**
- * Write schema: js-yaml 5's YAML 1.1 schema with only the timestamp type removed.
- *
- * The dumper quotes a plain scalar exactly when it would implicitly resolve to a non-string
- * under the schema it is given. Two consequences hold this format together:
- *
- * - With the timestamp type absent, a `created: 2026-03-15` string dumps unquoted and time-free,
- *   so chrono's `NaiveDate` on the desktop still accepts it. (js-yaml 5's own dump default keeps
- *   the timestamp type, which would quote the date — this schema is why it does not.)
- * - With the YAML 1.1 boolean type present, the ambiguous key `y` (a coordinate axis) is quoted
- *   as `"y"`, so a YAML 1.1 reader cannot mistake it for `true`. The read schema resolves `y` as
- *   a plain string, so the two schemas still round-trip.
- *
- * The write path never emits a `Date`, `Map`, `Set`, or binary value, so the extension tags this
- * schema carries are inert here; they exist only to mirror the read schema's tag set.
- */
-export const THF_YAML_DUMP_SCHEMA = new Schema(
-	YAML11_SCHEMA.tags.filter((tag) => tag.tagName !== TIMESTAMP_TAG),
-);
 
 /** Options the browser writer passes to `dump` for every `.thf` document. */
 export const THF_YAML_DUMP_OPTIONS: DumpOptions = {
@@ -81,7 +88,7 @@ export const THF_YAML_DUMP_OPTIONS: DumpOptions = {
 	noRefs: true,
 	sortKeys: false,
 	quoteStyle: "double",
-	schema: THF_YAML_DUMP_SCHEMA,
+	schema: THF_YAML_SCHEMA,
 };
 
 /**
@@ -97,6 +104,7 @@ export const THF_YAML_DUMP_OPTIONS: DumpOptions = {
 export function parseThreatModelYaml(text: string): ThreatModel {
 	const parsed = load(text, { schema: THF_YAML_SCHEMA });
 	assertThreatModelShape(parsed);
+	parsed.metadata.description ??= "";
 
 	// A `.thf` omits empty collections; materialize them so callers never see an absent array.
 	parsed.elements ??= [];
@@ -136,6 +144,9 @@ function assertThreatModelShape(value: unknown): asserts value is ThreatModel {
 
 	requireCalendarDate(metadata, "created");
 	requireCalendarDate(metadata, "modified");
+	if (metadata.description != null && typeof metadata.description !== "string") {
+		throw new Error("This file cannot be opened: metadata.description must be text.");
+	}
 
 	for (const section of COLLECTION_SECTIONS) {
 		const entries = document[section];

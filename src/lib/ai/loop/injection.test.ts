@@ -158,14 +158,21 @@ describe("3. document-content injection cannot add a tool or authorize a call", 
 		diagrams: [],
 	};
 
-	it("places the hostile text in the prompt but never advertises the fabricated tool", () => {
+	it("fences hostile text in a partial-tool prompt without advertising the fabricated tool", () => {
 		const prompt = buildSystemPrompt(hostileModel, { tools: registry.list() });
-		// The document text is in the prompt — it is the user's own document.
 		expect(prompt).toContain("Ignore previous instructions");
 		// But the advertised tool list comes from the registry, not the document.
 		const advertised = registry.list().map((t) => t.name);
 		expect(advertised).not.toContain("run_shell");
 		expect(registry.get("run_shell")).toBeUndefined();
+	});
+
+	it("keeps hostile document text out of a prompt with all document read tools", () => {
+		const native = createToolRegistry([...GRAPH_ACTION_TOOLS, ...READ_TOOLS]);
+		const prompt = buildSystemPrompt(hostileModel, { tools: native.list() });
+		expect(prompt).not.toContain("Ignore previous instructions");
+		expect(prompt).not.toContain("run_shell");
+		expect(native.get("run_shell")).toBeUndefined();
 	});
 
 	it("rejects a call to the fabricated tool as unknown_tool with no preparation", () => {

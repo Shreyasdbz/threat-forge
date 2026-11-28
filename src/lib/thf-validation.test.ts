@@ -17,11 +17,13 @@
 
 import { describe, expect, it } from "vitest";
 import {
+	assertSequencePromotionAllowed,
 	readThreatModelText,
 	ThfValidationError,
 	type ThfValidationErrorKind,
 	validateThreatModel,
 } from "@/lib/thf-validation";
+import { serializeThreatModelYaml } from "@/lib/thf-yaml";
 import type { ThreatModel } from "@/types/threat-model";
 import architectureCanonicalFullRaw from "../../tests/fixtures/thf/architecture-canonical-full.thf?raw";
 import architectureOnlyRaw from "../../tests/fixtures/thf/architecture-only.thf?raw";
@@ -31,8 +33,14 @@ import duplicateGroupIdRaw from "../../tests/fixtures/thf/invalid/duplicate-grou
 import duplicateLayerIdRaw from "../../tests/fixtures/thf/invalid/duplicate-layer-id.thf?raw";
 import duplicateRelationshipIdRaw from "../../tests/fixtures/thf/invalid/duplicate-relationship-id.thf?raw";
 import groupIdCollidesWithElementRaw from "../../tests/fixtures/thf/invalid/group-id-collides-with-element.thf?raw";
+import missingElementSizeHeightRaw from "../../tests/fixtures/thf/invalid/missing-element-size-height.thf?raw";
 import missingMetadataRaw from "../../tests/fixtures/thf/invalid/missing-metadata.thf?raw";
+import numericMetadataDescriptionRaw from "../../tests/fixtures/thf/invalid/numeric-metadata-description.thf?raw";
 import relationshipIdCollidesWithFlowRaw from "../../tests/fixtures/thf/invalid/relationship-id-collides-with-flow.thf?raw";
+import stringBoundaryPositionYRaw from "../../tests/fixtures/thf/invalid/string-boundary-position-y.thf?raw";
+import stringBoundarySizeWidthRaw from "../../tests/fixtures/thf/invalid/string-boundary-size-width.thf?raw";
+import stringElementPositionXRaw from "../../tests/fixtures/thf/invalid/string-element-position-x.thf?raw";
+import stringElementSizeWidthRaw from "../../tests/fixtures/thf/invalid/string-element-size-width.thf?raw";
 import truncatedRaw from "../../tests/fixtures/thf/invalid/truncated.thf?raw";
 import unknownElementGroupRaw from "../../tests/fixtures/thf/invalid/unknown-element-group.thf?raw";
 import unknownElementLayerRaw from "../../tests/fixtures/thf/invalid/unknown-element-layer.thf?raw";
@@ -41,9 +49,13 @@ import unknownGroupParentRaw from "../../tests/fixtures/thf/invalid/unknown-grou
 import unknownRelationshipEndpointRaw from "../../tests/fixtures/thf/invalid/unknown-relationship-endpoint.thf?raw";
 import unsupportedVersionRaw from "../../tests/fixtures/thf/invalid/unsupported-version.thf?raw";
 import legacySidecarRaw from "../../tests/fixtures/thf/legacy-sidecar/model.thf?raw";
+import nullDescriptionRaw from "../../tests/fixtures/thf/scalar-null-description.thf?raw";
+import plainNumbersRaw from "../../tests/fixtures/thf/scalar-plain-numbers.thf?raw";
 import canonicalFullRaw from "../../tests/fixtures/thf/v1.0-canonical-full.thf?raw";
 import minimalRaw from "../../tests/fixtures/thf/v1.0-minimal.thf?raw";
+import opaqueSequenceRaw from "../../tests/fixtures/thf/v1.0-opaque-sequence.thf?raw";
 import unknownFieldsRaw from "../../tests/fixtures/thf/v1.0-unknown-fields.thf?raw";
+import typedSequenceRaw from "../../tests/fixtures/thf/v1.1-sequence.thf?raw";
 
 interface InvalidCase {
 	name: string;
@@ -66,7 +78,7 @@ const INVALID_CASES: InvalidCase[] = [
 		name: "invalid/unsupported-version.thf",
 		raw: unsupportedVersionRaw,
 		kind: "unsupported-version",
-		message: `Unsupported schema version '2.0'. Supported versions: ["1.0"]`,
+		message: `Unsupported schema version '2.0'. Supported versions: ["1.0", "1.1"]`,
 	},
 	{
 		// reader.rs: ThreatForgeError::DuplicateId { id: "app", section: "elements" }
@@ -93,6 +105,37 @@ const INVALID_CASES: InvalidCase[] = [
 		// missing-section (a shape-narrowing failure, distinct from a raw parse failure).
 		name: "invalid/missing-metadata.thf",
 		raw: missingMetadataRaw,
+		kind: "missing-section",
+	},
+	{
+		name: "invalid/numeric-metadata-description.thf",
+		raw: numericMetadataDescriptionRaw,
+		kind: "missing-section",
+	},
+
+	{
+		name: "invalid/missing-element-size-height.thf",
+		raw: missingElementSizeHeightRaw,
+		kind: "missing-section",
+	},
+	{
+		name: "invalid/string-element-position-x.thf",
+		raw: stringElementPositionXRaw,
+		kind: "missing-section",
+	},
+	{
+		name: "invalid/string-boundary-position-y.thf",
+		raw: stringBoundaryPositionYRaw,
+		kind: "missing-section",
+	},
+	{
+		name: "invalid/string-boundary-size-width.thf",
+		raw: stringBoundarySizeWidthRaw,
+		kind: "missing-section",
+	},
+	{
+		name: "invalid/string-element-size-width.thf",
+		raw: stringElementSizeWidthRaw,
 		kind: "missing-section",
 	},
 
@@ -199,6 +242,112 @@ function asMapping(value: unknown, label: string): Record<string, unknown> {
 }
 
 describe("browser `.thf` read validation — parity with read_threat_model", () => {
+	it.each([
+		{ name: "v1.0-minimal.thf", raw: minimalRaw, description: "", positions: [undefined] },
+		{
+			name: "scalar-null-description.thf",
+			raw: nullDescriptionRaw,
+			description: "",
+			positions: [],
+		},
+		{
+			name: "scalar-plain-numbers.thf",
+			raw: plainNumbersRaw,
+			description: "00123",
+			positions: [
+				{ x: -16, y: 8 },
+				{ x: -2, y: 100 },
+			],
+		},
+	])("reads scalar values in $name", ({ raw, description, positions }) => {
+		const model = readThreatModelText(raw);
+		expect(model.metadata.description).toBe(description);
+		expect(model.elements.map((entity) => entity.position)).toEqual(positions);
+	});
+
+	it("round-trips quoted text that would otherwise resolve to a desktop number", () => {
+		const model = readThreatModelText(plainNumbersRaw);
+		expect(model.elements[1]).toMatchObject({ name: "+0o10", description: "1e5" });
+		const reopened = readThreatModelText(serializeThreatModelYaml(model));
+		expect(reopened.elements[1]).toMatchObject({ name: "+0o10", description: "1e5" });
+		expect(model.elements[1].tags).toEqual([
+			"+0o10",
+			"0x10",
+			"-0x10",
+			"00123",
+			"1e3",
+			".inf",
+			"~",
+			"null",
+			"yes",
+			"on",
+			"true",
+			"12:30",
+			"",
+		]);
+		expect(reopened.elements[1].tags).toEqual(model.elements[1].tags);
+		expect(reopened.elements[0].size).toEqual({ width: 256, height: 125 });
+	});
+
+	it("defaults omitted metadata description to empty text and preserves quoted numbers", () => {
+		expect(readThreatModelText(minimalRaw).metadata.description).toBe("");
+		const quoted = numericMetadataDescriptionRaw.replace("description: 123", 'description: "123"');
+		expect(readThreatModelText(quoted).metadata.description).toBe("123");
+	});
+
+	it("preserves an opaque 1.0 sequence value on an edited round trip", () => {
+		const model = readThreatModelText(opaqueSequenceRaw);
+		model.metadata.title = "Edited legacy document";
+		const saved = readThreatModelText(serializeThreatModelYaml(model));
+		expect(saved.version).toBe("1.0");
+		expect(saved.metadata.title).toBe("Edited legacy document");
+		expect(saved.diagrams[0].sequence).toEqual({
+			participants: "external",
+			settings: [42, true, null],
+		});
+	});
+
+	it("blocks promotion for opaque values in the browser model or native source", () => {
+		const model = readThreatModelText(opaqueSequenceRaw);
+		const nativeProjection = readThreatModelText(opaqueSequenceRaw.split("    sequence:")[0]);
+		expect(() => assertSequencePromotionAllowed(model)).toThrow("diagrams[].sequence");
+		expect(() => assertSequencePromotionAllowed(nativeProjection, opaqueSequenceRaw)).toThrow(
+			"diagrams[].sequence",
+		);
+		expect(() => assertSequencePromotionAllowed(nativeProjection)).not.toThrow();
+	});
+
+	it("round-trips a typed 1.1 sequence with ordered and linked messages", () => {
+		const model = readThreatModelText(typedSequenceRaw);
+		const saved = readThreatModelText(serializeThreatModelYaml(model));
+		expect(saved.diagrams).toEqual(model.diagrams);
+		expect(saved.diagrams[1].sequence).toMatchObject({
+			messages: [{ id: "request", flow_id: "submit" }, { id: "response" }],
+		});
+	});
+
+	it("rejects a typed 1.1 sequence link whose endpoints are reversed", () => {
+		const raw = typedSequenceRaw.replace(
+			"from: client\n          to: service",
+			"from: service\n          to: client",
+		);
+		const error = catchValidationError(() => readThreatModelText(raw));
+		expect(error.kind).toBe("invalid-sequence");
+		expect(error.message).toContain(
+			"diagrams[checkout-sequence].sequence.messages[request].flow_id",
+		);
+	});
+
+	it.each([
+		["missing participant", "to: client", "to: missing", "invalid-reference"],
+		["duplicate message ID", "id: response", "id: request", "duplicate-id"],
+		["blank participant ID", "id: client", 'id: " "', "invalid-sequence"],
+	])("rejects a typed 1.1 sequence with a %s", (_name, from, to, kind) => {
+		expect(
+			catchValidationError(() => readThreatModelText(typedSequenceRaw.replace(from, to))).kind,
+		).toBe(kind);
+	});
+
 	it.each(INVALID_CASES)("rejects $name as $kind", ({ raw, kind, message }) => {
 		const error = catchValidationError(() => readThreatModelText(raw));
 		expect(error.kind).toBe(kind);

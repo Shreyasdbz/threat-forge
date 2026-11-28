@@ -1,11 +1,50 @@
-import { getSmartHandlePair } from "@/lib/canvas-utils";
+import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH, getSmartHandlePair } from "@/lib/canvas-utils";
+import { readThreatModelText } from "@/lib/thf-validation";
 import type { ThreatModel } from "@/types/threat-model";
+import aiApplication from "./architecture-starters/ai-application.thf?raw";
+import cloudService from "./architecture-starters/cloud-service.thf?raw";
+import dataPlatform from "./architecture-starters/data-platform.thf?raw";
+import desktopApp from "./architecture-starters/desktop-app.thf?raw";
+import eventPipeline from "./architecture-starters/event-pipeline.thf?raw";
 
 export interface TemplateInfo {
 	id: string;
 	name: string;
 	description: string;
 }
+
+export const ARCHITECTURE_STARTERS = [
+	{
+		id: "cloud-service",
+		name: "Cloud Service",
+		description: "Browser, API, and database",
+		source: cloudService,
+	},
+	{
+		id: "event-pipeline",
+		name: "Event-Driven System",
+		description: "Producer, durable queue, and worker",
+		source: eventPipeline,
+	},
+	{
+		id: "data-platform",
+		name: "Data Platform",
+		description: "Source bucket, ingest job, and warehouse",
+		source: dataPlatform,
+	},
+	{
+		id: "desktop-app",
+		name: "Desktop App",
+		description: "Local UI, service, and file store",
+		source: desktopApp,
+	},
+	{
+		id: "ai-application",
+		name: "AI Application",
+		description: "Assistant UI, inference gateway, and hosted model",
+		source: aiApplication,
+	},
+] satisfies (TemplateInfo & { source: string })[];
 
 export const TEMPLATES: TemplateInfo[] = [
 	{
@@ -40,23 +79,60 @@ export const TEMPLATES: TemplateInfo[] = [
 	},
 ];
 
-/** Default node dimensions used for smart handle computation */
-const NODE_W = 140;
-const NODE_H = 50;
+const TEMPLATE_SPACING = 1.7;
+const TEMPLATE_BOUNDARY_PADDING = 48;
 
 /** Load a template by ID. Returns a ThreatModel with today's date.
  *  Post-processes flows to assign flow numbers and smart connection handles. */
 export function loadTemplate(id: string): ThreatModel | null {
+	const today = new Date().toISOString().split("T")[0];
+	const starter = ARCHITECTURE_STARTERS.find((entry) => entry.id === id);
+	if (starter) {
+		const model = readThreatModelText(starter.source);
+		model.metadata.created = today;
+		model.metadata.modified = today;
+		return model;
+	}
+
 	const builder = TEMPLATE_BUILDERS[id];
 	if (!builder) return null;
 
-	const today = new Date().toISOString().split("T")[0];
 	const model = builder(today);
 
-	// Build a position lookup from elements
 	const posMap = new Map<string, { x: number; y: number }>();
 	for (const el of model.elements) {
-		if (el.position) posMap.set(el.id, el.position);
+		if (!el.position) continue;
+		el.position = {
+			x: Math.round(el.position.x * TEMPLATE_SPACING),
+			y: Math.round(el.position.y * TEMPLATE_SPACING),
+		};
+		posMap.set(el.id, el.position);
+	}
+	for (const boundary of model.trust_boundaries) {
+		const members = model.elements.flatMap((element) =>
+			boundary.contains.includes(element.id) && element.position
+				? [{ element, position: element.position }]
+				: [],
+		);
+		if (members.length === 0) continue;
+		const x = Math.min(...members.map(({ position }) => position.x)) - TEMPLATE_BOUNDARY_PADDING;
+		const y = Math.min(...members.map(({ position }) => position.y)) - TEMPLATE_BOUNDARY_PADDING;
+		boundary.position = { x, y };
+		boundary.size = {
+			width:
+				Math.max(...members.map(({ position }) => position.x)) +
+				DEFAULT_NODE_WIDTH +
+				TEMPLATE_BOUNDARY_PADDING -
+				x,
+			height:
+				Math.max(...members.map(({ position }) => position.y)) +
+				DEFAULT_NODE_HEIGHT +
+				TEMPLATE_BOUNDARY_PADDING -
+				y,
+		};
+		for (const { element, position } of members) {
+			element.position = { x: position.x - x, y: position.y - y };
+		}
 	}
 
 	// Assign flow_number and smart handles to every flow
@@ -66,8 +142,8 @@ export function loadTemplate(id: string): ThreatModel | null {
 		const tgtPos = posMap.get(flow.to);
 		if (srcPos && tgtPos && !flow.source_handle && !flow.target_handle) {
 			const pair = getSmartHandlePair(
-				{ x: srcPos.x, y: srcPos.y, width: NODE_W, height: NODE_H },
-				{ x: tgtPos.x, y: tgtPos.y, width: NODE_W, height: NODE_H },
+				{ ...srcPos, width: DEFAULT_NODE_WIDTH, height: DEFAULT_NODE_HEIGHT },
+				{ ...tgtPos, width: DEFAULT_NODE_WIDTH, height: DEFAULT_NODE_HEIGHT },
 			);
 			updated.source_handle = pair.sourceHandle;
 			updated.target_handle = pair.targetHandle;
@@ -84,12 +160,12 @@ type TemplateBuilder = (today: string) => ThreatModel;
  * Boundary color palette (hex)
  * ────────────────────────────────────────────────────────────────────────── */
 const BOUNDARY_COLORS = {
-	edge: { fill: "#F97316", stroke: "#F97316", fillOpacity: 0.04, strokeOpacity: 0.45 },
-	internal: { fill: "#3B82F6", stroke: "#3B82F6", fillOpacity: 0.04, strokeOpacity: 0.45 },
-	data: { fill: "#8B5CF6", stroke: "#8B5CF6", fillOpacity: 0.04, strokeOpacity: 0.45 },
-	security: { fill: "#EF4444", stroke: "#EF4444", fillOpacity: 0.05, strokeOpacity: 0.5 },
-	external: { fill: "#6B7280", stroke: "#6B7280", fillOpacity: 0.03, strokeOpacity: 0.35 },
-	iot: { fill: "#10B981", stroke: "#10B981", fillOpacity: 0.04, strokeOpacity: 0.45 },
+	edge: { fill: "#737373", stroke: "#737373", fillOpacity: 0.04, strokeOpacity: 0.45 },
+	internal: { fill: "#059669", stroke: "#059669", fillOpacity: 0.04, strokeOpacity: 0.45 },
+	data: { fill: "#0F766E", stroke: "#0F766E", fillOpacity: 0.04, strokeOpacity: 0.45 },
+	security: { fill: "#854D4D", stroke: "#854D4D", fillOpacity: 0.05, strokeOpacity: 0.5 },
+	external: { fill: "#737373", stroke: "#737373", fillOpacity: 0.03, strokeOpacity: 0.35 },
+	iot: { fill: "#047857", stroke: "#047857", fillOpacity: 0.04, strokeOpacity: 0.45 },
 };
 
 /* ═════════════════════════════════════════════════════════════════════════════

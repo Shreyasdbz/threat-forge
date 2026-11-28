@@ -132,6 +132,8 @@ Examples:
 6. Include before/after screenshots or traces for visible UI changes.
 7. List owner validation steps separately from automated verification.
 
+For screenshot-based browser workflows, see the [visual flow guide](e2e/visual-flows/README.md).
+
 If a CI check goes red, triage it with
 [docs/runbooks/diagnosing-ci-failures.md](docs/runbooks/diagnosing-ci-failures.md) before
 rerunning anything.

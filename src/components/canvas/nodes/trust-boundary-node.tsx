@@ -1,5 +1,6 @@
 import { type NodeProps, NodeResizeControl } from "@xyflow/react";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { useCanvasDraft } from "@/hooks/use-canvas-draft";
 import { cn } from "@/lib/utils";
 import { useCanvasInstanceStore } from "@/stores/canvas-instance-store";
 import type { DfdNodeData } from "@/stores/canvas-store";
@@ -20,6 +21,7 @@ function hexToRgba(hex: string, opacity: number): string {
 export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 	const nodeData = data as DfdNodeData;
 	const [isEditing, setIsEditing] = useState(false);
+	useCanvasDraft(isEditing);
 	const [isDragOver, setIsDragOver] = useState(false);
 	const inputRef = useRef<HTMLInputElement>(null);
 
@@ -30,19 +32,21 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 
 	const fillColor = nodeData.boundaryFillColor as string | undefined;
 	const strokeColor = nodeData.boundaryStrokeColor as string | undefined;
-	const fillOpacity = (nodeData.boundaryFillOpacity as number | undefined) ?? 0.05;
+	const documentAccent = strokeColor ?? fillColor;
+	const accent = documentAccent
+		? `color-mix(in srgb, ${documentAccent}, var(--editor-label) var(--editor-container-ink-mix))`
+		: undefined;
+	const fillOpacity = nodeData.boundaryFillOpacity ?? 0.05;
 	const strokeOpacity = (nodeData.boundaryStrokeOpacity as number | undefined) ?? 0.6;
 
 	const customStyle = useMemo(() => {
 		const style: React.CSSProperties = {};
-		if (fillColor) {
-			style.backgroundColor = hexToRgba(fillColor, fillOpacity);
-		}
-		if (strokeColor) {
-			style.borderColor = hexToRgba(strokeColor, strokeOpacity);
+		if (fillColor) style.backgroundColor = hexToRgba(fillColor, fillOpacity * 0.03);
+		if (accent) {
+			style.borderColor = `color-mix(in srgb, ${accent} ${Math.min(strokeOpacity, 0.6) * 100}%, transparent)`;
 		}
 		return style;
-	}, [fillColor, strokeColor, fillOpacity, strokeOpacity]);
+	}, [accent, fillColor, fillOpacity, strokeOpacity]);
 
 	const hasCustomColors = Boolean(fillColor || strokeColor);
 
@@ -50,19 +54,7 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 		(value: string) => {
 			const trimmed = value.trim();
 			if (trimmed && trimmed !== (nodeData.boundaryName ?? nodeData.label)) {
-				const model = useModelStore.getState().model;
-				if (model) {
-					const updatedBoundaries = model.trust_boundaries.map((b) =>
-						b.id === id ? { ...b, name: trimmed } : b,
-					);
-					useModelStore
-						.getState()
-						.setModel(
-							{ ...model, trust_boundaries: updatedBoundaries },
-							useModelStore.getState().filePath,
-						);
-					useModelStore.getState().markDirty();
-				}
+				useModelStore.getState().updateTrustBoundary(id, { name: trimmed });
 				syncBoundaryLabel(id, trimmed);
 			}
 			setIsEditing(false);
@@ -76,11 +68,14 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 	}, [id]);
 
 	return (
-		<>
+		<div className="group size-full">
 			<NodeResizeControl
 				minWidth={200}
 				minHeight={150}
-				className="!bg-transparent !border-none"
+				className={cn(
+					"!bg-transparent !border-none group-hover:opacity-100",
+					!selected && "opacity-0",
+				)}
 				style={{ pointerEvents: "auto" }}
 			>
 				<ResizeIcon />
@@ -90,15 +85,10 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
           Border strips and label opt back in with pointer-events:auto. */}
 			<div
 				className={cn(
-					"h-full w-full relative rounded-lg border-2 border-dashed transition-colors",
-					!hasCustomColors &&
-						(selected
-							? "border-tf-ember/60 bg-tf-ember/5"
-							: "border-muted-foreground/30 bg-muted/5"),
-					hasCustomColors &&
-						selected &&
-						"ring-2 ring-tf-signal ring-offset-1 ring-offset-background",
-					isDragOver && isDraggingElement && "border-tf-signal/60 bg-tf-signal/10",
+					"h-full w-full relative rounded-editor-panel border border-dashed transition-colors",
+					!hasCustomColors && (selected ? "border-editor-accent" : "border-editor-outline"),
+					hasCustomColors && selected && "outline outline-1 outline-editor-accent",
+					isDragOver && isDraggingElement && "border-editor-accent bg-editor-selection",
 				)}
 				style={{
 					pointerEvents: "none",
@@ -150,16 +140,21 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 				{/* Name label — clickable, selects boundary */}
 				<button
 					type="button"
-					className="relative w-full p-2 bg-transparent border-none text-left"
+					className="relative flex w-full items-center gap-2 border-none bg-transparent px-4 py-3 text-left"
 					style={{ pointerEvents: "auto" }}
 					onClick={selectBoundary}
 				>
+					<span
+						aria-hidden="true"
+						className="size-1.5 shrink-0 rounded-full bg-editor-outline"
+						style={{ backgroundColor: accent }}
+					/>
 					{isEditing ? (
 						<input
 							ref={inputRef}
 							defaultValue={nodeData.boundaryName ?? nodeData.label}
 							autoFocus
-							className="bg-transparent text-xs font-semibold uppercase tracking-wider text-muted-foreground outline-none"
+							className="bg-transparent text-editor-footnote text-muted-foreground outline-none"
 							onBlur={(e) => commitLabel(e.target.value)}
 							onKeyDown={(e) => {
 								// Stop propagation so Backspace doesn't trigger canvas node deletion
@@ -170,7 +165,7 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 						/>
 					) : (
 						<div
-							className="text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-text"
+							className="text-editor-footnote text-muted-foreground cursor-text"
 							onDoubleClick={() => setIsEditing(true)}
 						>
 							{nodeData.boundaryName ?? nodeData.label}
@@ -178,7 +173,7 @@ export function TrustBoundaryNode({ id, data, selected }: NodeProps) {
 					)}
 				</button>
 			</div>
-		</>
+		</div>
 	);
 }
 

@@ -7,6 +7,7 @@ import {
 	waitForCanvasReady,
 	waitForCanvasSettled,
 } from "./fixtures";
+import { openDocument } from "./support/interactions";
 
 /** Add a trust boundary from the palette (doesn't use node-* testid like elements) */
 async function addTrustBoundary(page: Page) {
@@ -28,19 +29,8 @@ async function addTrustBoundary(page: Page) {
  * First run generates baseline images in `e2e/canvas-visual.spec.ts-snapshots/`.
  * Subsequent runs compare against the baseline — failures produce a diff image.
  *
- * Run with `--update-snapshots` to regenerate baselines:
- *   npx playwright test e2e/canvas-visual.spec.ts --update-snapshots
- *
- * Baseline ownership, update, and review (issue #66, D8): only macOS-generated baselines are
- * committed (font rendering/anti-aliasing differ on Linux, so CI skips this spec entirely — see
- * the `test.skip(!!process.env.CI, ...)` below). The contributor/agent authoring a canvas-layout
- * change owns regenerating baselines locally on macOS before requesting review, using the
- * `--update-snapshots` command above. A PR that changes any file under
- * `e2e/canvas-visual.spec.ts-snapshots/` must have its before/after PNGs reviewed as images — CI
- * cannot see what changed, since it never runs this spec — using GitHub's native "Files changed"
- * PNG diff view, so a reviewer without macOS access can review without checking out the branch.
- * Record the reason for a baseline change in the PR description (mirroring the existing `#136`
- * precedent noted in `docs/runbooks/diagnosing-ci-failures.md`).
+ * Generate and compare baselines in the pinned Playwright image from the E2E job.
+ * See docs/runbooks/diagnosing-ci-failures.md for the command and review procedure.
  *
  * NOTE on tests NOT included here:
  *
@@ -60,11 +50,12 @@ async function addTrustBoundary(page: Page) {
  *    on the component's CSS class logic.
  */
 
-test.describe("Canvas Visual Regression", () => {
-	// Visual regression snapshots are platform-specific (font rendering, anti-aliasing).
-	// Only macOS baselines are committed — skip in CI (Linux) to avoid missing-snapshot failures.
-	test.skip(!!process.env.CI, "Visual regression tests require platform-specific baselines");
+test.skip(
+	process.env.CANVAS_VISUAL_BASELINES !== "1",
+	"Canvas baselines require the pinned Playwright CI image",
+);
 
+test.describe("Canvas Visual Regression", () => {
 	test.beforeEach(async ({ page }) => {
 		await page.goto("/app");
 		await createModel(page);
@@ -84,6 +75,8 @@ test.describe("Canvas Visual Regression", () => {
 		await addPaletteItem(page, "palette-item-web-server");
 		await addPaletteItem(page, "palette-item-sql-database");
 		await addPaletteItem(page, "palette-item-generic");
+		await page.locator(".react-flow__controls-fitview").click();
+		await page.locator(".react-flow__controls-zoomout").click();
 		await waitForCanvasSettled(page, 3);
 
 		const canvas = page.locator(".react-flow");
@@ -106,7 +99,12 @@ test.describe("Canvas Visual Regression", () => {
 		await addTrustBoundary(page);
 		await addPaletteItem(page, "palette-item-web-server");
 		await addPaletteItem(page, "palette-item-sql-database");
+		await page.locator(".react-flow__controls-fitview").click();
 		await waitForCanvasSettled(page, 3);
+		const nodes = page.locator("[data-testid^='node-']");
+		const first = await nodes.nth(0).boundingBox();
+		const second = await nodes.nth(1).boundingBox();
+		expect(first && second && second.y >= first.y + first.height).toBe(true);
 
 		const canvas = page.locator(".react-flow");
 		await expect(canvas).toHaveScreenshot("canvas-elements-with-boundary.png", {
@@ -117,6 +115,7 @@ test.describe("Canvas Visual Regression", () => {
 	test("selected element visual state matches baseline", async ({ page }) => {
 		await addPaletteItem(page, "palette-item-web-server");
 		await addPaletteItem(page, "palette-item-sql-database");
+		await page.locator(".react-flow__controls-fitview").click();
 
 		// Select the first node
 		const firstNode = page.locator("[data-testid^='node-']").first();
@@ -132,3 +131,50 @@ test.describe("Canvas Visual Regression", () => {
 		});
 	});
 });
+
+for (const colorScheme of ["light", "dark"] as const) {
+	test(`AI and Settings controls match the ${colorScheme} baselines`, async ({ page }) => {
+		await page.emulateMedia({ colorScheme });
+		await page.goto("/app");
+		await openDocument(page, "tests/fixtures/thf/architecture-canonical-full.thf");
+		await page.getByRole("tab", { name: "AI", exact: true }).click();
+		const inspector = page.getByTestId("right-panel");
+		await expect(inspector.getByRole("button", { name: "Configure API Key" })).toBeVisible();
+		await expect(inspector).toHaveScreenshot(`inspector-ai-${colorScheme}.png`);
+		await page.getByTestId("btn-settings-dialog").click();
+		const settings = page.getByRole("dialog", { name: "Settings" });
+		await expect(settings.getByRole("switch", { name: "Autosave" })).toBeVisible();
+		await expect(settings).toHaveScreenshot(`settings-controls-${colorScheme}.png`);
+	});
+
+	test(`selected component inspector matches the ${colorScheme} baseline`, async ({ page }) => {
+		await page.emulateMedia({ colorScheme });
+		await page.goto("/app");
+		await openDocument(page, "tests/fixtures/thf/architecture-canonical-full.thf");
+		await page.getByTestId("node-web-app").click();
+		const inspector = page.getByTestId("right-panel");
+		await expect(inspector.getByRole("heading", { name: "Web Application" })).toBeVisible();
+		await expect(inspector).toHaveScreenshot(`inspector-properties-${colorScheme}.png`);
+		await page.getByTestId("node-api-gateway").click();
+		const appearance = inspector.locator("section").filter({
+			has: page.getByRole("heading", { name: "Appearance", exact: true }),
+		});
+		await expect(appearance.getByLabel("Fill Color", { exact: true })).toHaveValue("#3b82f6");
+		await expect(appearance).toHaveScreenshot(`inspector-appearance-${colorScheme}.png`);
+	});
+
+	test(`architecture canvas and minimap match the ${colorScheme} baseline`, async ({ page }) => {
+		await page.emulateMedia({ colorScheme });
+		await page.goto("/app");
+		await openDocument(page, "tests/fixtures/thf/architecture-canonical-full.thf");
+		await page.getByRole("button", { name: "Show minimap" }).click();
+		await page.locator(".react-flow__controls-fitview").click();
+		await waitForCanvasSettled(page, 7);
+		await expect(page.locator(".react-flow")).toHaveScreenshot(
+			`canvas-architecture-${colorScheme}.png`,
+			{
+				maxDiffPixelRatio: 0.01,
+			},
+		);
+	});
+}

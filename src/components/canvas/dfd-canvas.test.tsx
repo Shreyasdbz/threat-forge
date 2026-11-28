@@ -1,4 +1,5 @@
 import { act, render } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 interface Vp {
@@ -38,12 +39,23 @@ const rf = vi.hoisted(() => {
 });
 
 vi.mock("@xyflow/react", () => ({
-	ReactFlow: ({ children }: { children?: React.ReactNode }) => (
-		<div data-testid="react-flow">{children}</div>
+	ReactFlow: ({
+		children,
+		snapToGrid,
+		snapGrid,
+	}: {
+		children?: React.ReactNode;
+		snapToGrid: boolean;
+		snapGrid: [number, number];
+	}) => (
+		<div data-testid="react-flow" data-snap={snapToGrid} data-grid={snapGrid.join(",")}>
+			{children}
+		</div>
 	),
 	Background: () => null,
 	BackgroundVariant: { Dots: "dots" },
 	Controls: () => null,
+	ControlButton: () => null,
 	MiniMap: () => null,
 	SelectionMode: { Partial: "partial" },
 	Handle: () => null,
@@ -67,6 +79,7 @@ import { useCanvasStore } from "@/stores/canvas-store";
 import { useDocumentRegistry } from "@/stores/document-registry";
 import { createDocumentStores, setActiveStores } from "@/stores/document-stores";
 import { useModelStore } from "@/stores/model-store";
+import { useSettingsStore } from "@/stores/settings-store";
 import type { Element, ThreatModel } from "@/types/threat-model";
 import { DfdCanvas } from "./dfd-canvas";
 
@@ -107,9 +120,43 @@ beforeEach(() => {
 
 afterEach(() => {
 	globalThis.requestAnimationFrame = originalRaf;
+	useSettingsStore.getState().resetToDefaults();
+});
+
+it("applies live grid snapping preferences to node dragging", () => {
+	const { getByTestId } = render(<DfdCanvas />);
+	const canvas = getByTestId("react-flow");
+	expect(canvas.getAttribute("data-snap")).toBe("true");
+	expect(canvas.getAttribute("data-grid")).toBe("16,16");
+
+	act(() => {
+		useSettingsStore.getState().updateSetting("gridSize", 24);
+		useSettingsStore.getState().updateSetting("gridSnap", false);
+	});
+	expect(canvas.getAttribute("data-grid")).toBe("24,24");
+	expect(canvas.getAttribute("data-snap")).toBe("false");
 });
 
 describe("DfdCanvas viewport on activation (#54 step 7)", () => {
+	it("projects and fits only once when React replays the initial effect", () => {
+		const stores = createDocumentStores();
+		stores.model.getState().setModel(makeModel("Restored", [elementFixture]), null);
+		const sync = vi.spyOn(stores.canvas.getState(), "syncFromModel");
+		setActiveStores(stores);
+
+		render(
+			<StrictMode>
+				<DfdCanvas />
+			</StrictMode>,
+		);
+		expect(sync).toHaveBeenCalledTimes(1);
+		expect(rf.fitView).toHaveBeenCalledTimes(1);
+
+		act(() => stores.model.getState().updateElement("comp-1", { name: "Renamed" }));
+		expect(sync).toHaveBeenCalledTimes(2);
+		expect(rf.fitView).toHaveBeenCalledTimes(1);
+	});
+
 	it("fits the view for an imported document with no inline positions, never inheriting the previous document's viewport", () => {
 		const registry = useDocumentRegistry.getState();
 		registry.createDocument({ model: makeModel("A"), filePath: "/a.thf", pendingLayout: null });

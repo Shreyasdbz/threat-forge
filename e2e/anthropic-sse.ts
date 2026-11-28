@@ -24,7 +24,7 @@ export function sse(frames: SseFrame[]): string {
 export const MODEL = "claude-sonnet-5";
 
 /** One assistant turn that calls add_element for a "Cache" process. */
-export function addElementResponse(): string {
+export function addElementResponse(name = "Cache", callId = "call_1"): string {
 	return sse([
 		{
 			event: "message_start",
@@ -42,7 +42,7 @@ export function addElementResponse(): string {
 			event: "content_block_start",
 			data: {
 				index: 1,
-				content_block: { type: "tool_use", id: "call_1", name: "add_element", input: {} },
+				content_block: { type: "tool_use", id: callId, name: "add_element", input: {} },
 			},
 		},
 		{
@@ -53,7 +53,7 @@ export function addElementResponse(): string {
 					type: "input_json_delta",
 					partial_json: JSON.stringify({
 						action: "add_element",
-						element: { type: "process", name: "Cache" },
+						element: { type: "process", name },
 					}),
 				},
 			},

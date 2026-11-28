@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractDisplayContent, stripBlocksForStreaming } from "@/components/panels/ai-chat-tab";
+import { extractDisplayContent, stripBlocksForStreaming } from "@/lib/ai/display-content";
 
 describe("extractDisplayContent", () => {
 	it("extracts text from response tags", () => {

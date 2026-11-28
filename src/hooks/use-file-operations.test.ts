@@ -16,6 +16,7 @@ const adapter = vi.hoisted(() => ({
 	openLayout: vi.fn(),
 	saveLayout: vi.fn(),
 	exportAsHtml: vi.fn(),
+	exportAsMarkdown: vi.fn(),
 	confirmDiscard: vi.fn(),
 }));
 
@@ -56,6 +57,26 @@ beforeEach(() => {
 });
 
 describe("useFileOperations lifecycle through the document registry", () => {
+	it("exports the unsaved model as a Markdown review without saving it", async () => {
+		const model = makeModel("Updated Review");
+		adapter.createNewModel.mockResolvedValue(model);
+		const { result } = renderHook(() => useFileOperations());
+		await act(async () => {
+			await result.current.newModel();
+			useModelStore.getState().updateMetadata({ description: "Unsaved review details" });
+		});
+		await act(async () => {
+			await result.current.exportAsMarkdown();
+		});
+		expect(adapter.exportAsMarkdown).toHaveBeenCalledWith(
+			expect.objectContaining({
+				metadata: expect.objectContaining({ description: "Unsaved review details" }),
+			}),
+			"updated-review",
+		);
+		expect(adapter.saveThreatModel).not.toHaveBeenCalled();
+	});
+
 	it("New opens an active registry document with a clean history and no file path", async () => {
 		adapter.createNewModel.mockResolvedValue(makeModel("Untitled Threat Model"));
 		const { result } = renderHook(() => useFileOperations());
@@ -105,6 +126,41 @@ describe("useFileOperations lifecycle through the document registry", () => {
 		expect(useHistoryStore.getState().past).toHaveLength(1);
 	});
 
+	it("passes the current native source snapshot to Save As and adopts the saved snapshot", async () => {
+		adapter.openThreatModel.mockResolvedValue({
+			model: makeModel("Source"),
+			path: "/source.thf",
+			revision: "source-revision",
+			sourceYaml: "source snapshot",
+		});
+		const { result } = renderHook(() => useFileOperations());
+		await act(async () => {
+			await result.current.openModel();
+		});
+
+		adapter.saveThreatModel.mockResolvedValueOnce({
+			path: "/copy.thf",
+			revision: "copy-revision",
+			sourceYaml: "copy snapshot",
+		});
+		await act(async () => {
+			await result.current.saveModelAs();
+		});
+
+		expect(adapter.saveThreatModel).toHaveBeenCalledWith(
+			expect.objectContaining({ metadata: expect.objectContaining({ title: "Source" }) }),
+			"/source.thf",
+			"source-revision",
+			true,
+			"source snapshot",
+		);
+		expect(useModelStore.getState()).toMatchObject({
+			filePath: "/copy.thf",
+			fileRevision: "copy-revision",
+			sourceYaml: "copy snapshot",
+		});
+	});
+
 	it("Open adds a new active tab and leaves the edited previous document open (#54 step 6)", async () => {
 		adapter.createNewModel.mockResolvedValue(makeModel("First"));
 		const { result } = renderHook(() => useFileOperations());
@@ -139,6 +195,34 @@ describe("useFileOperations lifecycle through the document registry", () => {
 		expect(firstStores?.history.getState().past).toHaveLength(1);
 		// Opening is no longer destructive, so nothing is confirmed.
 		expect(adapter.confirmDiscard).not.toHaveBeenCalled();
+	});
+
+	it("keeps the opened revision through canvas edits and leaves a conflicted save dirty", async () => {
+		const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+		adapter.openThreatModel.mockResolvedValue({
+			model: makeModel("Opened"),
+			path: "/opened.thf",
+			revision: "revision-1",
+		});
+		adapter.saveThreatModel.mockRejectedValueOnce("The document changed on disk.");
+		const { result } = renderHook(() => useFileOperations());
+		await act(async () => {
+			await result.current.openModel();
+		});
+		act(() => {
+			useCanvasStore.getState().addElement("web_server", { x: 0, y: 0 });
+		});
+		await act(async () => {
+			expect(await result.current.saveModel()).toBe(false);
+		});
+		expect(adapter.saveThreatModel).toHaveBeenLastCalledWith(
+			expect.anything(),
+			"/opened.thf",
+			"revision-1",
+		);
+		expect(useModelStore.getState().isDirty).toBe(true);
+		expect(alert).toHaveBeenCalledWith("Save failed: The document changed on disk.");
+		alert.mockRestore();
 	});
 
 	it("Import adds a new unsaved tab, leaving the previous document open (#54 step 6)", async () => {

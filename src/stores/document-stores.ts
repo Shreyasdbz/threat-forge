@@ -2,6 +2,7 @@ import { type UseBoundStore, useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { type CanvasState, createCanvasStore } from "./canvas-store-factory";
 import { createHistoryStore, type HistoryState } from "./history-store-factory";
+import { createInterviewStore } from "./interview-store";
 import { createModelStore, type ModelState } from "./model-store-factory";
 
 /**
@@ -13,6 +14,8 @@ export interface DocumentStores {
 	model: StoreApi<ModelState>;
 	canvas: StoreApi<CanvasState>;
 	history: StoreApi<HistoryState>;
+	interview: ReturnType<typeof createInterviewStore>;
+	pendingDrafts: Set<string>;
 }
 
 /** Build a fresh, fully wired bundle. History first, then model, then canvas. */
@@ -20,7 +23,7 @@ export function createDocumentStores(): DocumentStores {
 	const history = createHistoryStore();
 	const model = createModelStore({ history });
 	const canvas = createCanvasStore({ model, history });
-	return { model, canvas, history };
+	return { model, canvas, history, interview: createInterviewStore(), pendingDrafts: new Set() };
 }
 
 /**

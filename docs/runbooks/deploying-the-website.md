@@ -41,7 +41,7 @@ manual deployment is a break-glass owner operation:
 ```bash
 git switch main
 git pull --ff-only
-git diff --exit-code
+test -z "$(git status --porcelain)" || exit 1
 npm run deploy:web
 ```
 

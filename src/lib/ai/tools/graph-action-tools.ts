@@ -17,17 +17,14 @@
 import type { PreparedCallResult, RegisteredTool } from "@/lib/ai/loop/tool-runtime";
 import { canonicalJson } from "@/lib/ai/loop/tool-runtime";
 import { LEGACY_ACTION_TOOLS } from "@/lib/ai/schemas/actions";
-import { applyAction } from "@/lib/ai-action-executor";
+import {
+	applyAction,
+	describeActionReview,
+	isDestructiveAction,
+	reviewDeletion,
+} from "@/lib/ai-action-executor";
 import { type AiAction, describeAction } from "@/lib/ai-actions";
 import type { ThreatModel } from "@/types/threat-model";
-
-/** The four actions that destroy information, and so are never batch-approved. */
-const DESTRUCTIVE_ACTIONS = new Set<string>([
-	"delete_element",
-	"delete_data_flow",
-	"delete_trust_boundary",
-	"delete_threat",
-]);
 
 /** Result contract v1: creation returns the new entity's ID for dependent calls. */
 function actionResult(action: AiAction, next: ThreatModel): string {
@@ -80,20 +77,34 @@ export const GRAPH_ACTION_TOOLS: readonly RegisteredTool[] = LEGACY_ACTION_TOOLS
 		name: definition.name,
 		description: definition.description,
 		effect: "mutate",
-		destructive: DESTRUCTIVE_ACTIONS.has(definition.name),
+		destructive: isDestructiveAction(definition.name),
+		stageable: true,
 		jsonSchema: definition.jsonSchema,
-		prepare(raw: unknown): PreparedCallResult {
+		prepare(raw: unknown, reviewDocument?: ThreatModel | null): PreparedCallResult {
 			const parsed = definition.parseInput(raw);
 			if (!parsed.ok) return { ok: false, issues: parsed.issues };
 
 			const action: AiAction = parsed.value;
+			const impact = reviewDeletion(action, reviewDocument ?? null);
+			const reviewedImpact = canonicalJson(impact);
 			return {
 				ok: true,
 				call: {
-					summary: describeAction(action),
+					summary: describeActionReview(action, impact),
 					inputDigest: canonicalJson(action),
 					run: async (ctx) => {
-						const next = applyAction(ctx.document, action);
+						if (
+							reviewDocument !== undefined &&
+							isDestructiveAction(action.action) &&
+							canonicalJson(reviewDeletion(action, ctx.document)) !== reviewedImpact
+						) {
+							return {
+								status: "error",
+								result:
+									"The document changed after this deletion was proposed. Request a new proposal.",
+							};
+						}
+						const next = applyAction(ctx.document, action, ctx.allocateId);
 						if (next === null) return { status: "error", result: unresolvedMessage(action) };
 						return { status: "ok", result: actionResult(action, next), document: next };
 					},

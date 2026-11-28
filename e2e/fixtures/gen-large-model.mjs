@@ -4,7 +4,7 @@
  *
  * Not wired into any npm script or CI step — run manually to regenerate:
  *
- *   node e2e/fixtures/gen-large-model.mjs
+ *   node e2e/fixtures/gen-large-model.mjs [--fit]
  *
  * Shape (do not change without updating docs/plans/65-browser-workspace-fixtures.md D8 and
  * bumping `WORKSPACE_FIXTURE_VERSION` in `e2e/support/workspace-fixtures.ts`):
@@ -35,9 +35,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dump } from "js-yaml";
 
-const COLUMNS = 15;
-const ROWS = 10;
-const ELEMENT_COUNT = COLUMNS * ROWS; // 150
+const fitFixture = process.argv.includes("--fit");
+const COLUMNS = fitFixture ? 24 : 15;
+const ROWS = fitFixture ? 15 : 10;
+const ELEMENT_COUNT = COLUMNS * ROWS;
 const FLOW_COUNT = 100;
 const COLUMN_SPACING = 220;
 const ROW_SPACING = 160;
@@ -122,7 +123,10 @@ function main() {
 	].join("\n");
 
 	const body = dump(buildModel(), { lineWidth: 100 });
-	const outPath = join(dirname(fileURLToPath(import.meta.url)), "large-model.thf");
+	const outPath = join(
+		dirname(fileURLToPath(import.meta.url)),
+		fitFixture ? "fit-360-model.thf" : "large-model.thf",
+	);
 	writeFileSync(outPath, `${header}${body}`, "utf-8");
 	console.log(`Wrote ${outPath}`);
 }
