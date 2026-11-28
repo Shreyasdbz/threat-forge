@@ -7,7 +7,7 @@
 
 use crate::models::{
     DataFlow, Diagram, Element, Metadata, Mitigation, MitigationStatus, Position, Severity, Size,
-    StrideCategory, Threat, ThreatModel, TrustBoundary, Viewport,
+    StrideCategory, Threat, ThreatModel, TrustBoundary,
 };
 use quick_xml::escape::resolve_predefined_entity;
 use quick_xml::events::{BytesRef, BytesStart, Event};
@@ -360,11 +360,7 @@ pub fn parse_tm7(xml: &str) -> Result<ThreatModel, Tm7Error> {
             kind: None,
             description: None,
             layout_file: None,
-            viewport: Some(Viewport {
-                x: 0.0,
-                y: 0.0,
-                zoom: 1.0,
-            }),
+            viewport: None,
             sequence: None,
         }],
     })

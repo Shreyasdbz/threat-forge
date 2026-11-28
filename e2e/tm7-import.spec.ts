@@ -1,6 +1,7 @@
 import { expect, test } from "./fixtures";
 
 test("imports the native TM7 reference fixture into a new browser tab", async ({ page }) => {
+	await page.setViewportSize({ width: 1280, height: 775 });
 	await page.goto("/app");
 	const [chooser] = await Promise.all([
 		page.waitForEvent("filechooser"),
@@ -14,6 +15,14 @@ test("imports the native TM7 reference fixture into a new browser tab", async ({
 	).toBeVisible();
 	await expect(page.getByTestId("node-payments-billing-api")).toBeVisible();
 	await expect(page.getByText("Browse & Checkout", { exact: true })).toBeVisible();
+	const canvas = page.locator(".react-flow");
+	const database = canvas.getByTestId("node-billing-database");
+	await expect
+		.poll(async () => {
+			const [area, node] = await Promise.all([canvas.boundingBox(), database.boundingBox()]);
+			return area != null && node != null && node.x + node.width <= area.x + area.width;
+		})
+		.toBe(true);
 	await page.getByTestId("tab-threats").click();
 	await expect(
 		page.getByText('SQL Injection against "Billing Database"', { exact: true }),
