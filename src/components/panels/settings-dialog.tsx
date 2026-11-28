@@ -505,16 +505,20 @@ function NumberInput({
 	max: number;
 	onChange: (value: number) => void;
 }) {
+	const [draft, setDraft] = useState<string | null>(null);
+
 	return (
 		<Input
 			type="number"
 			aria-label={label}
-			value={value}
+			value={draft ?? value}
 			min={min}
 			max={max}
+			onBlur={() => setDraft(null)}
 			onChange={(e) => {
-				const parsed = Number.parseInt(e.target.value, 10);
-				if (!Number.isNaN(parsed) && parsed >= min && parsed <= max) {
+				setDraft(e.target.value);
+				const parsed = e.target.valueAsNumber;
+				if (Number.isInteger(parsed) && parsed >= min && parsed <= max) {
 					onChange(parsed);
 				}
 			}}
