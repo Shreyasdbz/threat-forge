@@ -352,6 +352,28 @@ describe("cross-file consistency", () => {
 		).toEqual(["playwright-report/", "test-results/"]);
 	});
 
+	it("the Test job uploads export parity traces even when a retry passes", () => {
+		const ci = load(readRepoFile(".github/workflows/ci.yml"));
+		const steps = ci.jobs.test.steps;
+		const exportIndex = steps.findIndex((step) => step.id === "export-parity");
+		const summaryIndex = steps.findIndex((step) => step.id === "summarize-export-parity");
+		const uploadIndex = steps.findIndex(
+			(step) => step.name === "Upload export parity failure evidence",
+		);
+		expect(exportIndex).toBeGreaterThan(-1);
+		expect(summaryIndex).toBeGreaterThan(exportIndex);
+		expect(uploadIndex).toBeGreaterThan(summaryIndex);
+		expect(steps[summaryIndex]).toMatchObject({
+			if: "always()",
+			run: "node scripts/summarize-playwright.mjs",
+		});
+		expect(steps[uploadIndex].if).toContain("failure()");
+		expect(steps[uploadIndex].if).toContain(
+			"|| steps.summarize-export-parity.outputs['has-flaky'] == 'true'",
+		);
+		expect(steps[uploadIndex].with.path).toContain("test-results/");
+	});
+
 	it("the runbook is discoverable from README and CONTRIBUTING", () => {
 		const runbookRelativePath = "docs/runbooks/running-agent-e2e-scenarios.md";
 		expect(existsSync(runbookPath)).toBe(true);
